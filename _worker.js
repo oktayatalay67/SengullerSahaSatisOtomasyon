@@ -1,12 +1,14 @@
 /**
  * _worker.js — Şengüller Saha Satış
- * Statik dosyaları serve eder.
- * Cloudflare Workers + Static Assets (wrangler assets) ile çalışır.
+ * Cloudflare Workers Static Assets serving
  */
 export default {
-  async fetch(request, env) {
-    // env.ASSETS: Cloudflare'in static asset binding'i
-    // Tüm istekleri statik klasöre yönlendir
-    return env.ASSETS.fetch(request);
+  async fetch(request, env, ctx) {
+    // Static assets varsa serve et
+    if (env.ASSETS) {
+      return env.ASSETS.fetch(request);
+    }
+    // Fallback: doğrudan fetch
+    return fetch(request);
   }
 };
