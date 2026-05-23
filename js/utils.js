@@ -85,14 +85,6 @@ function renderLogSection(tabloAdi, kayitId, logs, containerId){
   </div>`;
 }
 
-async function downloadTemasExcel(){
-  const data = window._lastReportData;
-  const custMap = window._lastReportCustMap||{};
-  if(!data||!data.length){toast('Önce raporu getirin','error');return;}
-  toast('Excel hazırlanıyor...','success');
-
-  // KÇM filtresi
-  const kcmFilter=document.getElementById('repKcmFilter')?.value||'';
 
 /* ===== NAVİGASYON ===== */
 /* ===== NAVİGASYON ===== */
@@ -157,3 +149,5 @@ function closeModal(id){document.getElementById(id).classList.remove('show');}
 function openModal(id){document.getElementById(id).classList.add('show');}
 function toast(msg,type='info'){const c=document.getElementById('toastContainer');const t=document.createElement('div');t.className='toast '+type;t.innerHTML=msg;c.appendChild(t);setTimeout(()=>t.remove(),3800);}
 
+
+// v30.41 utils loaded

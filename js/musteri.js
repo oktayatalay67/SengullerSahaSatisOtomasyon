@@ -486,7 +486,7 @@ function getFirsatUrunData(){return _urunSatiriGetData('firsatUrunListesi',false
 
 
 // ===== PORTFÖY YÖNETİMİ =====
-let portfoyData = [];
+// portfoyData rapor.js'de tanımlı
 
 
 /* ===== MÜŞTERİ MODÜLÜ ===== */
