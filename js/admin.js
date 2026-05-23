@@ -1185,6 +1185,28 @@ function renderKullanicilar(liste){
   c.innerHTML=renderGrup('Aktif Kullanıcılar','✅',aktifler,'--green')+renderGrup('Pasif Kullanıcılar','🔴',pasifler,'--red');
 }
 
+// Rolleri DB'den yükle ve select'i doldur
+async function loadRollerSelect(secilenGorev=''){
+  const sel=document.getElementById('kullGorevTanimi');
+  if(!sel) return;
+  try{
+    const{data,error}=await sb.from('roles').select('role_id,role_adi,aciklama').order('role_adi');
+    if(error||!data||data.length===0){
+      // Fallback: PERM matrisindeki roller
+      const fallbackRoller=['ADMIN','SATIŞ KOORDİNATÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ',
+        'TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ','ÇÖZÜM SATIŞ UZMANI',
+        'ÇÖZÜM SATIŞ TEMSİLCİSİ','MY'];
+      sel.innerHTML='<option value="">-- Görev Seçin --</option>'+
+        fallbackRoller.map(r=>`<option value="${escapeHTML(r)}" ${r===secilenGorev?'selected':''}>${escapeHTML(r)}</option>`).join('');
+      return;
+    }
+    sel.innerHTML='<option value="">-- Görev Seçin --</option>'+
+      data.map(r=>`<option value="${escapeHTML(r.role_adi)}" ${r.role_adi===secilenGorev?'selected':''}>${escapeHTML(r.role_adi)}${r.aciklama?' — '+escapeHTML(r.aciklama):''}</option>`).join('');
+  }catch(e){
+    console.warn('Roller yüklenemedi:',e);
+  }
+}
+
 async function openAddKullaniciModal(){
   document.getElementById('modalKullaniciTitle').textContent='Yeni Kullanıcı';
   document.getElementById('editKullId').value='';
@@ -1197,12 +1219,9 @@ async function openAddKullaniciModal(){
   document.getElementById('kullSifreTekrar').value='';
   document.getElementById('kullSifreInfo').classList.add('hide');
   document.getElementById('kullSifreZorunlu').style.display='';
-  const gtEl2=document.getElementById('kullGorevTanimi');
-  if(gtEl2) gtEl2.value='';
+  await loadRollerSelect('');
   await loadTakimLiderleri(null);
-  // KÇM select doldur
   fillKcmSelect('kullKcmId');
-  // Aktif toggle - başlangıçta aktif
   kullAktifDurum=true;
   updateKullAktifToggle();
   openModal('modalKullanici');
@@ -1220,11 +1239,9 @@ async function openEditKullaniciModal(userId){
   document.getElementById('kullSifreTekrar').value='';
   document.getElementById('kullSifreInfo').classList.remove('hide');
   document.getElementById('kullSifreZorunlu').style.display='none';
-  const gtEl=document.getElementById('kullGorevTanimi');
-  if(gtEl) gtEl.value=u.gorev_tanimi||'';
-  // Takım liderleri listesini doldur
+  // Görev tanımını DB'den yükle, mevcut değeri seç
+  await loadRollerSelect(u.gorev_tanimi||u.yetki_seviyesi||'');
   await loadTakimLiderleri(u.takim_lideri_id||null);
-  // KÇM select doldur ve seç
   fillKcmSelect('kullKcmId');
   document.getElementById('kullKcmId').value=u.kcm_id||'';
   document.getElementById('kullYetki').value=u.yetki_seviyesi||u.role||'MY';
@@ -1284,6 +1301,8 @@ async function saveKullanici(){
   const kcmId=document.getElementById('kullKcmId').value||null;
   const yetki=document.getElementById('kullYetki').value;
   const gorevTanimi=document.getElementById('kullGorevTanimi')?.value.trim()||null;
+  // Görev tanımı seçildiyse yetki_seviyesi ile senkronize et
+  const efektifYetki = gorevTanimi || yetki;
   const sifre=document.getElementById('kullSifre').value;
   const sifreTekrar=document.getElementById('kullSifreTekrar').value;
   if(!adSoyad||!email){toast('Ad Soyad ve E-Posta zorunlu','error');return;}
@@ -1297,7 +1316,7 @@ async function saveKullanici(){
   const payload={
     ad_soyad:adSoyad,email,telefon:telefon||null,
     kcm_id:kcmId?parseInt(kcmId):null,kcm_adi:kcmAdi,
-    yetki_seviyesi:yetki,role:yetki,aktif:kullAktifDurum,
+    yetki_seviyesi:efektifYetki,role:efektifYetki,aktif:kullAktifDurum,
     gorev_tanimi:gorevTanimi,
     takim_lideri_id:takimLideriId?parseInt(takimLideriId):null
   };
