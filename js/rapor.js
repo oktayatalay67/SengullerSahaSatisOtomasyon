@@ -1,5 +1,13 @@
 'use strict';
 /* ===== RAPOR & EXCEL ===== */
+async function downloadTemasExcel(){
+  const data = window._lastReportData;
+  const custMap = window._lastReportCustMap||{};
+  if(!data||!data.length){toast('Önce raporu getirin','error');return;}
+  toast('Excel hazırlanıyor...','success');
+
+  // KÇM filtresi
+  const kcmFilter=document.getElementById('repKcmFilter')?.value||'';
 
   // Müşteri detayları
   const ncstList=[...new Set(data.map(v=>v.ncst))];
@@ -624,4 +632,3 @@ async function saveSifre(){
     toast('Şifre güncellendi ✅','success');
   }catch(e){toast('Hata: '+e.message,'error');}
 }
-
