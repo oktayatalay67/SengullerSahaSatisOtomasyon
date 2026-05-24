@@ -73,7 +73,7 @@ let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)
 async function loadKcmMyIds(){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
   const kcmRoller=['KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','ÇÖZÜM SATIŞ TEMSİLCİSİ','ÇÖZÜM SATIŞ UZMANI','TURKCELL BÖLGE YÖNETİCİSİ','MY','USER'];
-  const full=['ADMIN','SATIŞ KOORDİNATÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
+  const full=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
   // Tüm kullanıcıları yükle - my_id → ad_soyad map
   // v30.20: Pasif kullanıcılar da myIdToName'e ekleniyor — eski kayıtlarda adları görünsün
   const{data:allUsers}=await sb.from('users').select('my_id,ad_soyad,kcm_id,aktif');
@@ -103,7 +103,7 @@ function loadDashboard(){
 // Supabase OR: kcm_id eşleşir VEYA musteri_my_id bu KÇM'nin MY listesindedir
 function applyRBAC(q,prefix=''){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  const full=['ADMIN','SATIŞ KOORDİNATÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
+  const full=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
   if(full.includes(r)) return q;
   if(r==='MY'||r==='FMY'||r==='USER'){
     // MY: kendi girdiği VEYA portföyündeki müşteriye girilen kayıtlar

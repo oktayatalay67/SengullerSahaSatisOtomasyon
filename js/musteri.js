@@ -179,7 +179,7 @@ function setRepPeriod(p,el){
 
 async function initTemasRapor(){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  const full=['ADMIN','SATIŞ KOORDİNATÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
+  const full=['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
   const myRoller=['MY','FMY','USER'];
 
   // KÇM - sadece admin/koordinatör
@@ -945,7 +945,7 @@ async function loadKontaklar(searchVal=''){
   c.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   try{
     const r = (currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-    const full = ['ADMIN','SATIŞ KOORDİNATÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
+    const full = ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
     const kcm = ['KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','ÇÖZÜM SATIŞ TEMSİLCİSİ','ÇÖZÜM SATIŞ UZMANI','TURKCELL BÖLGE YÖNETİCİSİ'];
     // Önce erişilebilir müşteri NCST'lerini al
     let ncstList = null;

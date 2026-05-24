@@ -346,7 +346,7 @@ async function buildHedefGorunumBar(){
   const btnlar=document.getElementById('hedefGorunumBtnlar');
   if(!bar||!btnlar)return;
   
-  const full=['ADMIN','SATIŞ KOORDİNATÖRÜ'];
+  const full=['ADMIN','SATIŞ DİREKTÖRÜ'];
   const kcmRol=['KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
   const takimRol=['TAKIM LİDERİ','SATIŞ DESTEK'];
   

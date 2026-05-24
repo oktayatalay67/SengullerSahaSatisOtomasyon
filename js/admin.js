@@ -443,7 +443,7 @@ async function adminTalepOkunmamisSayisi(){
 // ===== EVRAK ONAY AKIŞI =====
 async function evrakOnayla(oppId){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  if(!['ADMIN','SATIŞ DESTEK','SATIŞ KOORDİNATÖRÜ'].includes(r)){
+  if(!['ADMIN','SATIŞ DESTEK','SATIŞ DİREKTÖRÜ'].includes(r)){
     toast('Bu işlem için Satış Destek yetkisi gereklidir','error');return;
   }
   // Fırsat bilgilerini çek
@@ -509,7 +509,7 @@ async function hedefeOtomatikIsle(opp, myId){
 // Müdür/Takım Lideri - kimin hedefine sayılacağını seçer
 async function mudurOnayiVer(oppId, secilenMyId){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ KOORDİNATÖRÜ'].includes(r)){
+  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
   if(!confirm((myIdToName[secilenMyId]||secilenMyId)+' adlı kişinin hedefine sayılacak. Onayla?')) return;
@@ -540,7 +540,7 @@ async function iptalBaslat(oppId){
 // Müdür/Takım Lideri iptal onayı
 async function iptalOnayla(oppId){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ KOORDİNATÖRÜ'].includes(r)){
+  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
   if(!confirm('İptal onaylanacak. Devam?')) return;
@@ -557,7 +557,7 @@ async function iptalOnayla(oppId){
 // İptal reddet
 async function iptalReddet(oppId){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ KOORDİNATÖRÜ'].includes(r)){
+  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
   if(!confirm('İptal talebi reddedilecek. Devam?')) return;
@@ -570,7 +570,7 @@ async function iptalReddet(oppId){
 
 function isAdmin(){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  return r==='ADMIN'||r==='SATIŞ KOORDİNATÖRÜ';
+  return r==='ADMIN'||r==='SATIŞ DİREKTÖRÜ';
 }
 
 
@@ -677,7 +677,7 @@ async function deleteKontakFromForm(contactId, adSoyad){
   if(!confirm(adSoyad+' silinecek. Onaylıyor musunuz?')) return;
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
   let error;
-  if(r==='ADMIN'||r==='SATIŞ KOORDİNATÖRÜ'){
+  if(r==='ADMIN'||r==='SATIŞ DİREKTÖRÜ'){
     // Admin: tamamen sil
     ({error}=await sb.from('contacts').delete().eq('contact_id',contactId));
   } else {
@@ -1193,9 +1193,9 @@ async function loadRollerSelect(secilenGorev=''){
     const{data,error}=await sb.from('roles').select('role_id,role_adi,aciklama').order('role_adi');
     if(error||!data||data.length===0){
       // Fallback: PERM matrisindeki roller
-      const fallbackRoller=['ADMIN','SATIŞ KOORDİNATÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ',
+      const fallbackRoller=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ',
         'TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ','ÇÖZÜM SATIŞ UZMANI',
-        'ÇÖZÜM SATIŞ TEMSİLCİSİ','MY'];
+        'ÇÖZÜM SATIŞ TEMSİLCİSİ','MY','FMY'];
       sel.innerHTML='<option value="">-- Görev Seçin --</option>'+
         fallbackRoller.map(r=>`<option value="${escapeHTML(r)}" ${r===secilenGorev?'selected':''}>${escapeHTML(r)}</option>`).join('');
       return;

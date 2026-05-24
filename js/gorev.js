@@ -74,7 +74,7 @@ async function loadGorevler(silent) {
 
   // Yönetici tümünü görür, diğerleri sadece ilgili olanları
   const r = (currentUser.yetki_seviyesi || '').toUpperCase();
-  const YETKILI = ['ADMIN','SATIŞ KOORDİNATÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','OPERASYON MÜDÜRÜ'];
+  const YETKILI = ['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','OPERASYON MÜDÜRÜ'];
   if (!YETKILI.includes(r)) {
     q = q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid);
   } else if (currentUser.kcm_id) {

@@ -136,7 +136,7 @@ let mrData = [];
 
 async function initMusteriRapor(){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  const fullRoller=['ADMIN','SATIŞ KOORDİNATÖRÜ'];
+  const fullRoller=['ADMIN','SATIŞ DİREKTÖRÜ'];
   const myRoller=['MY','FMY','USER'];
 
   // KÇM — sadece admin/koordinatör
@@ -240,8 +240,8 @@ async function fetchMusteriRapor(){
   mrData=[];
 
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  const fullRoller=['ADMIN','SATIŞ KOORDİNATÖRÜ'];
-  const genisCap=['ADMIN','SATIŞ KOORDİNATÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
+  const fullRoller=['ADMIN','SATIŞ DİREKTÖRÜ'];
+  const genisCap=['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
 
   const kcmVal=document.getElementById('mrKcmFilter')?.value||'';
   const takimVal=document.getElementById('mrTakimFilter')?.value||'';
@@ -416,7 +416,7 @@ async function parsePortfoyFile(input){
   const file = input.files[0];
   if(!file) return;
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  const yetkili=['ADMIN','SATIS KOORDINATORU','SATIŞ KOORDİNATÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ'];
+  const yetkili=['ADMIN','SATIŞ DİREKTÖRÜ','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ'];
   if(!yetkili.includes(r)){toast('Bu işlem için yetkiniz yok','error');return;}
   toast('Dosya okunuyor...','info');
   portfoyData = [];
@@ -632,3 +632,4 @@ async function saveSifre(){
     toast('Şifre güncellendi ✅','success');
   }catch(e){toast('Hata: '+e.message,'error');}
 }
+

@@ -129,7 +129,7 @@ async function selectNewCustomer(prefillUnvan=''){
   const ymKcmDiv=document.getElementById('ymKcmDiv');
   const ymKcmSel=document.getElementById('ymKcm');
   const _rYm=(currentUser.yetki_seviyesi||'').toUpperCase();
-  const isAdminKoord=['ADMIN','SATIŞ KOORDİNATÖRÜ'].includes(_rYm);
+  const isAdminKoord=['ADMIN','SATIŞ DİREKTÖRÜ'].includes(_rYm);
   if(ymKcmDiv) ymKcmDiv.style.display=isAdminKoord?'':'none';
   if(isAdminKoord&&ymKcmSel&&ymKcmSel.options.length<=1){
     const{data:kcmler}=await sb.from('kcm_groups').select('kcm_id,kcm_adi').order('kcm_id');
@@ -148,7 +148,7 @@ async function saveYeniMusteri(){
   const ncst = 'TMP' + Date.now();
   const _rSaveYm=(currentUser.yetki_seviyesi||'').toUpperCase();
   let ymKcmId=currentUser.kcm_id;
-  if(['ADMIN','SATIŞ KOORDİNATÖRÜ'].includes(_rSaveYm)){
+  if(['ADMIN','SATIŞ DİREKTÖRÜ'].includes(_rSaveYm)){
     const selKcm=parseInt(document.getElementById('ymKcm')?.value);
     if(!selKcm){toast('KÇM seçin','error');return;}
     ymKcmId=selKcm;
@@ -825,7 +825,7 @@ async function loadTemasDashboard(){
 async function initPersonelFiltre(cfg){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
   const MY_ROL=['MY','FMY','USER'];
-  const FULL_ROL=['ADMIN','SATIŞ KOORDİNATÖRÜ'];
+  const FULL_ROL=['ADMIN','SATIŞ DİREKTÖRÜ'];
   const TAKIM_ROL=['TAKIM LİDERİ'];
 
   const filterDiv=document.getElementById(cfg.filterDivId);
@@ -1109,7 +1109,7 @@ async function canEditVisit(visit){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
 
   // Admin/KÇM rolleri her zaman düzenleyebilir
-  if(['ADMIN','SATIŞ KOORDİNATÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ'].includes(r)) return true;
+  if(['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ'].includes(r)) return true;
 
   // MY / FMY / USER
   // v30.25: Kendi girdiği kayıt (my_id eşleşiyor) → 24 saat içinde düzenleyebilir

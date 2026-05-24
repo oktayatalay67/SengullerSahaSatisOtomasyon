@@ -293,7 +293,7 @@ async function openEditOppModal(oppId){
 
     // Evrak onay butonu - Satış Destek/Admin için, adım Evrak ise
     if(evrakOnayDiv){
-      const showEvrak=['ADMIN','SATIŞ DESTEK','SATIŞ KOORDİNATÖRÜ'].includes(_rOpp) && o.adim==='Evrak';
+      const showEvrak=['ADMIN','SATIŞ DESTEK','SATIŞ DİREKTÖRÜ'].includes(_rOpp) && o.adim==='Evrak';
       evrakOnayDiv.style.display=showEvrak?'':'none';
       const evrakBtn=document.getElementById('oppEvrakOnayBtn');
       if(evrakBtn) evrakBtn.onclick=()=>evrakOnayla(oppId);
@@ -301,7 +301,7 @@ async function openEditOppModal(oppId){
 
     // Müdür onay butonu - Müdür/Takım Lideri için, onay_durumu Müdür Onayı Bekleniyor ise
     if(mudurOnayDiv){
-      const showMudur=['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ KOORDİNATÖRÜ'].includes(_rOpp)
+      const showMudur=['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(_rOpp)
         && o.onay_durumu==='Müdür Onayı Bekleniyor';
       mudurOnayDiv.style.display=showMudur?'':'none';
       if(showMudur){
@@ -319,7 +319,7 @@ async function openEditOppModal(oppId){
 
     // İptal onay butonu - Müdür/Takım Lideri için
     if(iptalOnayDiv){
-      const showIptal=['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ KOORDİNATÖRÜ'].includes(_rOpp)
+      const showIptal=['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(_rOpp)
         && o.iptal_onay_durumu==='Bekliyor';
       iptalOnayDiv.style.display=showIptal?'':'none';
       const iptalOnayBtn=document.getElementById('oppIptalOnayBtn');
@@ -528,7 +528,7 @@ function setPrAdim(val,el){
 
 async function initPipelineRapor(){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  const full=['ADMIN','SATIŞ KOORDİNATÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
+  const full=['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
   const myRoller=['MY','FMY','USER'];
 
   // KÇM filtresi - sadece admin/koordinatör (birden fazla KÇM görebilen)
