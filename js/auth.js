@@ -62,7 +62,8 @@ async function initApp(){
   showPage('pageDash');
   loadDashboard();
   await loadProductsFromDB();
-  await loadKcmMyIds(); // KÇM müdürü ise KÇM'indeki MY'leri yükle
+  await loadKcmMyIds();
+  await loadBagliMyIds(); // KÇM müdürü ise KÇM'indeki MY'leri yükle
   await buildTemasUI();
   buildUrunSelects();
 }

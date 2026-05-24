@@ -26,117 +26,190 @@ const DEFAULT_PURPOSES=["Kontrat Yenileme","Yeni Tesis (YT) / Aktivasyon","MNT",
 // Değişiklik için Excel'i güncelleyin.
 
 const PERM = {
-  // Görüntüleme kapsamı: 'TÜM' | 'KÇM' | 'PRT'
+  // Görüntüleme kapsamı: 'TÜM' | 'KÇM' | 'BAĞLI' | 'PRT'
   scope: {
     musteri: {
       'ADMIN': 'TÜM',
-      'SATIŞ KOORDİNATÖRÜ': 'TÜM',
+      'SATIŞ DİREKTÖRÜ': 'TÜM',
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
-      'TAKIM LİDERİ': 'KÇM',
-      'SATIŞ DESTEK': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
-      'ÇÖZÜM SATIŞ UZMANI': 'KÇM',
-      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'KÇM',
-      'MY': 'KÇM',
+      'TAKIM LİDERİ': 'BAĞLI',
+      'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
+      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
+      'SATIŞ DESTEK': 'KÇM',
+      'MY': 'PRT',
+      'FMY': 'PRT',
     },
     temas: {
       'ADMIN': 'TÜM',
-      'SATIŞ KOORDİNATÖRÜ': 'TÜM',
+      'SATIŞ DİREKTÖRÜ': 'TÜM',
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
-      'TAKIM LİDERİ': 'KÇM',
-      'SATIŞ DESTEK': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
-      'ÇÖZÜM SATIŞ UZMANI': 'KÇM',
-      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'KÇM',
+      'TAKIM LİDERİ': 'BAĞLI',
+      'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
+      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
+      'SATIŞ DESTEK': 'KÇM',
       'MY': 'PRT',
+      'FMY': 'PRT',
     },
     firsat: {
       'ADMIN': 'TÜM',
-      'SATIŞ KOORDİNATÖRÜ': 'TÜM',
+      'SATIŞ DİREKTÖRÜ': 'TÜM',
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
-      'TAKIM LİDERİ': 'KÇM',
-      'SATIŞ DESTEK': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
-      'ÇÖZÜM SATIŞ UZMANI': 'KÇM',
-      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'KÇM',
+      'TAKIM LİDERİ': 'BAĞLI',
+      'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
+      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
+      'SATIŞ DESTEK': 'KÇM',
       'MY': 'PRT',
+      'FMY': 'PRT',
     },
     rapor_temas: {
       'ADMIN': 'TÜM',
-      'SATIŞ KOORDİNATÖRÜ': 'TÜM',
+      'SATIŞ DİREKTÖRÜ': 'TÜM',
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
-      'TAKIM LİDERİ': 'KÇM',
-      'SATIŞ DESTEK': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
-      'ÇÖZÜM SATIŞ UZMANI': 'KÇM',
-      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'KÇM',
+      'TAKIM LİDERİ': 'BAĞLI',
+      'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
+      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
+      'SATIŞ DESTEK': 'KÇM',
       'MY': 'PRT',
+      'FMY': 'PRT',
     },
     rapor_firsat: {
       'ADMIN': 'TÜM',
-      'SATIŞ KOORDİNATÖRÜ': 'TÜM',
+      'SATIŞ DİREKTÖRÜ': 'TÜM',
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
-      'TAKIM LİDERİ': 'KÇM',
-      'SATIŞ DESTEK': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
-      'ÇÖZÜM SATIŞ UZMANI': 'KÇM',
-      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'KÇM',
+      'TAKIM LİDERİ': 'BAĞLI',
+      'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
+      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
+      'SATIŞ DESTEK': 'KÇM',
       'MY': 'PRT',
+      'FMY': 'PRT',
+    },
+    gorev: {
+      'ADMIN': 'TÜM',
+      'SATIŞ DİREKTÖRÜ': 'TÜM',
+      'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
+      'KÇM MÜDÜRÜ': 'KÇM',
+      'OPERASYON MÜDÜRÜ': 'KÇM',
+      'TAKIM LİDERİ': 'BAĞLI',
+      'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
+      'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
+      'SATIŞ DESTEK': 'KÇM',
+      'MY': 'KÇM',
+      'FMY': 'KÇM',
     },
   },
 
-  // Boolean izinler: rol listesindeyse ✅
-  admin_panel: ['ADMIN'],
-  firsat_adim: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'OPERASYON MÜDÜRÜ', 'ÇÖZÜM SATIŞ UZMANI', 'ÇÖZÜM SATIŞ TEMSİLCİSİ', 'MY'],
-  firsat_baskasi_duzenle: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'OPERASYON MÜDÜRÜ'],
-  firsat_ekle: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'OPERASYON MÜDÜRÜ', 'ÇÖZÜM SATIŞ UZMANI', 'ÇÖZÜM SATIŞ TEMSİLCİSİ', 'MY'],
-  firsat_iptal_onayla: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ'],
-  firsat_iptal_talep: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'ÇÖZÜM SATIŞ UZMANI', 'ÇÖZÜM SATIŞ TEMSİLCİSİ', 'MY'],
-  hedef_excel: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ'],
-  hedef_giris: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ'],
-  hedef_kalem_yonet: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ'],
-  kontak_yonet: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'OPERASYON MÜDÜRÜ', 'ÇÖZÜM SATIŞ UZMANI', 'ÇÖZÜM SATIŞ TEMSİLCİSİ', 'MY'],
-  kullanici_yonet: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ'],
-  musteri_duzenle: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'OPERASYON MÜDÜRÜ'],
-  musteri_ekle: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'OPERASYON MÜDÜRÜ', 'MY'],
-  musteri_sil: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ'],
-  ncst_guncelle: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'SATIŞ DESTEK'],
-  sifre_sifirla: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ'],
-  temas_baskasi_duzenle: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'OPERASYON MÜDÜRÜ'],
-  temas_duzenle: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'OPERASYON MÜDÜRÜ', 'ÇÖZÜM SATIŞ UZMANI', 'ÇÖZÜM SATIŞ TEMSİLCİSİ', 'MY'],
-  temas_ekle: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'SATIŞ DESTEK', 'OPERASYON MÜDÜRÜ', 'ÇÖZÜM SATIŞ UZMANI', 'ÇÖZÜM SATIŞ TEMSİLCİSİ', 'MY'],
-  temas_sil: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ'],
-  urun_hedef_map: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ'],
-  urun_yonet: ['ADMIN'],
-  yonetici_panel: ['ADMIN', 'SATIŞ KOORDİNATÖRÜ', 'ÇÖZÜM SATIŞ MÜDÜRÜ', 'KÇM MÜDÜRÜ', 'TAKIM LİDERİ', 'OPERASYON MÜDÜRÜ'],
+  // Boolean izinler
+  admin_panel:            ['ADMIN'],
+  kullanici_yonet:        ['ADMIN','SATIŞ DİREKTÖRÜ'],
+  urun_yonet:             ['ADMIN'],
+  duyuru_yonet:           ['ADMIN','SATIŞ DİREKTÖRÜ'],
+  talep_yonet:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ'],
+  yonetici_panel:         ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+
+  musteri_ekle:           ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  musteri_duzenle:        ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK'],
+  musteri_sil:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ'],
+  portfoy_devri:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ'],
+  ncst_guncelle:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','SATIŞ DESTEK'],
+
+  temas_ekle:             ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  temas_duzenle:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  temas_baskasi_duzenle:  ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','ÇÖZÜM SATIŞ UZMANI'],
+  temas_sil:              ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ'],
+
+  firsat_ekle:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  firsat_adim:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  firsat_baskasi_duzenle: ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+  firsat_gerceklesen:     ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK'],
+  firsat_iptal_talep:     ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','MY','FMY'],
+  firsat_iptal_onayla:    ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+  firsat_sil:             ['ADMIN'],
+
+  // MY ve FMY max adım kontrolü — Evrak'tan ileriye gidemez
+  firsat_max_adim_evrak:  ['MY','FMY'],
+
+  hedef_giris:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+  hedef_excel:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+  hedef_kalem_yonet:      ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ'],
+
+  kontak_yonet:           ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  sifre_sifirla:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+  urun_hedef_map:         ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ'],
 };
 
-// Yetki kontrol fonksiyonları
 function hasPerm(perm){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
   const allowed=PERM[perm]||[];
-  return allowed.includes(r)||allowed.includes('ADMIN')&&r==='ADMIN';
+  return allowed.includes(r);
 }
 
 function getScope(module){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
   const scopeMap=PERM.scope[module]||{};
-  return scopeMap[r]||'PRT'; // varsayılan: kendi portföyü
+  return scopeMap[r]||'PRT';
+}
+
+// Bağlı kullanıcıların my_id listesini döndür
+// TL ve ÇST: kendine bağlı MY/FMY'lerin id'leri
+// ÇSU: kendine bağlı ÇST'lerin + o ÇST'lere bağlı MY/FMY'lerin id'leri
+let bagliMyIds = []; // login sonrası doldurulur
+
+async function loadBagliMyIds(){
+  if(!currentUser) return;
+  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  bagliMyIds = [currentUser.my_id];
+
+  if(['TAKIM LİDERİ','ÇÖZÜM SATIŞ TEMSİLCİSİ'].includes(r)){
+    // Doğrudan bağlı MY/FMY'ler
+    const {data} = await sb.from('users')
+      .select('my_id')
+      .or(`takim_lideri_id.eq.${currentUser.my_id},cst_id.eq.${currentUser.my_id}`)
+      .eq('aktif',true);
+    bagliMyIds = [currentUser.my_id, ...(data||[]).map(u=>u.my_id)];
+
+  } else if(r === 'ÇÖZÜM SATIŞ UZMANI'){
+    // ÇST'ler + onlara bağlı MY/FMY'ler
+    const {data:cstler} = await sb.from('users')
+      .select('my_id')
+      .eq('yetki_seviyesi','ÇÖZÜM SATIŞ TEMSİLCİSİ')
+      .eq('ust_id', currentUser.my_id)
+      .eq('aktif',true);
+    const cstIds = (cstler||[]).map(u=>u.my_id);
+    if(cstIds.length > 0){
+      const {data:myler} = await sb.from('users')
+        .select('my_id')
+        .in('cst_id', cstIds)
+        .eq('aktif',true);
+      bagliMyIds = [currentUser.my_id, ...cstIds, ...(myler||[]).map(u=>u.my_id)];
+    } else {
+      bagliMyIds = [currentUser.my_id];
+    }
+  }
 }
 
 function applyScope(q, module, prefix=''){
   const scope=getScope(module);
   if(scope==='TÜM') return q;
-  if(scope==='KÇM'&&currentUser.kcm_id){
+  if(scope==='KÇM' && currentUser.kcm_id){
     if(module==='musteri') return q.eq('kcm_id', currentUser.kcm_id);
     if(kcmMyIds.length>0) return q.in(`${prefix}my_id`, kcmMyIds);
     return q.eq(`${prefix}my_id`, currentUser.my_id);
   }
+  if(scope==='BAĞLI'){
+    if(module==='musteri') return q.in('my_id', bagliMyIds);
+    return q.in(`${prefix}my_id`, bagliMyIds);
+  }
+  // PRT: kendi portföyü
   return q.eq(`${prefix}my_id`, currentUser.my_id);
 }
 
