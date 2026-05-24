@@ -26,7 +26,7 @@ window.onload=async()=>{
   const saved = JSON.parse(localStorage.getItem('cu')||'null');
   if(saved){ currentUser=saved; initApp(); } else showPage('pageLogin');
 };
-function setAppVersion(){const now=new Date();document.getElementById('appVersionInfo').innerText=`V30.41 | ${now.toLocaleDateString('tr-TR')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;}
+function setAppVersion(){const now=new Date();document.getElementById('appVersionInfo').innerText=`V30.42 | ${now.toLocaleDateString('tr-TR')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;}
 async function saveSetup(){const u=document.getElementById('sbUrl').value,k=document.getElementById('sbKey').value;if(u&&k){sb=supabase.createClient(u,k);localStorage.setItem('sb_u',u);localStorage.setItem('sb_k',k);location.reload();}}
 async function doLogin(){
   const e=document.getElementById('loginEmail').value.toLowerCase().trim();
@@ -63,9 +63,10 @@ async function initApp(){
   loadDashboard();
   await loadProductsFromDB();
   await loadKcmMyIds();
-  await loadBagliMyIds(); // KÇM müdürü ise KÇM'indeki MY'leri yükle
-  await buildTemasUI();
+  await loadBagliMyIds();
   buildUrunSelects();
+  await buildTemasUI();
+  loadDashboard();
 }
 
 let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)
