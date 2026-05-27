@@ -88,11 +88,80 @@
       <div class="action-btn" onclick="navTo('pageTemasRapor')"><span class="action-icon">📊</span><div class="action-label">Raporlar</div></div>
     </div>
     <div class="section-title">Özet</div>
-    <div class="metrics">
-      <div class="metric"><div class="metric-val" id="tmsPortfoy">0</div><div class="metric-label">Toplam Müşteri</div></div>
-      <div class="metric"><div class="metric-val amber" id="tmsTotalVisit">0</div><div class="metric-label">Toplam Temas</div></div>
-      <div class="metric"><div class="metric-val blue" id="tmsContacted">0</div><div class="metric-label">Temas Edilen</div></div>
-      <div class="metric"><div class="metric-val green" id="tmsRatio">%0</div><div class="metric-label">Penetrasyon</div></div>
+    <!-- MÜŞTERİ KARTI -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="visit-card" style="padding:12px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600;">MÜŞTERİ</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:11px;color:var(--text2);">Toplam:</span>
+          <span style="font-size:16px;font-weight:700;color:var(--blue);" id="tmsPortfoy">0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text2);">MY</div>
+            <div style="font-size:18px;font-weight:700;color:#4ade80;" id="tmsPortfoyMY">0</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text2);">FMY</div>
+            <div style="font-size:18px;font-weight:700;color:#fb923c;" id="tmsPortfoyFMY">0</div>
+          </div>
+        </div>
+      </div>
+      <!-- TEMAS KARTI -->
+      <div class="visit-card" style="padding:12px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600;">TEMAS</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:11px;color:var(--text2);">Toplam:</span>
+          <span style="font-size:16px;font-weight:700;color:var(--blue);" id="tmsTotalVisit">0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text2);">MY</div>
+            <div style="font-size:18px;font-weight:700;color:#4ade80;" id="tmsTotalMY">0</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text2);">FMY</div>
+            <div style="font-size:18px;font-weight:700;color:#fb923c;" id="tmsTotalFMY">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- TEMAS EDİLEN + PENETRASYON -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="visit-card" style="padding:12px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600;">TEMAS EDİLEN</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:11px;color:var(--text2);">Toplam:</span>
+          <span style="font-size:16px;font-weight:700;color:var(--blue);" id="tmsContacted">0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text2);">MY</div>
+            <div style="font-size:18px;font-weight:700;color:#4ade80;" id="tmsContactedMY">0</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text2);">FMY</div>
+            <div style="font-size:18px;font-weight:700;color:#fb923c;" id="tmsContactedFMY">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="visit-card" style="padding:12px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600;">PENETRASYON</div>
+        <div style="display:flex;justify-content:space-between;">
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text2);">MY</div>
+            <div style="font-size:22px;font-weight:700;color:#4ade80;" id="tmsRatioMY">%0</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:11px;color:var(--text2);">FMY</div>
+            <div style="font-size:22px;font-weight:700;color:#fb923c;" id="tmsRatioFMY">%0</div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:6px;">
+          <div style="font-size:11px;color:var(--text2);">Genel</div>
+          <div style="font-size:16px;font-weight:700;color:var(--blue);" id="tmsRatio">%0</div>
+        </div>
+      </div>
     </div>
     <div class="section-title">Temas Listesi</div>
     <!-- Zaman + Durum filtreleri -->
