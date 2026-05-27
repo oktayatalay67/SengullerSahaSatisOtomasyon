@@ -955,7 +955,7 @@ async function loadKontaklar(searchVal=''){
       ncstList = (custData||[]).map(c=>c.ncst);
       if(!ncstList.length){ c.innerHTML='<div class="empty">Kontak yok.</div>'; return; }
     }
-    let q = sb.from('contacts').select('*, customers(unvan)').order('ad_soyad').limit(50);
+    let q = sb.from('contacts').select('*').order('ad_soyad').limit(50);
     if(searchVal.length>=2){
       q = q.or(`ad_soyad.ilike.%${searchVal}%,gorev_unvani.ilike.%${searchVal}%,telefon.ilike.%${searchVal}%`);
     }
@@ -963,6 +963,13 @@ async function loadKontaklar(searchVal=''){
     const {data,error} = await q;
     if(error) throw error;
     if(!data||!data.length){ c.innerHTML='<div class="empty">Kontak bulunamadı.</div>'; return; }
+    // Unvanları ayrı sorguyla çek (FK bağımlılığı olmadan)
+    const kontakNcstList = [...new Set((data||[]).map(k=>k.ncst).filter(Boolean))];
+    let unvanMap = {};
+    if(kontakNcstList.length>0){
+      const {data:custData} = await sb.from('customers').select('ncst,unvan').in('ncst',kontakNcstList);
+      (custData||[]).forEach(c=>{ unvanMap[c.ncst]=c.unvan; });
+    }
     c.innerHTML = data.map(k=>`
       <div class="visit-card" style="cursor:pointer;" onclick="openKontakDetay(${k.contact_id})">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
@@ -972,7 +979,7 @@ async function loadKontaklar(searchVal=''){
           </div>
           <button class="icon-btn" onclick="event.stopPropagation();openEditKontakModal(${k.contact_id})">✏️</button>
         </div>
-        ${k.customers?.unvan?`<div style="font-size:12px;color:var(--blue);margin-top:5px;cursor:pointer;" onclick="event.stopPropagation();switchMusteriTab('musteri');selectMusteri('${k.ncst}')">🏢 ${escapeHTML(k.customers.unvan)}</div>`:''}
+        ${unvanMap[k.ncst]?`<div style="font-size:12px;color:var(--blue);margin-top:5px;cursor:pointer;" onclick="event.stopPropagation();switchMusteriTab('musteri');selectMusteri('${k.ncst}')">🏢 ${escapeHTML(unvanMap[k.ncst])}</div>`:''}
         ${k.telefon?`<div style="font-size:12px;color:var(--text2);margin-top:2px;">📞 ${escapeHTML(k.telefon)}</div>`:''}
       </div>`).join('');
   }catch(err){ c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`; }

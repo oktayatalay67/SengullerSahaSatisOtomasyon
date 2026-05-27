@@ -274,9 +274,19 @@ async function fetchMusteriRapor(){
   if(tipVal) q=q.eq('musteri_tipi',tipVal);
   if(aktifVal!=='') q=q.eq('aktif',aktifVal==='true');
 
-  const{data:musteriler,error}=await q.order('unvan');
-  if(error){content.innerHTML=`<div class="empty">Hata: ${error.message}</div>`;return;}
-  if(!musteriler||!musteriler.length){content.innerHTML='<div class="empty">Sonuç bulunamadı.</div>';return;}
+  // Tüm müşterileri chunk'lı çek (Supabase 1000 default limit aşımı için)
+  let musteriler = [];
+  let _from = 0;
+  const _PAGE = 1000;
+  while(true){
+    const{data:_page,error}=await q.order('unvan').range(_from, _from+_PAGE-1);
+    if(error){content.innerHTML=`<div class="empty">Hata: ${error.message}</div>`;return;}
+    if(!_page||!_page.length) break;
+    musteriler = musteriler.concat(_page);
+    if(_page.length < _PAGE) break;
+    _from += _PAGE;
+  }
+  if(!musteriler.length){content.innerHTML='<div class="empty">Sonuç bulunamadı.</div>';return;}
 
   const ncstList=musteriler.map(m=>m.ncst);
 
