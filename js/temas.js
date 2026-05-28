@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.7.0
+// temas.js — v2.7.1
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.7.1 — getNcstSet pagination eklendi (Supabase 1000 limit aşımı)
 //   v2.7.0 — users!inner join kaldırıldı, iki adımlı my_id fetch ile düzeltildi
 //   v2.6.0 — SQL ile birebir eşleşen hesap, portföy/temas/penetrasyon doğrulandı
 //   v2.5.1 — toplam temas kcm_id bazlı düzeltildi
@@ -777,8 +778,17 @@ async function loadTemasDashboard(){
       if(!ids.length) return new Set();
       const ncstSet=new Set();
       for(const ch of chunkArr(ids,CHUNK)){
-        const {data} = await sb.from('customers').select('ncst').eq('aktif',true).in('my_id',ch);
-        (data||[]).forEach(c=>ncstSet.add(c.ncst));
+        // Supabase default 1000 limit aşımı için range pagination
+        let from=0;
+        const PAGE=1000;
+        while(true){
+          const {data} = await sb.from('customers').select('ncst')
+            .eq('aktif',true).in('my_id',ch).range(from,from+PAGE-1);
+          if(!data||!data.length) break;
+          data.forEach(c=>ncstSet.add(c.ncst));
+          if(data.length<PAGE) break;
+          from+=PAGE;
+        }
       }
       return ncstSet;
     };
