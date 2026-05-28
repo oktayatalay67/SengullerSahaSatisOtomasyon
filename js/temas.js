@@ -795,29 +795,30 @@ async function loadTemasDashboard(){
 
     // ============ TOPLAM TEMAS (portföy dışı dahil, filtre kapsamında) ============
     // visits'te my_id veya musteri_my_id scope'a giren tüm ziyaretler
-    const allScopeIds = [...new Set([...myIds,...fmyIds])];
+    // ============ TOPLAM TEMAS ============
+    // Scope filtresi ne olursa olsun: KÇM/Takım/MY filtresi varsa kcm_id ile,
+    // yoksa tüm visits sayılır. my_id ile sınırlanmaz çünkü havuz müşterileri de var.
     let totalVisit = 0;
     let totalContactedSet = new Set();
-    if(allScopeIds.length){
-      for(const ch of chunkArr(allScopeIds,CHUNK)){
-        // my_id'ye göre ziyaretler
-        let vQ = sb.from('visits').select('visit_id,ncst',{count:'exact'})
-          .in('my_id',ch);
-        if(filterSd) vQ=vQ.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-        if(aktifDurumlar.length===1) vQ=vQ.eq('durum',aktifDurumlar[0]);
-        else if(aktifDurumlar.length>1) vQ=vQ.in('durum',aktifDurumlar);
-        const {data:vd,count:vc} = await vQ;
-        totalVisit += vc||0;
-        (vd||[]).forEach(v=>{if(v.ncst)totalContactedSet.add(v.ncst);});
-      }
-    } else if(FULL_ROL.includes(r2)&&!fTKcmId&&!fTTakimId&&!fTMyId){
-      // Admin, filtre yok → tüm ziyaretler
+    {
       let vQ = sb.from('visits').select('visit_id,ncst',{count:'exact'});
       if(filterSd) vQ=vQ.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
       if(aktifDurumlar.length===1) vQ=vQ.eq('durum',aktifDurumlar[0]);
       else if(aktifDurumlar.length>1) vQ=vQ.in('durum',aktifDurumlar);
+      // KÇM filtresi varsa visits.kcm_id ile sınırla
+      if(scopeKcmId) vQ=vQ.eq('kcm_id',scopeKcmId);
+      // Takım veya MY filtresi varsa my_id ile sınırla
+      else if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
+        const {data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',parseInt(fTTakimId)).eq('aktif',true);
+        const tIds=(tm||[]).map(u=>u.my_id);
+        if(tIds.length) vQ=vQ.in('my_id',tIds); else vQ=vQ.eq('my_id',-1);
+      } else if(fTMyId&&!isNaN(parseInt(fTMyId))){
+        vQ=vQ.eq('my_id',parseInt(fTMyId));
+      } else if(MY_ROL.includes(r2)){
+        vQ=vQ.eq('my_id',currentUser.my_id);
+      }
       const {data:vd,count:vc} = await vQ;
-      totalVisit += vc||0;
+      totalVisit = vc||0;
       (vd||[]).forEach(v=>{if(v.ncst)totalContactedSet.add(v.ncst);});
     }
 
