@@ -716,132 +716,116 @@ async function loadTemasDashboard(){
     }
     if(!filterEd) filterEd=trEndOfDay(trDateStr(now));
 
+    const CHUNK=300;
+    const chunkArr=(a,n)=>{const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r;};
+    const r2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const FULL_ROL=['ADMIN','SATIŞ KOORDİNATÖRÜ','SATIŞ DİREKTÖRÜ'];
+    const MY_ROL=['MY','FMY','USER'];
+
     // ============ FİLTRE PARAMETRELERİ ============
     const fTMyId    = document.getElementById('temasMyFilter')?.value||'';
     const fTTakimId = document.getElementById('temasKcmTakimFilter')?.value||'';
     const fTKcmId   = document.getElementById('temasKcmFilter')?.value||'';
     const aktifDurumlar = listStatusArr.length>0 ? listStatusArr : ['Gerçekleşti','Planlandı'];
-    const CHUNK = 300;
-    function chunkArr(a,n){const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r;}
 
-    // ============ KULLANICI SCOPE TESPİT ============
-    // Filtre seçimine göre hangi my_id'ler scope'a giriyor
-    const r2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-    const MY_ROL=['MY','FMY','USER'];
-    const FULL_ROL=['ADMIN','SATIŞ KOORDİNATÖRÜ','SATIŞ DİREKTÖRÜ'];
-
-    // scopeKcmId: hangi KÇM'ye bakıyoruz
-    let scopeKcmId = null;
+    // scopeKcmId: hangi KÇM
+    let scopeKcmId=null;
     if(fTKcmId&&!isNaN(parseInt(fTKcmId))) scopeKcmId=parseInt(fTKcmId);
     else if(currentUser.kcm_id&&!FULL_ROL.includes(r2)) scopeKcmId=currentUser.kcm_id;
 
-    // Tüm kullanıcıları çek (MY+FMY) — scope'a göre filtreli
-    let usersQ = sb.from('users').select('my_id,yetki_seviyesi,takim_lideri_id').eq('aktif',true)
-      .in('yetki_seviyesi',['MY','FMY']);
-    if(fTMyId&&!isNaN(parseInt(fTMyId))){
-      usersQ=usersQ.eq('my_id',parseInt(fTMyId));
-    } else if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
-      usersQ=usersQ.eq('takim_lideri_id',parseInt(fTTakimId));
-    } else if(scopeKcmId){
-      usersQ=usersQ.eq('kcm_id',scopeKcmId);
-    } else if(MY_ROL.includes(r2)){
-      usersQ=usersQ.eq('my_id',currentUser.my_id);
-    }
-    const {data:allUsers} = await usersQ;
-    const myIds  = (allUsers||[]).filter(u=>u.yetki_seviyesi==='MY').map(u=>u.my_id);
-    const fmyIds = (allUsers||[]).filter(u=>u.yetki_seviyesi==='FMY').map(u=>u.my_id);
-
-    // ============ PORTFÖY MÜŞTERİ SAYISI ============
-    const countCust = async (ids) => {
-      if(!ids.length) return 0;
-      let total=0;
-      for(const ch of chunkArr(ids,CHUNK)){
-        const {count} = await sb.from('customers').select('ncst',{count:'exact',head:true})
-          .eq('aktif',true).in('my_id',ch);
-        total += count||0;
-      }
-      return total;
+    // ============ 1. PORTFÖY MÜŞTERİ SAYISI ============
+    // SQL: SELECT yetki_seviyesi, COUNT(ncst) FROM customers JOIN users ON my_id
+    //      WHERE aktif=true AND yetki_seviyesi IN ('MY','FMY') [+ kcm/takim/my filtre]
+    const buildCustQ = (yetki) => {
+      let q = sb.from('customers').select('ncst,users!inner(yetki_seviyesi,takim_lideri_id)',{count:'exact',head:true})
+        .eq('aktif',true)
+        .eq('users.aktif',true)
+        .eq('users.yetki_seviyesi',yetki);
+      if(fTMyId&&!isNaN(parseInt(fTMyId))) q=q.eq('my_id',parseInt(fTMyId));
+      else if(fTTakimId&&!isNaN(parseInt(fTTakimId))) q=q.eq('users.takim_lideri_id',parseInt(fTTakimId));
+      else if(scopeKcmId) q=q.eq('kcm_id',scopeKcmId);
+      else if(MY_ROL.includes(r2)) q=q.eq('my_id',currentUser.my_id);
+      return q;
     };
-    const [portfoyMY, portfoyFMY] = await Promise.all([countCust(myIds), countCust(fmyIds)]);
-    const portfoyTotal = portfoyMY + portfoyFMY;
 
-    // ============ PORTFÖY NCST LİSTESİ ============
-    const getPortfoyNcst = async (ids) => {
-      if(!ids.length) return new Set();
-      let ncstSet=new Set();
-      for(const ch of chunkArr(ids,CHUNK)){
-        const {data:cr} = await sb.from('customers').select('ncst').eq('aktif',true).in('my_id',ch);
-        (cr||[]).forEach(c=>ncstSet.add(c.ncst));
-      }
-      return ncstSet;
+    const [{count:portfoyMY},{count:portfoyFMY}] = await Promise.all([
+      buildCustQ('MY'), buildCustQ('FMY')
+    ]);
+    const portfoyTotal=(portfoyMY||0)+(portfoyFMY||0);
+
+    // ============ 2. PORTFÖY NCST LİSTELERİ ============
+    const getNcstList = async (yetki) => {
+      let q = sb.from('customers').select('ncst,users!inner(yetki_seviyesi,takim_lideri_id)')
+        .eq('aktif',true).eq('users.aktif',true).eq('users.yetki_seviyesi',yetki);
+      if(fTMyId&&!isNaN(parseInt(fTMyId))) q=q.eq('my_id',parseInt(fTMyId));
+      else if(fTTakimId&&!isNaN(parseInt(fTTakimId))) q=q.eq('users.takim_lideri_id',parseInt(fTTakimId));
+      else if(scopeKcmId) q=q.eq('kcm_id',scopeKcmId);
+      else if(MY_ROL.includes(r2)) q=q.eq('my_id',currentUser.my_id);
+      const {data} = await q;
+      return new Set((data||[]).map(c=>c.ncst));
     };
-    const [myNcstSet, fmyNcstSet] = await Promise.all([getPortfoyNcst(myIds), getPortfoyNcst(fmyIds)]);
 
-    // ============ VİSİT SAYACI (portföy bazlı) ============
-    const countVisitsForNcst = async (ncstSet) => {
-      if(!ncstSet.size) return {total:0, contacted:0};
+    const [myNcstSet,fmyNcstSet] = await Promise.all([getNcstList('MY'),getNcstList('FMY')]);
+
+    // ============ 3. TOPLAM ZİYARET ============
+    // visits tablosundan direkt say — kcm_id/takim/my filtreleriyle
+    const buildVisitQ = (select,countOpts) => {
+      let q = sb.from('visits').select(select, countOpts||{});
+      if(filterSd) q=q.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
+      if(aktifDurumlar.length===1) q=q.eq('durum',aktifDurumlar[0]);
+      else if(aktifDurumlar.length>1) q=q.in('durum',aktifDurumlar);
+      return q;
+    };
+
+    let totalVisitQ = buildVisitQ('visit_id',{count:'exact',head:true});
+    if(fTMyId&&!isNaN(parseInt(fTMyId))) totalVisitQ=totalVisitQ.eq('my_id',parseInt(fTMyId));
+    else if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
+      const {data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',parseInt(fTTakimId)).eq('aktif',true);
+      const tIds=(tm||[]).map(u=>u.my_id);
+      totalVisitQ=tIds.length?totalVisitQ.in('my_id',tIds):totalVisitQ.eq('my_id',-1);
+    } else if(scopeKcmId) totalVisitQ=totalVisitQ.eq('kcm_id',scopeKcmId);
+    else if(MY_ROL.includes(r2)) totalVisitQ=totalVisitQ.eq('my_id',currentUser.my_id);
+    const {count:totalVisit} = await totalVisitQ;
+
+    // ============ 4. TEMAS EDİLEN (portföy bazlı) ============
+    const countContactedForNcst = async (ncstSet) => {
+      if(!ncstSet.size) return 0;
       const ncstList=[...ncstSet];
-      let totalV=0, contactedSet=new Set();
+      const contactedSet=new Set();
       for(const ch of chunkArr(ncstList,CHUNK)){
-        const {data:vr,count:vc} = await sb.from('visits')
-          .select('visit_id,ncst',{count:'exact'})
-          .in('ncst',ch)
-          .eq('durum','Gerçekleşti');
-        totalV += vc||0;
-        (vr||[]).forEach(v=>{ if(v.ncst) contactedSet.add(v.ncst); });
+        const {data} = await sb.from('visits').select('ncst')
+          .in('ncst',ch).eq('durum','Gerçekleşti');
+        (data||[]).forEach(v=>{if(v.ncst)contactedSet.add(v.ncst);});
       }
-      return {total:totalV, contacted:contactedSet.size};
+      return contactedSet.size;
     };
 
-    // ============ TOPLAM TEMAS (portföy dışı dahil, filtre kapsamında) ============
-    // visits'te my_id veya musteri_my_id scope'a giren tüm ziyaretler
-    // ============ TOPLAM TEMAS ============
-    // Scope filtresi ne olursa olsun: KÇM/Takım/MY filtresi varsa kcm_id ile,
-    // yoksa tüm visits sayılır. my_id ile sınırlanmaz çünkü havuz müşterileri de var.
-    let totalVisit = 0;
-    let totalContactedSet = new Set();
-    {
-      let vQ = sb.from('visits').select('visit_id,ncst',{count:'exact'});
-      if(filterSd) vQ=vQ.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-      if(aktifDurumlar.length===1) vQ=vQ.eq('durum',aktifDurumlar[0]);
-      else if(aktifDurumlar.length>1) vQ=vQ.in('durum',aktifDurumlar);
-      // KÇM filtresi varsa visits.kcm_id ile sınırla
-      if(scopeKcmId) vQ=vQ.eq('kcm_id',scopeKcmId);
-      // Takım veya MY filtresi varsa my_id ile sınırla
-      else if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
-        const {data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',parseInt(fTTakimId)).eq('aktif',true);
-        const tIds=(tm||[]).map(u=>u.my_id);
-        if(tIds.length) vQ=vQ.in('my_id',tIds); else vQ=vQ.eq('my_id',-1);
-      } else if(fTMyId&&!isNaN(parseInt(fTMyId))){
-        vQ=vQ.eq('my_id',parseInt(fTMyId));
-      } else if(MY_ROL.includes(r2)){
-        vQ=vQ.eq('my_id',currentUser.my_id);
-      }
-      const {data:vd,count:vc} = await vQ;
-      totalVisit = vc||0;
-      (vd||[]).forEach(v=>{if(v.ncst)totalContactedSet.add(v.ncst);});
-    }
-
-    // Portföy bazlı temas sayıları
-    const [resMY, resFMY] = await Promise.all([
-      countVisitsForNcst(myNcstSet),
-      countVisitsForNcst(fmyNcstSet)
+    const [contactedMY,contactedFMY] = await Promise.all([
+      countContactedForNcst(myNcstSet),
+      countContactedForNcst(fmyNcstSet)
     ]);
 
-    // ============ DOM GÜNCELLE ============
-    const set = (id, val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
+    // Toplam unique: MY ∪ FMY
+    const allPortfoyNcst = new Set([...myNcstSet,...fmyNcstSet]);
+    const contactedTotal = await countContactedForNcst(allPortfoyNcst);
+
+    // ============ 5. DOM GÜNCELLE ============
+    const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
     set('tmsPortfoy',    portfoyTotal.toLocaleString('tr-TR'));
-    set('tmsPortfoyMY',  portfoyMY.toLocaleString('tr-TR'));
-    set('tmsPortfoyFMY', portfoyFMY.toLocaleString('tr-TR'));
-    set('tmsTotalVisit', totalVisit.toLocaleString('tr-TR'));
-    set('tmsTotalMY',    resMY.total.toLocaleString('tr-TR'));
-    set('tmsTotalFMY',   resFMY.total.toLocaleString('tr-TR'));
-    set('tmsContacted',  totalContactedSet.size.toLocaleString('tr-TR'));
-    set('tmsContactedMY',  resMY.contacted.toLocaleString('tr-TR'));
-    set('tmsContactedFMY', resFMY.contacted.toLocaleString('tr-TR'));
-    set('tmsRatioMY',  portfoyMY>0  ? '%'+Math.round((resMY.contacted/portfoyMY)*100)   : '%0');
-    set('tmsRatioFMY', portfoyFMY>0 ? '%'+Math.round((resFMY.contacted/portfoyFMY)*100) : '%0');
-    set('tmsRatio',    portfoyTotal>0 ? '%'+Math.round(((resMY.contacted+resFMY.contacted)/portfoyTotal)*100) : '%0');
+    set('tmsPortfoyMY',  (portfoyMY||0).toLocaleString('tr-TR'));
+    set('tmsPortfoyFMY', (portfoyFMY||0).toLocaleString('tr-TR'));
+    set('tmsTotalVisit', (totalVisit||0).toLocaleString('tr-TR'));
+    set('tmsTotalMY',    '—');
+    set('tmsTotalFMY',   '—');
+    set('tmsContacted',  contactedTotal.toLocaleString('tr-TR'));
+    set('tmsContactedMY',  contactedMY.toLocaleString('tr-TR'));
+    set('tmsContactedFMY', contactedFMY.toLocaleString('tr-TR'));
+    const pMY  = portfoyMY>0  ? Math.round((contactedMY/portfoyMY)*100)   : 0;
+    const pFMY = portfoyFMY>0 ? Math.round((contactedFMY/portfoyFMY)*100) : 0;
+    const pGen = portfoyTotal>0 ? Math.round((contactedTotal/portfoyTotal)*100) : 0;
+    set('tmsRatioMY',  '%'+pMY);
+    set('tmsRatioFMY', '%'+pFMY);
+    set('tmsRatio',    '%'+pGen);
 
     await renderTemasList();
   }catch(err){console.error(err);toast('Özet yüklenemedi','error');}
