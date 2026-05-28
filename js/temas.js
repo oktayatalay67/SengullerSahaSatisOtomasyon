@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.7.2
+// temas.js — v2.7.3
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.7.3 — Temas kartı MY/FMY contacted değerleri düzeltildi
 //   v2.7.2 — countContacted pagination eklendi (visits 1000 limit aşımı)
 //   v2.7.1 — getNcstSet pagination eklendi (Supabase 1000 limit aşımı)
 //   v2.7.0 — users!inner join kaldırıldı, iki adımlı my_id fetch ile düzeltildi
@@ -853,8 +854,8 @@ async function loadTemasDashboard(){
     set('tmsPortfoyMY',  portfoyMY.toLocaleString('tr-TR'));
     set('tmsPortfoyFMY', portfoyFMY.toLocaleString('tr-TR'));
     set('tmsTotalVisit', totalVisit.toLocaleString('tr-TR'));
-    set('tmsTotalMY',    '—');
-    set('tmsTotalFMY',   '—');
+    set('tmsTotalMY',    contactedMY.toLocaleString('tr-TR'));
+    set('tmsTotalFMY',   contactedFMY.toLocaleString('tr-TR'));
     set('tmsContacted',  contactedTotal.toLocaleString('tr-TR'));
     set('tmsContactedMY',  contactedMY.toLocaleString('tr-TR'));
     set('tmsContactedFMY', contactedFMY.toLocaleString('tr-TR'));
