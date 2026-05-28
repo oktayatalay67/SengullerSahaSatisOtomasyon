@@ -1,7 +1,9 @@
 // ============================================================
-// temas.js — v2.7.3
+// temas.js — v2.7.4
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.7.4 — Temas MY/FMY = portföy müşterilerine yapılan ziyaret SAYISI
+//             Temas Edilen kartı ismi güncellendi
 //   v2.7.3 — Temas kartı MY/FMY contacted değerleri düzeltildi
 //   v2.7.2 — countContacted pagination eklendi (visits 1000 limit aşımı)
 //   v2.7.1 — getNcstSet pagination eklendi (Supabase 1000 limit aşımı)
@@ -848,14 +850,33 @@ async function loadTemasDashboard(){
     const allNcstSet = new Set([...myNcstSet,...fmyNcstSet]);
     const contactedTotal = await countContacted(allNcstSet);
 
+    // ============ TEMAS SAYISI (portföy müşterilerine yapılan ziyaret SAYISI) ============
+    const countVisitsForNcst = async (ncstSet) => {
+      if(!ncstSet.size) return 0;
+      const ncstList=[...ncstSet];
+      let total=0;
+      for(const ch of chunkArr(ncstList,CHUNK)){
+        const {count} = await sb.from('visits')
+          .select('visit_id',{count:'exact',head:true})
+          .in('ncst',ch).eq('durum','Gerçekleşti');
+        total += count||0;
+      }
+      return total;
+    };
+
+    const [visitsMY, visitsFMY] = await Promise.all([
+      countVisitsForNcst(myNcstSet),
+      countVisitsForNcst(fmyNcstSet)
+    ]);
+
     // ============ 6. DOM GÜNCELLE ============
     const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
     set('tmsPortfoy',    portfoyTotal.toLocaleString('tr-TR'));
     set('tmsPortfoyMY',  portfoyMY.toLocaleString('tr-TR'));
     set('tmsPortfoyFMY', portfoyFMY.toLocaleString('tr-TR'));
     set('tmsTotalVisit', totalVisit.toLocaleString('tr-TR'));
-    set('tmsTotalMY',    contactedMY.toLocaleString('tr-TR'));
-    set('tmsTotalFMY',   contactedFMY.toLocaleString('tr-TR'));
+    set('tmsTotalMY',    visitsMY.toLocaleString('tr-TR'));
+    set('tmsTotalFMY',   visitsFMY.toLocaleString('tr-TR'));
     set('tmsContacted',  contactedTotal.toLocaleString('tr-TR'));
     set('tmsContactedMY',  contactedMY.toLocaleString('tr-TR'));
     set('tmsContactedFMY', contactedFMY.toLocaleString('tr-TR'));
