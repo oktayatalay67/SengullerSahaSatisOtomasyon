@@ -1354,7 +1354,6 @@ async function openEditPlanModal(visitId){
 
 /* ===== TEMAS RAPORU ===== */
 function toggleRepStatus(val,el){el.classList.toggle('selected');if(repStatusArr.includes(val))repStatusArr=repStatusArr.filter(x=>x!==val);else repStatusArr.push(val);}
-let repTypeArr=['Fiziksel Ziyaret','Ziyaret','Online Toplantı','Telefon','Email','SMS/Whatsapp'];
 function toggleRepType(val,el){el.classList.toggle('selected');if(repTypeArr.includes(val))repTypeArr=repTypeArr.filter(x=>x!==val);else repTypeArr.push(val);}
 async function fetchAdvancedReport(){
   const c=document.getElementById('reportListContent');

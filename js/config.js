@@ -1,3 +1,10 @@
+// ============================================================
+// config.js — v1.1.0
+// Son güncelleme: 2026-05-28
+// Değişiklikler:
+//   v1.1.0 — repTypeArr başlangıç değerlerine 'Fiziksel Ziyaret' eklendi
+//   v1.0.0 — ilk versiyon
+// ============================================================
 /* ===== YARDIMCILAR ===== */
 function escapeHTML(s){if(!s)return '';return String(s).replace(/[&<>'"]/g,t=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t]||t));}
 
@@ -14,7 +21,7 @@ let activeBasket=[], currentEditingCustNcst=null;
 let currentEditPlanId=null;
 let isOpportunityConfirmed=false;
 let listTimeFilter='tumu', listStatusArr=['Gerçekleşti','Planlandı'];
-let repStatusArr=['Gerçekleşti','Planlandı'], repTypeArr=['Ziyaret','Online Toplantı','Telefon','Email','SMS/Whatsapp'];
+let repStatusArr=['Gerçekleşti','Planlandı'], repTypeArr=['Fiziksel Ziyaret','Ziyaret','Online Toplantı','Telefon','Email','SMS/Whatsapp'];
 let editToggleState={it:null,sube:null,fw:null,sunucu:null};
 let ppTimeFilter='tumu', ppStatusFilter='tumu';
 let currentEditingOppId=null, oppSelectedNcst=null, oppSelectedUnvan=null;
@@ -481,4 +488,3 @@ const OPP_ADIM_GERCEKLESEN = 'Gerçekleşen';
 const _HARDCODED_URL = 'https://iqehsplmbokptbauabyb.supabase.co';
 const _HARDCODED_KEY = 'sb_publishable_sVNi_JhlHdeM60hIprbDJA_jOLEozOv';
 // ==========================================
-
