@@ -1,3 +1,13 @@
+// ============================================================
+// temas.js — v2.4.1
+// Son güncelleme: 2026-05-28
+// Değişiklikler:
+//   vTemas yönetimi
+//   v2.4.1 — scopeMyIds takım lideri fix, repTypeArr init fix
+//   v2.4.0 — MY/FMY penetrasyon kırılımı, dashboard yeniden yazıldı
+//   v2.3.0 — countVisitForIds portföy fix
+//   v1.0.0 — ilk versiyon
+// ============================================================
 'use strict';
 /* ===== TEMAS UI ===== */
 async function buildTemasUI(){
@@ -718,7 +728,7 @@ async function loadTemasDashboard(){
       if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
         const tId=parseInt(fTTakimId);
         const{data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',tId).eq('aktif',true);
-        const ids=[...new Set([tId,...(tm||[]).map(u=>u.my_id)])];
+        const ids=[...new Set((tm||[]).map(u=>u.my_id))];
         if(!ids.length) return q.eq('my_id',-1);
         return q.or(`my_id.in.(${ids.join(',')}),musteri_my_id.in.(${ids.join(',')})`);
       }
@@ -741,7 +751,7 @@ async function loadTemasDashboard(){
     } else if(fTTakimId){
       const tId=parseInt(fTTakimId);
       const{data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',tId).eq('aktif',true);
-      scopeMyIds=[...new Set([tId,...(tm||[]).map(u=>u.my_id)])];
+      scopeMyIds=[...new Set((tm||[]).map(u=>u.my_id))];
     } else if(fTKcmId){
       const{data:km}=await sb.from('users').select('my_id').eq('kcm_id',parseInt(fTKcmId)).eq('aktif',true);
       scopeMyIds=(km||[]).map(u=>u.my_id);
@@ -1344,6 +1354,7 @@ async function openEditPlanModal(visitId){
 
 /* ===== TEMAS RAPORU ===== */
 function toggleRepStatus(val,el){el.classList.toggle('selected');if(repStatusArr.includes(val))repStatusArr=repStatusArr.filter(x=>x!==val);else repStatusArr.push(val);}
+let repTypeArr=['Fiziksel Ziyaret','Ziyaret','Online Toplantı','Telefon','Email','SMS/Whatsapp'];
 function toggleRepType(val,el){el.classList.toggle('selected');if(repTypeArr.includes(val))repTypeArr=repTypeArr.filter(x=>x!==val);else repTypeArr.push(val);}
 async function fetchAdvancedReport(){
   const c=document.getElementById('reportListContent');
@@ -1369,4 +1380,3 @@ async function fetchAdvancedReport(){
     c.innerHTML=allData.slice(0,200).map(v=>{const isPlan=v.durum==='Planlandı';const firmName=custMap[v.ncst]||v.ncst;return `<div class="visit-card"><div class="visit-firm">${escapeHTML(firmName)}</div><div class="visit-my">📅 ${isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):fmtDate(v.tarih_saat)} | 📍 ${escapeHTML(v.temas_turu)}</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">${escapeHTML(v.ziyaret_amaci||'')}</div><div class="visit-tags mt-8"><span class="tag tag-gray">${v.durum}</span></div></div>`;}).join('');
   }catch(err){c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;}
 }
-
