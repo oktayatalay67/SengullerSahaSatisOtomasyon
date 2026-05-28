@@ -789,9 +789,11 @@ async function loadTemasDashboard(){
     const {count:totalVisit} = await tvQ;
 
     // Temas - MY portföy
+    // Penetrasyon: portföydeki müşterilerden kaçına ziyaret yapılmış (kim yaparsa yapsın)
+    // Temas sayısı: o MY'lerin portföyündeki müşterilere yapılan TÜM ziyaretler
     const countVisitForIds = async (ids) => {
       if(!ids.length) return {total:0, contacted:0};
-      // Müşteri NCST listesi
+      // Portföy NCST listesi
       const CHUNK=500;
       let ncstSet = new Set();
       for(let i=0;i<ids.length;i+=CHUNK){
@@ -800,14 +802,13 @@ async function loadTemasDashboard(){
       }
       const ncstList = [...ncstSet];
       if(!ncstList.length) return {total:0, contacted:0};
-      // Temas sayısı
+      // Portföydeki müşterilere yapılan tüm ziyaretler — filtre yok, kim yaparsa yapsın
       let totalV=0, contactedSet=new Set();
       for(let i=0;i<ncstList.length;i+=CHUNK){
-        let vQ = sb.from('visits').select('visit_id,ncst',{count:'exact'}).in('ncst',ncstList.slice(i,i+CHUNK));
-        if(filterSd) vQ=vQ.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-        if(aktifDurumlar.length===1) vQ=vQ.eq('durum',aktifDurumlar[0]);
-        else if(aktifDurumlar.length>1) vQ=vQ.in('durum',aktifDurumlar);
-        const {data:vr, count:vc} = await vQ;
+        const {data:vr, count:vc} = await sb.from('visits')
+          .select('visit_id,ncst',{count:'exact'})
+          .in('ncst',ncstList.slice(i,i+CHUNK))
+          .eq('durum','Gerçekleşti');
         totalV += vc||0;
         (vr||[]).forEach(v=>{ if(v.ncst) contactedSet.add(v.ncst); });
       }
