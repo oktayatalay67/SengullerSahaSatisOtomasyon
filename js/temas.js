@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.7.6
+// temas.js — v2.7.7
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.7.7 — KÇM/Takım filtresi ilk seçimde çalışmıyor (await reloadFn eklendi)
 //   v2.7.6 — getTotalContacted filtre mantığı düzeltildi (takım/MY bazlı)
 //   v2.7.5 — Temas Edilen Toplam portföy dışı müşterileri de kapsar (3.026+958=3.984)
 //   v2.7.4 — Temas MY/FMY = portföy müşterilerine yapılan ziyaret SAYISI
@@ -986,7 +987,7 @@ async function _hiyerarsikKcmChanged(kcmSelId, takimSelId, mySelId, reloadFn){
     const{data}=await q.order('ad_soyad');
     (data||[]).forEach(u=>{const o=document.createElement('option');o.value=u.my_id;o.textContent=u.ad_soyad;mySel.appendChild(o);});
   }
-  if(reloadFn) reloadFn();
+  if(reloadFn) await reloadFn();
 }
 
 async function _hiyerarsikTakimChanged(takimSelId, kcmSelId, mySelId, reloadFn){
@@ -1001,7 +1002,7 @@ async function _hiyerarsikTakimChanged(takimSelId, kcmSelId, mySelId, reloadFn){
     const{data}=await q.order('ad_soyad');
     (data||[]).forEach(u=>{const o=document.createElement('option');o.value=u.my_id;o.textContent=u.ad_soyad;mySel.appendChild(o);});
   }
-  if(reloadFn) reloadFn();
+  if(reloadFn) await reloadFn();
 }
 
 // TEMAS FİLTRE (v30.22)
