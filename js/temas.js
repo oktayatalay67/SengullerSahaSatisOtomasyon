@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.7.9
+// temas.js — v2.8.0
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.8.0 — countVisitsForNcst tanım sırası düzeltildi (before initialization hatası)
 //   v2.7.9 — Takım/MY filtresinde Temas Edilen Toplam portföy bazlı hesaplanıyor
 //   v2.7.8 — Paralel sorgu optimizasyonu (countCust+getNcstSet+totalVisit paralele alındı)
 //   v2.7.7 — KÇM/Takım filtresi ilk seçimde çalışmıyor (await reloadFn eklendi)
@@ -880,17 +881,6 @@ async function loadTemasDashboard(){
       }
       return contactedSet.size;
     };
-    // 4+5+6 hepsi paralel
-    const [
-      [totalVisit, contactedMY, contactedFMY],
-      contactedTotal,
-      [visitsMY, visitsFMY]
-    ] = await Promise.all([
-      Promise.all([buildTotalVisitQ(), countContacted(myNcstSet), countContacted(fmyNcstSet)]),
-      getTotalContacted(),
-      Promise.all([countVisitsForNcst(myNcstSet), countVisitsForNcst(fmyNcstSet)])
-    ]);
-
     // ============ TEMAS SAYISI (portföy müşterilerine yapılan ziyaret SAYISI) ============
     const countVisitsForNcst = async (ncstSet) => {
       if(!ncstSet.size) return 0;
@@ -905,7 +895,16 @@ async function loadTemasDashboard(){
       return total;
     };
 
-    // visitsMY/visitsFMY yukarıda paralel hesaplandı
+    // 4+5+6 hepsi paralel
+    const [
+      [totalVisit, contactedMY, contactedFMY],
+      contactedTotal,
+      [visitsMY, visitsFMY]
+    ] = await Promise.all([
+      Promise.all([buildTotalVisitQ(), countContacted(myNcstSet), countContacted(fmyNcstSet)]),
+      getTotalContacted(),
+      Promise.all([countVisitsForNcst(myNcstSet), countVisitsForNcst(fmyNcstSet)])
+    ]);
 
     // ============ 6. DOM GÜNCELLE ============
     const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
