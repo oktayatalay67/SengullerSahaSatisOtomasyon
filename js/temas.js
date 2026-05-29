@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.7.5
+// temas.js — v2.7.6
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.7.6 — getTotalContacted filtre mantığı düzeltildi (takım/MY bazlı)
 //   v2.7.5 — Temas Edilen Toplam portföy dışı müşterileri de kapsar (3.026+958=3.984)
 //   v2.7.4 — Temas MY/FMY = portföy müşterilerine yapılan ziyaret SAYISI
 //             Temas Edilen kartı ismi güncellendi
@@ -850,20 +851,23 @@ async function loadTemasDashboard(){
     // Toplam temas edilen: tüm visits'teki unique NCST (portföy dışı dahil)
     const getTotalContacted = async () => {
       const contactedSet = new Set();
+      // Filtre bazlı my_id listesini önceden hazırla
+      let filterMyIds = null; // null = filtre yok
+      if(fTMyId&&!isNaN(parseInt(fTMyId))){
+        filterMyIds = [parseInt(fTMyId)];
+      } else if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
+        const {data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',parseInt(fTTakimId)).eq('aktif',true);
+        filterMyIds = (tm||[]).map(u=>u.my_id);
+        if(!filterMyIds.length) return 0;
+      } else if(MY_ROL.includes(r2)){
+        filterMyIds = [currentUser.my_id];
+      }
       let from = 0;
       const PAGE = 1000;
       while(true){
         let q = sb.from('visits').select('ncst').eq('durum','Gerçekleşti').range(from, from+PAGE-1);
-        if(scopeKcmId) q = q.eq('kcm_id', scopeKcmId);
-        else if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
-          const {data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',parseInt(fTTakimId)).eq('aktif',true);
-          const tIds=(tm||[]).map(u=>u.my_id);
-          if(tIds.length) q=q.in('my_id',tIds); else break;
-        } else if(fTMyId&&!isNaN(parseInt(fTMyId))){
-          q=q.eq('my_id',parseInt(fTMyId));
-        } else if(MY_ROL.includes(r2)){
-          q=q.eq('my_id',currentUser.my_id);
-        }
+        if(filterMyIds) q = q.in('my_id', filterMyIds);
+        else if(scopeKcmId) q = q.eq('kcm_id', scopeKcmId);
         const {data} = await q;
         if(!data||!data.length) break;
         data.forEach(v=>{if(v.ncst)contactedSet.add(v.ncst);});
