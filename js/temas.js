@@ -1,7 +1,9 @@
 // ============================================================
-// temas.js — v2.7.7
+// temas.js — v2.7.9
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.7.9 — Takım/MY filtresinde Temas Edilen Toplam portföy bazlı hesaplanıyor
+//   v2.7.8 — Paralel sorgu optimizasyonu (countCust+getNcstSet+totalVisit paralele alındı)
 //   v2.7.7 — KÇM/Takım filtresi ilk seçimde çalışmıyor (await reloadFn eklendi)
 //   v2.7.6 — getTotalContacted filtre mantığı düzeltildi (takım/MY bazlı)
 //   v2.7.5 — Temas Edilen Toplam portföy dışı müşterileri de kapsar (3.026+958=3.984)
@@ -777,10 +779,7 @@ async function loadTemasDashboard(){
       return total;
     };
 
-    const [portfoyMY, portfoyFMY] = await Promise.all([countCust(myIds), countCust(fmyIds)]);
-    const portfoyTotal = portfoyMY + portfoyFMY;
-
-    // ============ 3. PORTFÖY NCST LİSTELERİ ============
+    // adım 2 ve 3 paralel
     const getNcstSet = async (ids) => {
       if(!ids.length) return new Set();
       const ncstSet=new Set();
@@ -800,7 +799,11 @@ async function loadTemasDashboard(){
       return ncstSet;
     };
 
-    const [myNcstSet, fmyNcstSet] = await Promise.all([getNcstSet(myIds), getNcstSet(fmyIds)]);
+    const [[portfoyMY, portfoyFMY], [myNcstSet, fmyNcstSet]] = await Promise.all([
+      Promise.all([countCust(myIds), countCust(fmyIds)]),
+      Promise.all([getNcstSet(myIds), getNcstSet(fmyIds)])
+    ]);
+    const portfoyTotal = portfoyMY + portfoyFMY;
 
     // ============ 4. TOPLAM ZİYARET ============
     const buildTotalVisitQ = async () => {
@@ -843,32 +846,32 @@ async function loadTemasDashboard(){
       return contactedSet.size;
     };
 
-    const [totalVisit, contactedMY, contactedFMY] = await Promise.all([
-      buildTotalVisitQ(),
-      countContacted(myNcstSet),
-      countContacted(fmyNcstSet)
-    ]);
-
-    // Toplam temas edilen: tüm visits'teki unique NCST (portföy dışı dahil)
+    // 4+5+6 paralel - getTotalContacted önceden tanımlanıyor
     const getTotalContacted = async () => {
-      const contactedSet = new Set();
-      // Filtre bazlı my_id listesini önceden hazırla
-      let filterMyIds = null; // null = filtre yok
+      // Takım veya MY filtresi seçilince: sadece portföy NCST'leri (portföy dışı dahil edilmez)
+      // KÇM veya Tüm KÇM filtresi seçilince: tüm ziyaret edilen NCST'ler (portföy dışı dahil)
       if(fTMyId&&!isNaN(parseInt(fTMyId))){
-        filterMyIds = [parseInt(fTMyId)];
-      } else if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
-        const {data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',parseInt(fTTakimId)).eq('aktif',true);
-        filterMyIds = (tm||[]).map(u=>u.my_id);
-        if(!filterMyIds.length) return 0;
-      } else if(MY_ROL.includes(r2)){
-        filterMyIds = [currentUser.my_id];
+        // MY filtresi: o MY'nin portföyündeki ziyaret edilen müşteriler = contactedMY veya contactedFMY
+        // myNcstSet ve fmyNcstSet zaten o MY'ye göre hesaplandı
+        const allNcst = new Set([...myNcstSet,...fmyNcstSet]);
+        return await countContacted(allNcst);
       }
+      if(fTTakimId&&!isNaN(parseInt(fTTakimId))){
+        // Takım filtresi: o takımın portföyündeki ziyaret edilen müşteriler
+        const allNcst = new Set([...myNcstSet,...fmyNcstSet]);
+        return await countContacted(allNcst);
+      }
+      if(MY_ROL.includes(r2)){
+        const allNcst = new Set([...myNcstSet,...fmyNcstSet]);
+        return await countContacted(allNcst);
+      }
+      // KÇM veya Tüm KÇM: portföy dışı dahil tüm unique ziyaret edilen NCST
+      const contactedSet = new Set();
       let from = 0;
       const PAGE = 1000;
       while(true){
         let q = sb.from('visits').select('ncst').eq('durum','Gerçekleşti').range(from, from+PAGE-1);
-        if(filterMyIds) q = q.in('my_id', filterMyIds);
-        else if(scopeKcmId) q = q.eq('kcm_id', scopeKcmId);
+        if(scopeKcmId) q = q.eq('kcm_id', scopeKcmId);
         const {data} = await q;
         if(!data||!data.length) break;
         data.forEach(v=>{if(v.ncst)contactedSet.add(v.ncst);});
@@ -877,7 +880,16 @@ async function loadTemasDashboard(){
       }
       return contactedSet.size;
     };
-    const contactedTotal = await getTotalContacted();
+    // 4+5+6 hepsi paralel
+    const [
+      [totalVisit, contactedMY, contactedFMY],
+      contactedTotal,
+      [visitsMY, visitsFMY]
+    ] = await Promise.all([
+      Promise.all([buildTotalVisitQ(), countContacted(myNcstSet), countContacted(fmyNcstSet)]),
+      getTotalContacted(),
+      Promise.all([countVisitsForNcst(myNcstSet), countVisitsForNcst(fmyNcstSet)])
+    ]);
 
     // ============ TEMAS SAYISI (portföy müşterilerine yapılan ziyaret SAYISI) ============
     const countVisitsForNcst = async (ncstSet) => {
@@ -893,10 +905,7 @@ async function loadTemasDashboard(){
       return total;
     };
 
-    const [visitsMY, visitsFMY] = await Promise.all([
-      countVisitsForNcst(myNcstSet),
-      countVisitsForNcst(fmyNcstSet)
-    ]);
+    // visitsMY/visitsFMY yukarıda paralel hesaplandı
 
     // ============ 6. DOM GÜNCELLE ============
     const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
