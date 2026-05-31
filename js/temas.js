@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.9.0
+// temas.js — v2.9.1
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.9.1 — Varsayılan filtre 'Bu Ay', zaman filtresi tüm metriklere eklendi, liste önce yükleniyor
 //   v2.9.0 — B4 fix: listTimeFilter kullanımı, renderTemasList zaman bloğu
 //   v2.8.0 — countVisitsForNcst tanım sırası düzeltildi (before initialization hatası)
 //   v2.7.9 — Takım/MY filtresinde Temas Edilen Toplam portföy bazlı hesaplanıyor
@@ -762,6 +763,9 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       return (data||[]).map(u=>u.my_id);
     };
 
+    // Listeyi hemen yükle, kartları arka planda hesapla
+    renderTemasList();
+
     const [myIds, fmyIds] = await Promise.all([getUserIds('MY'), getUserIds('FMY')]);
 
     // ============ 2. PORTFÖY MÜŞTERİ SAYISI ============
@@ -829,12 +833,13 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       const ncstList=[...ncstSet];
       const contactedSet=new Set();
       for(const ch of chunkArr(ncstList,CHUNK)){
-        // Supabase 1000 limit aşımı için pagination
         let from=0;
         const PAGE=1000;
         while(true){
-          const {data} = await sb.from('visits').select('ncst')
+          let q = sb.from('visits').select('ncst')
             .in('ncst',ch).eq('durum','Gerçekleşti').range(from,from+PAGE-1);
+          if(filterSd) q=q.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
+          const {data} = await q;
           if(!data||!data.length) break;
           data.forEach(v=>{if(v.ncst)contactedSet.add(v.ncst);});
           if(data.length<PAGE) break;
@@ -869,6 +874,7 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       const PAGE = 1000;
       while(true){
         let q = sb.from('visits').select('ncst').eq('durum','Gerçekleşti').range(from, from+PAGE-1);
+        if(filterSd) q=q.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
         if(scopeKcmId) q = q.eq('kcm_id', scopeKcmId);
         const {data} = await q;
         if(!data||!data.length) break;
@@ -884,9 +890,10 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       const ncstList=[...ncstSet];
       let total=0;
       for(const ch of chunkArr(ncstList,CHUNK)){
-        const {count} = await sb.from('visits')
-          .select('visit_id',{count:'exact',head:true})
+        let q = sb.from('visits').select('visit_id',{count:'exact',head:true})
           .in('ncst',ch).eq('durum','Gerçekleşti');
+        if(filterSd) q=q.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
+        const {count} = await q;
         total += count||0;
       }
       return total;
@@ -921,7 +928,6 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
     set('tmsRatioFMY', '%'+pFMY);
     set('tmsRatio',    '%'+pGen);
 
-    await renderTemasList();
   }catch(err){console.error(err);toast('Özet yüklenemedi','error');}
 }
 
@@ -1026,10 +1032,11 @@ function _resetTemasFilters(){
   if(mNcst) mNcst.value='';
   const mSec=document.getElementById('tmsMusteriSecili');
   if(mSec){mSec.style.display='none';mSec.textContent='';}
-  // Zaman filtresi — Tümü'ne dön
-  listTimeFilter='tumu';
+  // Zaman filtresi — Bu Ay'a dön (varsayılan)
+  listTimeFilter='ay';
   const timeFilters=document.querySelectorAll('#tmsTimeFilters .chip-btn');
-  timeFilters.forEach((b,i)=>b.classList.toggle('selected',i===0));
+  // index: 0=Tümü, 1=Bu Ay, 2=Bu Hafta, 3=Bugün
+  timeFilters.forEach((b,i)=>b.classList.toggle('selected',i===1));
   // Durum filtresi — her ikisi seçili
   listStatusArr=['Gerçekleşti','Planlandı'];
   document.querySelectorAll('#tmsStatusFilters .chip-btn').forEach(b=>b.classList.add('selected'));
