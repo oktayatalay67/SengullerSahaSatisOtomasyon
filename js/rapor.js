@@ -1,3 +1,9 @@
+// ============================================================
+// rapor.js — v1.2.0
+// Son güncelleme: 2026-05-30
+// Değişiklikler:
+//   v1.2.0 — B5 fix: saveSifre DB'den şifre doğrulama
+// ============================================================
 'use strict';
 /* ===== RAPOR & EXCEL ===== */
 async function downloadTemasExcel(){
@@ -627,7 +633,9 @@ async function saveSifre(){
   const mevcut=document.getElementById('sifreMevcut').value;
   const yeni=document.getElementById('sifreYeni').value;
   const tekrar=document.getElementById('sifreYeniTekrar').value;
-  if(mevcut!==currentUser.sifre_hash){toast('Mevcut şifre yanlış','error');return;}
+  const{data:userRow,error:fetchErr}=await sb.from('users').select('sifre_hash').eq('my_id',currentUser.my_id).single();
+  if(fetchErr||!userRow){toast('Kullanıcı doğrulanamadı','error');return;}
+  if(mevcut!==userRow.sifre_hash){toast('Mevcut şifre yanlış','error');return;}
   if(yeni.length<6){toast('Şifre en az 6 karakter olmalı','error');return;}
   if(yeni!==tekrar){toast('Şifreler eşleşmiyor','error');return;}
   try{

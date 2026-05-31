@@ -1,3 +1,9 @@
+// ============================================================
+// firsat.js — v1.1.0
+// Son güncelleme: 2026-05-30
+// Değişiklikler:
+//   v1.1.0 — B3 fix: saveOpp eski adım update öncesi okunuyor
+// ============================================================
 'use strict';
 /* ===== PİPELİNE ===== */
 async function loadPipeline(){
@@ -353,7 +359,7 @@ function selectOppCust(ncst,unvan){
   loadOppMusteriOzet(ncst);
   loadOppKontaklar(ncst);
 }
-async function saveOpp(context='modal'){
+﻿async function saveOpp(context='modal'){
   // context: 'modal' = oppModal, 'form' = bağımsız fırsat formu
 
   // === Validasyon ===
@@ -425,7 +431,10 @@ async function saveOpp(context='modal'){
 
   // === DB İşlemi ===
   let error, oppId=currentEditingOppId;
+  let eskiOppRow=null;
   if(currentEditingOppId){
+    const{data:oldRow}=await sb.from('opportunities').select('adim,durum,my_id,tahmini_kapanis_tarihi,urun_adi').eq('opp_id',currentEditingOppId).maybeSingle();
+    eskiOppRow=oldRow;
     const res=await sb.from('opportunities').update(payload).eq('opp_id',currentEditingOppId);
     error=res.error;
   } else {
@@ -442,16 +451,15 @@ async function saveOpp(context='modal'){
     if(prodInserts.length) await sb.from('opportunity_products').insert(prodInserts);
   }
 
-  // === Adım değişim tetikleyicisi ===
-  if(currentEditingOppId){
-    const{data:old}=await sb.from('opportunities').select('adim,durum,my_id,tahmini_kapanis_tarihi,urun_adi').eq('opp_id',currentEditingOppId).maybeSingle();
-    const eskiAdim=old?.adim||old?.durum||'F\u0131rsat';
+  // === Adım değişim tetikleyicisi (güncellemeden ÖNCE okunan eski adım) ===
+  if(currentEditingOppId&&eskiOppRow){
+    const eskiAdim=eskiOppRow.adim||eskiOppRow.durum||'F\u0131rsat';
     if(eskiAdim!==adim){
       const devamEt=await processOppAdimChange(
         currentEditingOppId,adim,
-        old?.my_id||currentUser.my_id,
-        old?.tahmini_kapanis_tarihi||kapanis,
-        old?.urun_adi||ilkUrun.urun,
+        eskiOppRow.my_id||currentUser.my_id,
+        eskiOppRow.tahmini_kapanis_tarihi||kapanis,
+        eskiOppRow.urun_adi||ilkUrun.urun,
         eskiAdim
       );
       if(!devamEt){closeModal('oppModal');return;}
@@ -481,6 +489,7 @@ async function saveOpp(context='modal'){
     if(selectedMusteri&&document.getElementById('pageMusteri')?.classList.contains('active')) loadMusteriFirsatlar(selectedMusteri.ncst);
   }
 }
+
 
 async function saveFirsatForm(){
   // Bağımsız fırsat formu — state'i oppModal state'ine kopyalayıp saveOpp çağırır

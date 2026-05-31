@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.8.0
+// temas.js — v2.9.0
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.9.0 — B4 fix: listTimeFilter kullanımı, renderTemasList zaman bloğu
 //   v2.8.0 — countVisitsForNcst tanım sırası düzeltildi (before initialization hatası)
 //   v2.7.9 — Takım/MY filtresinde Temas Edilen Toplam portföy bazlı hesaplanıyor
 //   v2.7.8 — Paralel sorgu optimizasyonu (countCust+getNcstSet+totalVisit paralele alındı)
@@ -705,31 +706,27 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
 }
 
 /* ===== TEMAS LİSTESİ ===== */
-async function loadTemasDashboard(){
+﻿async function loadTemasDashboard(){
   try{
-    // ============ ZAMAN FİLTRELERİ ============
-    const scope = window._temasTimeScope||'tumu';
-    const listStatusArr = window._temasStatusArr||['Gerçekleşti','Planlandı'];
+    // ============ ZAMAN FİLTRELERİ (listTimeFilter / listStatusArr — config.js) ============
+    const scope = listTimeFilter||'tumu';
     const now = new Date();
     let filterSd='', filterEd='';
-    const trDateStr=d=>d.toISOString().replace('Z','+03:00');
-    const trStartOfDay=s=>s.replace(/T.*/,'T00:00:00+03:00');
-    const trEndOfDay=s=>s.replace(/T.*/,'T23:59:59+03:00');
+    const todayTR2=trDateStr(now);
     if(scope==='bugun'){
-      filterSd=trStartOfDay(trDateStr(now));
-      filterEd=trEndOfDay(trDateStr(now));
+      filterSd=trStartOfDay(todayTR2);
+      filterEd=trEndOfDay(todayTR2);
     } else if(scope==='hafta'){
-      const day=now.getUTCDay()||7;
-      const mon=new Date(now); mon.setUTCDate(mon.getUTCDate()-(day-1));
-      filterSd=trStartOfDay(trDateStr(new Date(mon.getTime()-3*60*60*1000)));
-      filterEd=trEndOfDay(trDateStr(now));
+      const day=now.getDay()||7;
+      const mon=new Date(now); mon.setDate(now.getDate()-day+1);
+      filterSd=trStartOfDay(trDateStr(mon));
+      filterEd=trEndOfDay(todayTR2);
     } else if(scope==='ay'){
-      const mon=new Date(now);
-      mon.setUTCDate(mon.getUTCDate()-(now.getUTCDate()-1));
-      filterSd=trStartOfDay(trDateStr(new Date(mon.getTime()-3*60*60*1000)));
-      filterEd=trEndOfDay(trDateStr(now));
+      const tr2=new Date(now.getTime()+3*60*60*1000);
+      filterSd=trStartOfMonth(tr2.getUTCFullYear(),tr2.getUTCMonth()+1);
+      filterEd=trEndOfDay(todayTR2);
     }
-    if(!filterEd) filterEd=trEndOfDay(trDateStr(now));
+    if(!filterEd) filterEd=trEndOfDay(todayTR2);
 
     const CHUNK=300;
     const chunkArr=(a,n)=>{const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r;};
@@ -927,6 +924,7 @@ async function loadTemasDashboard(){
     await renderTemasList();
   }catch(err){console.error(err);toast('Özet yüklenemedi','error');}
 }
+
 // ============================================================
 // v30.22: ORTAK KÇM→TAKIM→MY FİLTRE ALTYAPISI
 // Müşteri ekranıyla birebir aynı mantık — parametrik
@@ -1090,14 +1088,14 @@ async function renderTemasList(){
   if(listStatusArr.length===0){c.innerHTML='<div class="empty">En az bir durum seçin.</div>';return;}
   c.innerHTML='<div class="loader"><div class="spinner"></div></div>';
   if(Object.keys(myIdToName).length===0) await loadKcmMyIds();
-  // v30.40: İstanbul saatiyle
+    // v30.40: İstanbul saatiyle
   const now=new Date();
   const todayTR2=trDateStr(now);
   let sd='',ed=trEndOfDay(todayTR2);
   if(listTimeFilter!=='tumu'){
     if(listTimeFilter==='bugun')sd=trStartOfDay(todayTR2);
     if(listTimeFilter==='ay'){const tr2=new Date(now.getTime()+3*60*60*1000);sd=trStartOfMonth(tr2.getUTCFullYear(),tr2.getUTCMonth()+1);}
-    if(listTimeFilter==='hafta'){const day=now.getDay()||7;const mon=new Date(now);mon.setDate(now.getDate()-day+1);sd=mon.toISOString().split('T')[0]+'T00:00:00';}
+    if(listTimeFilter==='hafta'){const day=now.getDay()||7;const mon=new Date(now);mon.setDate(now.getDate()-day+1);sd=trStartOfDay(trDateStr(mon));}
   }
   // v30.12: KÇM/Takım/MY filtrelerini uygulayan yardımcı (renderTemasList scope'unda tanımlanıyor)
   // v30.17: _applyTemasListFilter — MY seçilince çapraz görünürlük, KÇM seçilince OR mantığı

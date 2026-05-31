@@ -1,3 +1,9 @@
+// ============================================================
+// auth.js — v1.1.0
+// Son güncelleme: 2026-05-30
+// Değişiklikler:
+//   v1.1.0 — B5 fix: saveSifre DB'den doğrulama, B6 fix: stale oturum iyileştirme
+// ============================================================
 'use strict';
 /* ===== AUTH & INIT ===== */
 window.onload=async()=>{
@@ -60,12 +66,9 @@ let kcmMyIds = []; // KÇM müdürü için kendi KÇM'indeki MY id listesi
 
 async function initApp(){
   showPage('pageDash');
-  loadDashboard();
   await loadProductsFromDB();
   await loadKcmMyIds();
   await loadBagliMyIds();
-  buildUrunSelects();
-  await buildTemasUI();
   loadDashboard();
 }
 
@@ -73,8 +76,7 @@ let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)
 
 async function loadKcmMyIds(){
   const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  const kcmRoller=['KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','ÇÖZÜM SATIŞ TEMSİLCİSİ','ÇÖZÜM SATIŞ UZMANI','TURKCELL BÖLGE YÖNETİCİSİ','MY','USER'];
-  const full=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
+  const kcmRoller=['KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','ÇÖZÜM SATIŞ TEMSİLCİSİ','ÇÖZÜM SATIŞ UZMANI','TURKCELL BÖLGE YÖNETİCİSİ','MY','USER'];
   // Tüm kullanıcıları yükle - my_id → ad_soyad map
   // v30.20: Pasif kullanıcılar da myIdToName'e ekleniyor — eski kayıtlarda adları görünsün
   const{data:allUsers}=await sb.from('users').select('my_id,ad_soyad,kcm_id,aktif');

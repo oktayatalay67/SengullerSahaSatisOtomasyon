@@ -1,7 +1,8 @@
 // ============================================================
-// config.js — v1.1.0
+// config.js — v1.2.0
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v1.2.0 — applyScope Operasyon Müdürü kapsam düzeltmesi
 //   v1.1.0 — repTypeArr başlangıç değerlerine 'Fiziksel Ziyaret' eklendi
 //   v1.0.0 — ilk versiyon
 // ============================================================
@@ -210,7 +211,7 @@ function applyScope(q, module, prefix=''){
   if(scope==='KÇM' && currentUser.kcm_id){
     if(module==='musteri') return q.eq('kcm_id', currentUser.kcm_id);
     if(kcmMyIds.length>0) return q.in(`${prefix}my_id`, kcmMyIds);
-    return q.eq(`${prefix}my_id`, currentUser.my_id);
+    return q.eq(`${prefix}kcm_id`, currentUser.kcm_id);
   }
   if(scope==='BAĞLI'){
     if(module==='musteri') return q.in('my_id', bagliMyIds);
