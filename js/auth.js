@@ -1,7 +1,8 @@
 // ============================================================
-// auth.js — v1.1.0
+// auth.js — v1.2.0
 // Son güncelleme: 2026-05-30
 // Değişiklikler:
+//   v1.2.0 — B6 fix: localStorage kullanıcısı DB'den doğrulanıyor (pasif/rol değişikliği)
 //   v1.1.0 — B5 fix: saveSifre DB'den doğrulama, B6 fix: stale oturum iyileştirme
 // ============================================================
 'use strict';
@@ -30,7 +31,17 @@ window.onload=async()=>{
   sb = supabase.createClient(url, key);
   document.getElementById('dbLedSpan')?.classList.remove('hide');
   const saved = JSON.parse(localStorage.getItem('cu')||'null');
-  if(saved){ currentUser=saved; initApp(); } else showPage('pageLogin');
+  if(saved){
+    // B6 fix: localStorage'daki kullanıcıyı DB'den doğrula (pasif/rol değişikliği kontrolü)
+    const{data:dbUser,error:dbErr}=await sb.from('users').select('*').eq('my_id',saved.my_id).eq('aktif',true).single();
+    if(dbErr||!dbUser){ localStorage.removeItem('cu'); showPage('pageLogin'); return; }
+    // DB'den güncel bilgileri al, sifre_hash hariç
+    currentUser = Object.assign({}, dbUser);
+    const safeUser = Object.assign({}, currentUser);
+    delete safeUser.sifre_hash;
+    localStorage.setItem('cu', JSON.stringify(safeUser));
+    initApp();
+  } else showPage('pageLogin');
 };
 function setAppVersion(){const now=new Date();document.getElementById('appVersionInfo').innerText=`V30.42 | ${now.toLocaleDateString('tr-TR')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;}
 async function saveSetup(){const u=document.getElementById('sbUrl').value,k=document.getElementById('sbKey').value;if(u&&k){sb=supabase.createClient(u,k);localStorage.setItem('sb_u',u);localStorage.setItem('sb_k',k);location.reload();}}

@@ -1,7 +1,8 @@
 // ============================================================
-// firsat.js — v1.1.0
+// firsat.js — v1.2.0
 // Son güncelleme: 2026-05-30
 // Değişiklikler:
+//   v1.2.0 — B7 fix: MY yeni fırsatta Gerçekleşen adımına geçemez
 //   v1.1.0 — B3 fix: saveOpp eski adım update öncesi okunuyor
 // ============================================================
 'use strict';
@@ -371,7 +372,17 @@ function selectOppCust(ncst,unvan){
 
   // v30.30 BUG-7: adim ÖNCE okunuyor, sonra validasyonda kullanılıyor
   const adim = document.getElementById('oppDurum').value;
-  // Edit modunda yetki kontrolü
+  // B7 fix: Hem yeni hem edit modunda Gerçekleşen yetki kontrolü
+  {
+    const _rSave=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const myRoller=['MY','FMY','USER'];
+    if(myRoller.includes(_rSave)){
+      if(adim==='Gerçekleşen'){
+        toast('Evrak onayı için Satış Destek yetkisi gereklidir','error');return;
+      }
+    }
+  }
+  // Edit modunda ek yetki kontrolü
   if(currentEditingOppId){
     const _rSave=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
     const myRoller=['MY','FMY','USER'];
@@ -379,9 +390,6 @@ function selectOppCust(ncst,unvan){
       const{data:oppCheck}=await sb.from('opportunities').select('my_id,adim').eq('opp_id',currentEditingOppId).single();
       if(oppCheck&&oppCheck.my_id!==currentUser.my_id){
         toast('Sadece kendi girdiğiniz kayıtları düzenleyebilirsiniz','error');return;
-      }
-      if(adim==='Ger\u00e7ekle\u015fen'){
-        toast('Evrak onayı için Satış Destek yetkisi gereklidir','error');return;
       }
     }
   }

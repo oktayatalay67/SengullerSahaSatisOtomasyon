@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.9.1
+// temas.js — v2.9.2
 // Son güncelleme: 2026-05-28
 // Değişiklikler:
+//   v2.9.2 — B8 fix: hafta filtresi TR saatiyle Pazartesi başlangıcı
 //   v2.9.1 — Varsayılan filtre 'Bu Ay', zaman filtresi tüm metriklere eklendi, liste önce yükleniyor
 //   v2.9.0 — B4 fix: listTimeFilter kullanımı, renderTemasList zaman bloğu
 //   v2.8.0 — countVisitsForNcst tanım sırası düzeltildi (before initialization hatası)
@@ -718,9 +719,11 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       filterSd=trStartOfDay(todayTR2);
       filterEd=trEndOfDay(todayTR2);
     } else if(scope==='hafta'){
-      const day=now.getDay()||7;
-      const mon=new Date(now); mon.setDate(now.getDate()-day+1);
-      filterSd=trStartOfDay(trDateStr(mon));
+      // B8 fix: TR saatiyle Pazartesi başlangıcı
+      const tr2=new Date(now.getTime()+3*60*60*1000);
+      const day=tr2.getUTCDay()||7; // 1=Pzt, 7=Paz
+      const mon=new Date(tr2); mon.setUTCDate(tr2.getUTCDate()-day+1);
+      filterSd=trStartOfDay(trDateStr(new Date(mon.getTime()-3*60*60*1000)));
       filterEd=trEndOfDay(todayTR2);
     } else if(scope==='ay'){
       const tr2=new Date(now.getTime()+3*60*60*1000);
@@ -1102,7 +1105,12 @@ async function renderTemasList(){
   if(listTimeFilter!=='tumu'){
     if(listTimeFilter==='bugun')sd=trStartOfDay(todayTR2);
     if(listTimeFilter==='ay'){const tr2=new Date(now.getTime()+3*60*60*1000);sd=trStartOfMonth(tr2.getUTCFullYear(),tr2.getUTCMonth()+1);}
-    if(listTimeFilter==='hafta'){const day=now.getDay()||7;const mon=new Date(now);mon.setDate(now.getDate()-day+1);sd=trStartOfDay(trDateStr(mon));}
+    if(listTimeFilter==='hafta'){
+      const tr2=new Date(now.getTime()+3*60*60*1000);
+      const day=tr2.getUTCDay()||7;
+      const mon=new Date(tr2); mon.setUTCDate(tr2.getUTCDate()-day+1);
+      sd=trStartOfDay(trDateStr(new Date(mon.getTime()-3*60*60*1000)));
+    }
   }
   // v30.12: KÇM/Takım/MY filtrelerini uygulayan yardımcı (renderTemasList scope'unda tanımlanıyor)
   // v30.17: _applyTemasListFilter — MY seçilince çapraz görünürlük, KÇM seçilince OR mantığı
