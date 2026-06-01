@@ -114,27 +114,50 @@ function renderBasket(prefix){const list=document.getElementById(prefix+'BasketL
 function selectResult(el,val){document.querySelectorAll('#temasResultGrid .sonuc-item').forEach(e=>e.classList.remove('selected'));el.classList.add('selected');selectedResult=val;const isNoShow=val==='Ziyaret Yapılamadı';const isFollowUp=val==='Tekrar Ziyaret Edilecek'||val==='Ürün Sorumlusu/Uzmanı ile Toplantı Yapılacak';document.getElementById('ziyaretIptalNedeniBox').classList.toggle('hide',!isNoShow);document.getElementById('yeniPlanlamaBox').classList.toggle('hide',!(isNoShow||isFollowUp));if(isNoShow)document.getElementById('takipIslem').value='Ertelenen Ziyaret';}
 function renderCustomerSummaryHTML(c){const by=c.beyaz_yakali_sayi||'-';const it=c.it_ekibi?'Var':'Yok';const sube=c.sube_lokasyon?'Var':'Yok';const fw=c.firewall_kullanimi?'Var':'Yok';return `<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:4px;line-height:1.3;">${escapeHTML(c.unvan)}</div><div style="font-size:12px;color:var(--text2);margin-bottom:12px;">NCST: ${c.ncst}</div><div style="display:flex;gap:10px;font-size:11px;color:var(--text3);flex-wrap:wrap;background:var(--navy2);padding:10px;border-radius:8px;border:1px solid var(--border);"><div style="flex:1;min-width:40%;">👔 Beyaz Yaka: <strong style="color:var(--text)">${by}</strong></div><div style="flex:1;min-width:40%;">💻 IT: <strong style="color:var(--text)">${it}</strong></div><div style="flex:1;min-width:40%;">🏢 Şube: <strong style="color:var(--text)">${sube}</strong></div><div style="flex:1;min-width:40%;">🛡️ FW: <strong style="color:var(--text)">${fw}</strong></div></div>`;}
 async function loadDefaultCustomers(containerId,actionFn){
+  // v1.2.2: MY/FMY dahil tüm roller için default liste:
+  // 1. Önce bu kullanıcının son ziyaret ettiği müşterileri göster (ziyaret sırası)
+  // 2. Visits sorgusu da KÇM scope'unda — portföy dışı ziyaretler de dahil
+  // 3. Visits yoksa veya eksikse KÇM müşterilerini göster
   const c=document.getElementById(containerId);
   c.innerHTML='<div class="loader"><div class="spinner"></div></div>';
-  // Son ziyaret yapılan müşterileri önce göster - applyRBAC ile
-  let visitQ=sb.from('visits').select('ncst,musteri_my_id').order('guncelleme_tarihi',{ascending:false,nullsFirst:false}).order('tarih_saat',{ascending:false}).limit(1000);
-  visitQ=applyRBAC(visitQ);
-  const{data:visitData}=await visitQ;
-  // Unique NCST - sırayla
-  const seenNcst=new Set();
-  const orderedNcst=[];
-  (visitData||[]).forEach(v=>{if(!seenNcst.has(v.ncst)){seenNcst.add(v.ncst);orderedNcst.push(v.ncst);}});
-  // Bu NCST'lere ait müşteri bilgilerini çek
+  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const isMYFMY=(r==='MY'||r==='FMY'||r==='USER');
   let html='';
-  if(orderedNcst.length>0){
-    // v1.2.1: temas formunda default müşteri listesi KÇM scope'unda gösterilir
-    // (portföy filtresi değil — MY de KÇM'deki tüm müşterilere temas girebilir)
-    const dcQ=getCustomerBaseQuery(true).in('ncst',orderedNcst.slice(0,100));
-    const{data:custData}=await dcQ.limit(100);
-    // Temas sırasına göre sırala
-    const custMap={};(custData||[]).forEach(d=>custMap[d.ncst]=d);
-    const sorted=orderedNcst.slice(0,100).map(n=>custMap[n]).filter(Boolean);
-    html=sorted.map(d=>`<div class="visit-card" onclick="${actionFn}('${d.ncst}')"><div class="visit-firm">${escapeHTML(d.unvan)}</div><div class="visit-my">NCST: ${d.ncst}${d.il?' | '+escapeHTML(d.il):''}</div></div>`).join('');
+  if(isMYFMY){
+    // MY/FMY: Son ziyaret edilen müşteriler (kendi girdiği) + KÇM scope ile müşteri çek
+    let visitQ=sb.from('visits').select('ncst').eq('my_id',currentUser.my_id)
+      .order('guncelleme_tarihi',{ascending:false,nullsFirst:false})
+      .order('tarih_saat',{ascending:false}).limit(200);
+    const{data:visitData}=await visitQ;
+    const seenNcst=new Set();
+    const orderedNcst=[];
+    (visitData||[]).forEach(v=>{if(!seenNcst.has(v.ncst)){seenNcst.add(v.ncst);orderedNcst.push(v.ncst);}});
+    if(orderedNcst.length>0){
+      // Ziyaret edilen müşterileri KÇM scope'unda çek (portföy dışı da dahil)
+      const{data:custData}=await getCustomerBaseQuery(true).in('ncst',orderedNcst.slice(0,100)).limit(100);
+      const custMap={};(custData||[]).forEach(d=>custMap[d.ncst]=d);
+      const sorted=orderedNcst.slice(0,100).map(n=>custMap[n]).filter(Boolean);
+      html=sorted.map(d=>`<div class="visit-card" onclick="${actionFn}('${d.ncst}')"><div class="visit-firm">${escapeHTML(d.unvan)}</div><div class="visit-my">NCST: ${d.ncst}${d.il?' | '+escapeHTML(d.il):''}</div></div>`).join('');
+    }
+    if(!html){
+      // Ziyaret yoksa: KÇM müşterilerini son güncellemeye göre göster
+      const{data:custData}=await getCustomerBaseQuery(true).order('guncelleme_tarihi',{ascending:false,nullsFirst:false}).limit(50);
+      html=(custData||[]).map(d=>`<div class="visit-card" onclick="${actionFn}('${d.ncst}')"><div class="visit-firm">${escapeHTML(d.unvan)}</div><div class="visit-my">NCST: ${d.ncst}${d.il?' | '+escapeHTML(d.il):''}</div></div>`).join('');
+    }
+  } else {
+    // Diğer roller: eski davranış — visits applyRBAC ile
+    let visitQ=sb.from('visits').select('ncst,musteri_my_id').order('guncelleme_tarihi',{ascending:false,nullsFirst:false}).order('tarih_saat',{ascending:false}).limit(1000);
+    visitQ=applyRBAC(visitQ);
+    const{data:visitData}=await visitQ;
+    const seenNcst=new Set();
+    const orderedNcst=[];
+    (visitData||[]).forEach(v=>{if(!seenNcst.has(v.ncst)){seenNcst.add(v.ncst);orderedNcst.push(v.ncst);}});
+    if(orderedNcst.length>0){
+      const{data:custData}=await getCustomerBaseQuery(true).in('ncst',orderedNcst.slice(0,100)).limit(100);
+      const custMap={};(custData||[]).forEach(d=>custMap[d.ncst]=d);
+      const sorted=orderedNcst.slice(0,100).map(n=>custMap[n]).filter(Boolean);
+      html=sorted.map(d=>`<div class="visit-card" onclick="${actionFn}('${d.ncst}')"><div class="visit-firm">${escapeHTML(d.unvan)}</div><div class="visit-my">NCST: ${d.ncst}${d.il?' | '+escapeHTML(d.il):''}</div></div>`).join('');
+    }
   }
   c.innerHTML=html||'<div class="empty" style="padding:10px">Henüz temas kaydı yok.</div>';
 }
