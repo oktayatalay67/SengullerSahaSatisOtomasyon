@@ -1,7 +1,8 @@
 // ============================================================
-// auth.js — v1.2.0
+// auth.js — v1.2.1
 // Son güncelleme: 2026-05-30
 // Değişiklikler:
+//   v1.2.1 — getCustomerBaseQuery forForm parametresi: temas/fırsat formunda KÇM scope
 //   v1.2.0 — B6 fix: localStorage kullanıcısı DB'den doğrulanıyor (pasif/rol değişikliği)
 //   v1.1.0 — B5 fix: saveSifre DB'den doğrulama, B6 fix: stale oturum iyileştirme
 // ============================================================
@@ -137,8 +138,10 @@ function applyRBAC(q,prefix=''){
   }
   return q.eq(`${prefix}my_id`, currentUser.my_id);
 }
-function getCustomerBaseQuery(){
+// v1.2.1: forForm=true → temas/fırsat formunda müşteri arama (KÇM scope)
+//         forForm=false → müşteri listesi ekranı (PRT scope, portföy)
+function getCustomerBaseQuery(forForm=false){
   let q=sb.from('customers').select('ncst,my_id,kcm_id,unvan,il,ilce,musteri_tipi,aktif,vergi_no,beyaz_yakali_sayi,sube_lokasyon,sube_detay,sunucu_altyapisi,sunucu_detay,it_ekibi,it_ekip_sayisi,firewall_kullanimi,firewall_detay,adres,telefon,churn_riski,toplam_hat,profil_tamamlandi').eq('aktif',true);
-  return applyScope(q,'musteri');
+  return forForm ? applyScope(q,'temas') : applyScope(q,'musteri');
 }
 

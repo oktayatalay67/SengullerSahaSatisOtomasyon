@@ -14,7 +14,7 @@ async function searchMusteri(val, opts){
     return;
   }
   _searchTimers[opts.timerId] = setTimeout(async()=>{
-    const {data} = await getCustomerBaseQuery()
+    const {data} = await getCustomerBaseQuery(true)  // v1.2.1: forForm=true — KÇM scope
       .select('ncst,unvan')
       .or(`ncst.ilike.%${val}%,unvan.ilike.%${val}%`)
       .limit(opts.limit||20);

@@ -1,9 +1,8 @@
 // ============================================================
-// temas.js — v2.9.2
-// Son güncelleme: 2026-05-28
+// temas.js — v2.10.0
+// Son güncelleme: 2026-05-29
 // Değişiklikler:
-//   v2.9.2 — B8 fix: hafta filtresi TR saatiyle Pazartesi başlangıcı
-//   v2.9.1 — Varsayılan filtre 'Bu Ay', zaman filtresi tüm metriklere eklendi, liste önce yükleniyor
+//   v2.10.0 — Temas ana ekran performans: liste önce, kartlar arka planda; zaman filtresi metriklere uygulandı
 //   v2.9.0 — B4 fix: listTimeFilter kullanımı, renderTemasList zaman bloğu
 //   v2.8.0 — countVisitsForNcst tanım sırası düzeltildi (before initialization hatası)
 //   v2.7.9 — Takım/MY filtresinde Temas Edilen Toplam portföy bazlı hesaplanıyor
@@ -128,15 +127,9 @@ async function loadDefaultCustomers(containerId,actionFn){
   // Bu NCST'lere ait müşteri bilgilerini çek
   let html='';
   if(orderedNcst.length>0){
-    const _rDC2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-    let dcQ;
-    if(_rDC2==='MY'||_rDC2==='USER'){
-      // MY: sadece kendi portföyündeki müşteriler (my_id)
-      dcQ=sb.from('customers').select('ncst,my_id,kcm_id,unvan,il,musteri_tipi,aktif')
-        .eq('aktif',true).eq('my_id',currentUser.my_id).in('ncst',orderedNcst.slice(0,100));
-    } else {
-      dcQ=getCustomerBaseQuery().in('ncst',orderedNcst.slice(0,100));
-    }
+    // v1.2.1: temas formunda default müşteri listesi KÇM scope'unda gösterilir
+    // (portföy filtresi değil — MY de KÇM'deki tüm müşterilere temas girebilir)
+    const dcQ=getCustomerBaseQuery(true).in('ncst',orderedNcst.slice(0,100));
     const{data:custData}=await dcQ.limit(100);
     // Temas sırasına göre sırala
     const custMap={};(custData||[]).forEach(d=>custMap[d.ncst]=d);
@@ -708,7 +701,13 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
 }
 
 /* ===== TEMAS LİSTESİ ===== */
-﻿async function loadTemasDashboard(){
+async function loadTemasDashboard(){
+  const setCard=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
+  // Liste hemen yüklensin — özet kartları arka planda hesaplanır
+  renderTemasList();
+  ['tmsPortfoy','tmsPortfoyMY','tmsPortfoyFMY','tmsTotalVisit','tmsTotalMY','tmsTotalFMY',
+   'tmsContacted','tmsContactedMY','tmsContactedFMY','tmsRatio','tmsRatioMY','tmsRatioFMY']
+    .forEach(id=>setCard(id,'…'));
   try{
     // ============ ZAMAN FİLTRELERİ (listTimeFilter / listStatusArr — config.js) ============
     const scope = listTimeFilter||'tumu';
@@ -719,11 +718,9 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       filterSd=trStartOfDay(todayTR2);
       filterEd=trEndOfDay(todayTR2);
     } else if(scope==='hafta'){
-      // B8 fix: TR saatiyle Pazartesi başlangıcı
-      const tr2=new Date(now.getTime()+3*60*60*1000);
-      const day=tr2.getUTCDay()||7; // 1=Pzt, 7=Paz
-      const mon=new Date(tr2); mon.setUTCDate(tr2.getUTCDate()-day+1);
-      filterSd=trStartOfDay(trDateStr(new Date(mon.getTime()-3*60*60*1000)));
+      const day=now.getDay()||7;
+      const mon=new Date(now); mon.setDate(now.getDate()-day+1);
+      filterSd=trStartOfDay(trDateStr(mon));
       filterEd=trEndOfDay(todayTR2);
     } else if(scope==='ay'){
       const tr2=new Date(now.getTime()+3*60*60*1000);
@@ -731,6 +728,10 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       filterEd=trEndOfDay(todayTR2);
     }
     if(!filterEd) filterEd=trEndOfDay(todayTR2);
+    const applyVisitDateRange=(q)=>{
+      if(filterSd) return q.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
+      return q;
+    };
 
     const CHUNK=300;
     const chunkArr=(a,n)=>{const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r;};
@@ -765,9 +766,6 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       const {data} = await q;
       return (data||[]).map(u=>u.my_id);
     };
-
-    // Listeyi hemen yükle, kartları arka planda hesapla
-    renderTemasList();
 
     const [myIds, fmyIds] = await Promise.all([getUserIds('MY'), getUserIds('FMY')]);
 
@@ -836,13 +834,14 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       const ncstList=[...ncstSet];
       const contactedSet=new Set();
       for(const ch of chunkArr(ncstList,CHUNK)){
+        // Supabase 1000 limit aşımı için pagination
         let from=0;
         const PAGE=1000;
         while(true){
-          let q = sb.from('visits').select('ncst')
-            .in('ncst',ch).eq('durum','Gerçekleşti').range(from,from+PAGE-1);
-          if(filterSd) q=q.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-          const {data} = await q;
+          let vq=sb.from('visits').select('ncst')
+            .in('ncst',ch).eq('durum','Gerçekleşti');
+          vq=applyVisitDateRange(vq);
+          const {data}=await vq.range(from,from+PAGE-1);
           if(!data||!data.length) break;
           data.forEach(v=>{if(v.ncst)contactedSet.add(v.ncst);});
           if(data.length<PAGE) break;
@@ -876,10 +875,10 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       let from = 0;
       const PAGE = 1000;
       while(true){
-        let q = sb.from('visits').select('ncst').eq('durum','Gerçekleşti').range(from, from+PAGE-1);
-        if(filterSd) q=q.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-        if(scopeKcmId) q = q.eq('kcm_id', scopeKcmId);
-        const {data} = await q;
+        let q=sb.from('visits').select('ncst').eq('durum','Gerçekleşti');
+        if(scopeKcmId) q=q.eq('kcm_id',scopeKcmId);
+        q=applyVisitDateRange(q);
+        const {data}=await q.range(from,from+PAGE-1);
         if(!data||!data.length) break;
         data.forEach(v=>{if(v.ncst)contactedSet.add(v.ncst);});
         if(data.length<PAGE) break;
@@ -893,10 +892,11 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       const ncstList=[...ncstSet];
       let total=0;
       for(const ch of chunkArr(ncstList,CHUNK)){
-        let q = sb.from('visits').select('visit_id',{count:'exact',head:true})
+        let vq=sb.from('visits')
+          .select('visit_id',{count:'exact',head:true})
           .in('ncst',ch).eq('durum','Gerçekleşti');
-        if(filterSd) q=q.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-        const {count} = await q;
+        vq=applyVisitDateRange(vq);
+        const {count}=await vq;
         total += count||0;
       }
       return total;
@@ -913,24 +913,22 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       Promise.all([countVisitsForNcst(myNcstSet), countVisitsForNcst(fmyNcstSet)])
     ]);
 
-    // ============ 6. DOM GÜNCELLE ============
-    const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
-    set('tmsPortfoy',    portfoyTotal.toLocaleString('tr-TR'));
-    set('tmsPortfoyMY',  portfoyMY.toLocaleString('tr-TR'));
-    set('tmsPortfoyFMY', portfoyFMY.toLocaleString('tr-TR'));
-    set('tmsTotalVisit', totalVisit.toLocaleString('tr-TR'));
-    set('tmsTotalMY',    visitsMY.toLocaleString('tr-TR'));
-    set('tmsTotalFMY',   visitsFMY.toLocaleString('tr-TR'));
-    set('tmsContacted',  contactedTotal.toLocaleString('tr-TR'));
-    set('tmsContactedMY',  contactedMY.toLocaleString('tr-TR'));
-    set('tmsContactedFMY', contactedFMY.toLocaleString('tr-TR'));
+    // ============ 6. DOM GÜNCELLE (özet kartları) ============
+    setCard('tmsPortfoy',    portfoyTotal.toLocaleString('tr-TR'));
+    setCard('tmsPortfoyMY',  portfoyMY.toLocaleString('tr-TR'));
+    setCard('tmsPortfoyFMY', portfoyFMY.toLocaleString('tr-TR'));
+    setCard('tmsTotalVisit', totalVisit.toLocaleString('tr-TR'));
+    setCard('tmsTotalMY',    visitsMY.toLocaleString('tr-TR'));
+    setCard('tmsTotalFMY',   visitsFMY.toLocaleString('tr-TR'));
+    setCard('tmsContacted',  contactedTotal.toLocaleString('tr-TR'));
+    setCard('tmsContactedMY',  contactedMY.toLocaleString('tr-TR'));
+    setCard('tmsContactedFMY', contactedFMY.toLocaleString('tr-TR'));
     const pMY  = portfoyMY>0  ? Math.round((contactedMY/portfoyMY)*100)   : 0;
     const pFMY = portfoyFMY>0 ? Math.round((contactedFMY/portfoyFMY)*100) : 0;
     const pGen = portfoyTotal>0 ? Math.round((contactedTotal/portfoyTotal)*100) : 0;
-    set('tmsRatioMY',  '%'+pMY);
-    set('tmsRatioFMY', '%'+pFMY);
-    set('tmsRatio',    '%'+pGen);
-
+    setCard('tmsRatioMY',  '%'+pMY);
+    setCard('tmsRatioFMY', '%'+pFMY);
+    setCard('tmsRatio',    '%'+pGen);
   }catch(err){console.error(err);toast('Özet yüklenemedi','error');}
 }
 
@@ -1035,11 +1033,10 @@ function _resetTemasFilters(){
   if(mNcst) mNcst.value='';
   const mSec=document.getElementById('tmsMusteriSecili');
   if(mSec){mSec.style.display='none';mSec.textContent='';}
-  // Zaman filtresi — Bu Ay'a dön (varsayılan)
-  listTimeFilter='ay';
+  // Zaman filtresi — Tümü'ne dön
+  listTimeFilter='tumu';
   const timeFilters=document.querySelectorAll('#tmsTimeFilters .chip-btn');
-  // index: 0=Tümü, 1=Bu Ay, 2=Bu Hafta, 3=Bugün
-  timeFilters.forEach((b,i)=>b.classList.toggle('selected',i===1));
+  timeFilters.forEach((b,i)=>b.classList.toggle('selected',i===0));
   // Durum filtresi — her ikisi seçili
   listStatusArr=['Gerçekleşti','Planlandı'];
   document.querySelectorAll('#tmsStatusFilters .chip-btn').forEach(b=>b.classList.add('selected'));
@@ -1105,12 +1102,7 @@ async function renderTemasList(){
   if(listTimeFilter!=='tumu'){
     if(listTimeFilter==='bugun')sd=trStartOfDay(todayTR2);
     if(listTimeFilter==='ay'){const tr2=new Date(now.getTime()+3*60*60*1000);sd=trStartOfMonth(tr2.getUTCFullYear(),tr2.getUTCMonth()+1);}
-    if(listTimeFilter==='hafta'){
-      const tr2=new Date(now.getTime()+3*60*60*1000);
-      const day=tr2.getUTCDay()||7;
-      const mon=new Date(tr2); mon.setUTCDate(tr2.getUTCDate()-day+1);
-      sd=trStartOfDay(trDateStr(new Date(mon.getTime()-3*60*60*1000)));
-    }
+    if(listTimeFilter==='hafta'){const day=now.getDay()||7;const mon=new Date(now);mon.setDate(now.getDate()-day+1);sd=trStartOfDay(trDateStr(mon));}
   }
   // v30.12: KÇM/Takım/MY filtrelerini uygulayan yardımcı (renderTemasList scope'unda tanımlanıyor)
   // v30.17: _applyTemasListFilter — MY seçilince çapraz görünürlük, KÇM seçilince OR mantığı

@@ -105,8 +105,6 @@ function navTo(pid,reset=false){
   if(pid==='pageDash')loadDashboard();
   if(pid==='pageTemasForm'){initTemasForm();if(!selectedCustomer)loadDefaultCustomers('formDefaultCustList','selC');}
   if(pid==='pageMenuTemas'){
-    // v30.29 BUG-1: Her girişte filtreler ve zaman filtresi sıfırlanır
-    _resetTemasFilters();
     loadTemasDashboard();
     initTemasPersonelFilter();
   }

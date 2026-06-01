@@ -1,6 +1,6 @@
 // ============================================================
-// config.js — v1.2.0
-// Son güncelleme: 2026-05-28
+// config.js — v1.2.1
+// Son güncelleme: 2026-06-01
 // Değişiklikler:
 //   v1.2.0 — applyScope Operasyon Müdürü kapsam düzeltmesi
 //   v1.1.0 — repTypeArr başlangıç değerlerine 'Fiziksel Ziyaret' eklendi
@@ -59,8 +59,8 @@ const PERM = {
       'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
       'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
       'SATIŞ DESTEK': 'KÇM',
-      'MY': 'PRT',
-      'FMY': 'PRT',
+      'MY': 'KÇM',   // v1.2.1: PRT→KÇM — form içi müşteri aramada tüm KÇM görünür
+      'FMY': 'KÇM',  // v1.2.1: PRT→KÇM
     },
     firsat: {
       'ADMIN': 'TÜM',
@@ -72,8 +72,8 @@ const PERM = {
       'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
       'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
       'SATIŞ DESTEK': 'KÇM',
-      'MY': 'PRT',
-      'FMY': 'PRT',
+      'MY': 'KÇM',   // v1.2.1: PRT→KÇM
+      'FMY': 'KÇM',  // v1.2.1: PRT→KÇM
     },
     rapor_temas: {
       'ADMIN': 'TÜM',
