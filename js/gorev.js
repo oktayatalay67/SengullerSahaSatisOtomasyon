@@ -1,3 +1,9 @@
+// ============================================================
+// gorev.js — v1.1.0
+// Son güncelleme: 2026-05-31
+// Değişiklikler:
+//   v1.1.0 — gorevMusteriAra KÇM scope (getCustomerBaseQuery(true))
+// ============================================================
 // ===== GÖREV MODÜLÜ =====
 // ============================================================
 // GÖREV YÖNETİMİ MODÜLÜ — senguller_gorev.js
@@ -436,7 +442,7 @@ function gorevMusteriAra(val) {
   const res = document.getElementById('gfMusteriSonuc');
   if (!val || val.length < 2) { if(res) res.style.display='none'; return; }
   _gfMusteriTimer = setTimeout(async function() {
-    const { data } = await sb.from('customers')
+    const { data } = await getCustomerBaseQuery(true)
       .select('ncst,unvan').ilike('unvan','%'+val+'%').limit(8);
     if (!res) return;
     if (!data || !data.length) { res.style.display='none'; return; }

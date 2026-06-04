@@ -858,9 +858,13 @@
       <div class="form-section-title">Müşteri Ara</div>
       <div id="musteriSelBox" class="hide">
         <div id="musteriSelNameHtml" style="margin-bottom:12px;"></div>
+        <!-- v1.1.0: Başkasının portföyündeyse sadece okuma uyarısı -->
+        <div id="musteriReadonlyBanner" style="display:none;background:rgba(255,180,0,.15);border:1px solid var(--amber);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--amber);margin-bottom:8px;">
+          ⚠️ Bu müşteri başka bir MY'nin portföyünde. Sadece görüntüleme yapabilirsiniz.
+        </div>
         <div style="display:flex;gap:8px;margin-bottom:12px;">
           <button class="btn btn-ghost btn-sm" onclick="clearMusteriSel()" style="flex:1;">🔄 Değiştir</button>
-          <button class="btn btn-ghost btn-sm" onclick="openMusteriEdit()" style="flex:1;border-color:var(--blue);color:var(--blue);">✏️ Düzenle</button>
+          <button class="btn btn-ghost btn-sm musteri-edit-btn" onclick="openMusteriEdit()" style="flex:1;border-color:var(--blue);color:var(--blue);">✏️ Düzenle</button>
         </div>
       </div>
       <div id="musteriSearchBox">

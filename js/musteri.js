@@ -1,3 +1,9 @@
+// ============================================================
+// musteri.js — v1.1.0
+// Son güncelleme: 2026-05-31
+// Değişiklikler:
+//   v1.1.0 — selectMusteri: başkasının portföyündeki müşteri sadece okuma + kontak ekleme
+// ============================================================
 'use strict';
 /* ===== ORTAK MÜŞTERİ ARAMA ===== */
 // ===== ORTAK MÜŞTERİ ARAMA =====
@@ -796,6 +802,19 @@ async function selectMusteri(ncst){
   document.getElementById('musteriSelBox').classList.remove('hide');
   document.getElementById('musteriSelNameHtml').innerHTML = renderCustomerSummaryHTML(data);
   document.getElementById('musteriDetailBox').classList.remove('hide');
+
+  // v1.1.0: MY/FMY başkasının portföyündeki müşteriyi açarsa — sadece okuma + kontak ekleme
+  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const isMYFMY=(r==='MY'||r==='FMY'||r==='USER');
+  const benimPortfoyum = !isMYFMY || (data.my_id === currentUser.my_id);
+  // Edit butonlarını göster/gizle
+  document.querySelectorAll('.musteri-edit-btn').forEach(btn=>{
+    btn.style.display = benimPortfoyum ? '' : 'none';
+  });
+  // Sadece okuma uyarısı
+  const readonlyBanner = document.getElementById('musteriReadonlyBanner');
+  if(readonlyBanner) readonlyBanner.style.display = benimPortfoyum ? 'none' : '';
+
   await Promise.all([
     loadMusteriKartOzet(ncst),
     loadMusteriKontaklar(ncst),
