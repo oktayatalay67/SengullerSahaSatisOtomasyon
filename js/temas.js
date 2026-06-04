@@ -1,7 +1,8 @@
 // ============================================================
-// temas.js — v2.10.1
+// temas.js — v2.10.2
 // Son güncelleme: 2026-05-29
 // Değişiklikler:
+//   v2.10.2 — Lock + debounce eklendi: eşzamanlı çoklu çağrı engellendi
 //   v2.10.1 — loadTemasDashboard yeniden yazıldı: scope bazlı 3-15 sorguya indirildi
 //   v2.10.0 — Temas ana ekran performans: liste önce, kartlar arka planda; zaman filtresi metriklere uygulandı
 //   v2.9.0 — B4 fix: listTimeFilter kullanımı, renderTemasList zaman bloğu
@@ -715,7 +716,7 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
     }
     navHistory = [];
     showPage('pageMenuTemas');
-    loadTemasDashboard();
+    loadTemasDashboardDebounced();
   }
   }catch(e){
     console.error('[saveTemas HATA]', e.stack||e.message, e);
@@ -725,7 +726,19 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
 }
 
 /* ===== TEMAS LİSTESİ ===== */
+let _temasDashboardLoading = false;
+let _temasDashboardTimer = null;
+
+function loadTemasDashboardDebounced(){
+  clearTimeout(_temasDashboardTimer);
+  _temasDashboardTimer = setTimeout(()=>loadTemasDashboard(), 150);
+}
+
 async function loadTemasDashboard(){
+  // Lock: aynı anda sadece 1 çalışsın
+  if(_temasDashboardLoading) return;
+  _temasDashboardLoading = true;
+
   const setCard=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
 
   // Liste hemen yüklensin
@@ -946,6 +959,7 @@ async function loadTemasDashboard(){
     }
 
   }catch(err){console.error(err);toast('Ozet yuklenemedi','error');}
+  finally{ _temasDashboardLoading=false; }
 }
 
 // ============================================================
@@ -1098,17 +1112,20 @@ function setTemasTimeFilter(val,el){
   document.querySelectorAll('#tmsTimeFilters .chip-btn').forEach(e=>e.classList.remove('selected'));
   el.classList.add('selected');
   listTimeFilter=val;
-  loadTemasDashboard(); // Sayıları + listeyi birlikte güncelle
+  loadTemasDashboardDebounced(); // Sayıları + listeyi birlikte güncelle
 }
 function toggleTemasStatusList(val,el){
   el.classList.toggle('selected');
   if(listStatusArr.includes(val)) listStatusArr=listStatusArr.filter(x=>x!==val);
   else listStatusArr.push(val);
-  loadTemasDashboard(); // Sayıları + listeyi birlikte güncelle
+  loadTemasDashboardDebounced(); // Sayıları + listeyi birlikte güncelle
 }
+let _temasListLoading = false;
 async function renderTemasList(){
+  if(_temasListLoading) return;
+  _temasListLoading = true;
   const c=document.getElementById('temasFilteredList');
-  if(listStatusArr.length===0){c.innerHTML='<div class="empty">En az bir durum seçin.</div>';return;}
+  if(listStatusArr.length===0){c.innerHTML='<div class="empty">En az bir durum seçin.</div>';_temasListLoading=false;return;}
   c.innerHTML='<div class="loader"><div class="spinner"></div></div>';
   if(Object.keys(myIdToName).length===0) await loadKcmMyIds();
     // v30.40: İstanbul saatiyle
@@ -1212,6 +1229,7 @@ const custObj=typeof custMap[v.ncst]==='object'?custMap[v.ncst]:{unvan:custMap[v
           ${!isPlan&&v.ziyaret_sonucu?`<div style="font-size:11px;color:var(--text2);margin-bottom:2px;">✅ Sonuç: <b>${escapeHTML(v.ziyaret_sonucu)}</b></div>`:''}
           <div class="visit-tags mt-8"><span class="tag ${isPlan?'tag-amber':'tag-green'}">${v.durum}</span>${v.urun_gruplari?`<span class="tag tag-blue">${escapeHTML(v.urun_gruplari.substring(0,40))}</span>`:''}</div></div>`;}).join('');
   }catch(err){console.error(err);c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;}
+  finally{_temasListLoading=false;}
 }
 
 /* ===== TEMAS DÜZENLE ===== */
