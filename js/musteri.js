@@ -1,7 +1,8 @@
 // ============================================================
-// musteri.js — v1.1.0
+// musteri.js — v1.1.1
 // Son güncelleme: 2026-05-31
 // Değişiklikler:
+//   v1.1.1 — onMusteriSearch KÇM scope: MY başkasının/atanmamış müşterisini arayabilir
 //   v1.1.0 — selectMusteri: başkasının portföyündeki müşteri sadece okuma + kontak ekleme
 // ============================================================
 'use strict';
@@ -776,7 +777,8 @@ async function onMusteriSearch(val){
   }
   document.getElementById('musteriDefaultList').innerHTML = '';
   musteriSearchTimer = setTimeout(async()=>{
-    const {data} = await getCustomerBaseQuery()
+    // v1.1.1: MY/FMY müşteri aramasında KÇM scope — kendi portföyü dışındaki müşterileri de bulabilsin
+    const {data} = await getCustomerBaseQuery(true)
       .or(`ncst.ilike.%${val}%,unvan.ilike.%${val}%,vergi_no.ilike.%${val}%`)
       .limit(10);
     if(!data || !data.length){
