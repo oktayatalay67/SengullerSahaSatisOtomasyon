@@ -1,7 +1,9 @@
 // ============================================================
-// temas.js — v2.10.2
-// Son güncelleme: 2026-05-29
+// temas.js — v2.10.3
+// Son güncelleme: 2026-06-08
 // Değişiklikler:
+//   v2.10.3 — A: Gerçekleşen tarih yeni+edit modda sistem anına sabitlenir (disabled)
+//             B: Gerçekleşen kayıt 8 saat sonra readonly; Planlandı butonuna kilitleme
 //   v2.10.2 — Lock + debounce eklendi: eşzamanlı çoklu çağrı engellendi
 //   v2.10.1 — loadTemasDashboard yeniden yazıldı: scope bazlı 3-15 sorguya indirildi
 //   v2.10.0 — Temas ana ekran performans: liste önce, kartlar arka planda; zaman filtresi metriklere uygulandı
@@ -84,14 +86,17 @@ function setTemasDurumu(val){
   }else{
     document.getElementById('temasTarihiBox').classList.add('hide');
     document.getElementById('gerceklesenAlanlar').classList.remove('hide');
-    // v30.09: gerçekleşen tarih kutusunu göster, default şimdiki zaman
+    // v2.10.3 (A): Gerçekleşen tarih her zaman sistem anına sabitlenir, kullanıcı değiştiremez
     const gtBox=document.getElementById('temasGercTarihBox');
     const gtInp=document.getElementById('temasGercTarih');
     if(gtBox) gtBox.classList.remove('hide');
-    if(gtInp&&!gtInp.value){
+    if(gtInp){
       const now=new Date();
       now.setMinutes(now.getMinutes()-now.getTimezoneOffset());
       gtInp.value=now.toISOString().slice(0,16);
+      gtInp.disabled=true;
+      gtInp.style.opacity='0.5';
+      gtInp.title='Gerçekleşen temas tarihi sistem tarafından atanır, değiştirilemez';
     }
   }
 }
@@ -264,6 +269,11 @@ function openPlannedAsNewTemas(visit){
 async function initTemasForm(){
   // v30.32: Edit modunda bu fonksiyon atlanır - openTemasFormForEdit kendi doldurur
   if(window._temasEditMode){ window._temasEditMode=false; return; }
+  // v2.10.3 (B): Yeni form açılışında durum buton kilitlerini sıfırla
+  const btnPlan2=document.getElementById('btnDurumPlanlanan');
+  const btnGerc2=document.getElementById('btnDurumGerceklesen');
+  if(btnPlan2){ btnPlan2.style.pointerEvents=''; btnPlan2.style.opacity=''; btnPlan2.title=''; }
+  if(btnGerc2){ btnGerc2.style.pointerEvents=''; btnGerc2.style.opacity=''; btnGerc2.title=''; }
   // v30.30: Yeni temas formunda timeline gizli
   const tlSec=document.getElementById('temasTimelineSection');
   if(tlSec) tlSec.style.display='none';
@@ -1314,6 +1324,16 @@ function _chipSec(selector, degerler, maxRetry=5, interval=200){
 async function openTemasFormForEdit(visit, editable){
   // v30.32: initTemasForm'u atla, buildTemasUI'yı kendimiz çalıştırıyoruz
   window._temasEditMode = true;
+
+  // v2.10.3 (B): Gerçekleşen ziyaret için 8 saat kuralı
+  // Gerçekleşen + 8 saatten fazla geçmiş → sadece görüntüleme (editable override)
+  const isPlan = visit.durum==='Planlandı';
+  if(!isPlan && editable && visit.tarih_saat){
+    const visitMs = new Date(visit.tarih_saat).getTime();
+    const diffSaat = (Date.now() - visitMs) / (1000 * 60 * 60);
+    if(diffSaat > 8) editable = false;
+  }
+
   window.currentEditingVisitId = editable ? visit.visit_id : null;
 
   navTo('pageTemasForm', true);
@@ -1322,8 +1342,17 @@ async function openTemasFormForEdit(visit, editable){
   // buildTemasUI async — chip'leri DB'den yükler, bitince seçimleri yaparız
   await buildTemasUI();
 
-  const isPlan = visit.durum==='Planlandı';
   setTemasDurumu(isPlan?'Planlandı':'Gerçekleşti');
+
+  // v2.10.3 (B): Gerçekleşen kayıtta Planlandı butonunu kilitle
+  const btnPlan = document.getElementById('btnDurumPlanlanan');
+  const btnGerc = document.getElementById('btnDurumGerceklesen');
+  if(!isPlan){
+    if(btnPlan){ btnPlan.style.pointerEvents='none'; btnPlan.style.opacity='0.4'; btnPlan.title='Gerçekleşen ziyaret Planlandı durumuna çekilemez'; }
+  } else {
+    if(btnPlan){ btnPlan.style.pointerEvents=''; btnPlan.style.opacity=''; btnPlan.title=''; }
+    if(btnGerc){ btnGerc.style.pointerEvents=''; btnGerc.style.opacity=''; btnGerc.title=''; }
+  }
 
   // Chip seçimlerini sıfırla (buildTemasUI sonrası)
   selectedPurposes=[];
@@ -1331,7 +1360,7 @@ async function openTemasFormForEdit(visit, editable){
   selectedResult='';
   document.querySelectorAll('#temasAmacGrid .product-chip,#temasProductGrid .product-chip,#temasResultGrid .product-chip,#temasResultGrid .sonuc-item').forEach(e=>e.classList.remove('selected'));
 
-  // BUG-1: Tarih — Gerçekleşen kilitle
+  // v2.10.3 (A+B): Tarih — Gerçekleşen edit modunda da kilitle (sadece görüntüleme)
   const tarihEl=document.getElementById('temasGercTarih');
   if(tarihEl){
     if(!isPlan&&visit.tarih_saat){
@@ -1342,7 +1371,7 @@ async function openTemasFormForEdit(visit, editable){
     }
     tarihEl.disabled=!isPlan;
     tarihEl.style.opacity=(!isPlan)?'0.5':'1';
-    tarihEl.title=(!isPlan)?'Gerçekleşen temas tarihi değiştirilemez':'';
+    tarihEl.title=(!isPlan)?'Gerçekleşen temas tarihi sistem tarafından atanır, değiştirilemez':'';
   }
   const planTarihEl=document.getElementById('temasTarihi');
   if(planTarihEl&&visit.planlanan_tarih) planTarihEl.value=visit.planlanan_tarih;

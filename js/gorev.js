@@ -1,7 +1,9 @@
 // ============================================================
-// gorev.js — v1.1.0
-// Son güncelleme: 2026-05-31
+// gorev.js — v1.2.0
+// Son güncelleme: 2026-06-08
 // Değişiklikler:
+//   v1.2.0 — C: gorevZiyaretOlustur direkt DB kaydı (form açmıyor)
+//             task_id visits tablosuna yazılır, göreve visit_id set edilir
 //   v1.1.0 — gorevMusteriAra KÇM scope (getCustomerBaseQuery(true))
 // ============================================================
 // ===== GÖREV MODÜLÜ =====
@@ -520,29 +522,49 @@ async function saveGorev() {
 // ============================================================
 // OTOMATİK ZİYARET OLUŞTURMA
 // ============================================================
+// v1.2.0 (C): Form açmak yerine direkt DB'ye planlanmış ziyaret kaydı oluşturur.
+// Temas kaydında task_id set edilir — görev bazlı temas raporu için izlenebilirlik.
 async function gorevZiyaretOlustur(gorevId, ncst, tip, firstatDa) {
-  // Müşteriyi getir ve formu aç
-  const { data: cust } = await sb.from('customers').select('*').eq('ncst', ncst).single();
-  if (!cust) { toast('Müşteri bulunamadı','error'); return; }
+  const ziyaretAmaci = tip && tip.ziyaret_amaci ? tip.ziyaret_amaci : 'Genel Ziyaret';
+  const bugun = trDateStr(new Date()); // 'YYYY-MM-DD' TR timezone
 
-  // Ziyaret formunu aç — otomatik amaç seç
-  navTo('pageTemasForm', true);
-  setTimeout(async function() {
-    setTemasDurumu('Gerçekleşti');
-    await selC(cust);
-    // Otomatik amaç seç
-    if (tip && tip.ziyaret_amaci) {
-      setTimeout(function() {
-        document.querySelectorAll('#temasAmacGrid .product-chip').forEach(function(chip) {
-          if (chip.textContent.trim() === tip.ziyaret_amaci && !chip.classList.contains('selected')) chip.click();
-        });
-      }, 500);
-    }
-    // Görev ID'sini form'a bağla (saveTemas'ta loglanacak)
-    window._gorevId = gorevId;
-    window._gorevFirsatDa = firstatDa;
-    toast('Ziyaret formu açıldı — doldurup kaydedin','info');
-  }, 400);
+  // Müşterinin my_id ve kcm_id bilgisini al (scope için)
+  const { data: cust } = await sb.from('customers').select('my_id,kcm_id').eq('ncst', ncst).single();
+
+  const visitPayload = {
+    ncst:             ncst,
+    my_id:            currentUser.my_id,
+    kcm_id:           currentUser.kcm_id || (cust ? cust.kcm_id : null),
+    musteri_my_id:    cust ? cust.my_id : null,
+    durum:            'Planlandı',
+    planlanan_tarih:  bugun,
+    ziyaret_amaci:    ziyaretAmaci,
+    temas_turu:       'Fiziksel Ziyaret',
+    task_id:          gorevId,
+    guncelleme_tarihi: new Date().toISOString(),
+  };
+
+  const { data: visitData, error: visitError } = await sb.from('visits').insert(visitPayload).select().single();
+  if (visitError) {
+    toast('Otomatik ziyaret oluşturulamadı: ' + visitError.message, 'error');
+    return;
+  }
+
+  const visitId = visitData.visit_id;
+
+  // Göreve visit_id yaz
+  await sb.from('tasks').update({ visit_id: visitId, guncelleme_tarihi: new Date().toISOString() }).eq('task_id', gorevId);
+
+  // Görev loguna kaydet
+  await sb.from('task_logs').insert({
+    task_id:  gorevId,
+    user_id:  currentUser.my_id,
+    user_ad:  currentUser.ad_soyad,
+    aksiyon:  'Otomatik Ziyaret Oluşturuldu',
+    detay:    'Planlanan ziyaret otomatik oluşturuldu. Visit ID: ' + visitId + ' — Amaç: ' + ziyaretAmaci,
+  });
+
+  toast('Planlanan ziyaret otomatik oluşturuldu ✅', 'success');
 }
 
 // ============================================================
