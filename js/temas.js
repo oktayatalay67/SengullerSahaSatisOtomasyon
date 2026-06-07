@@ -736,7 +736,8 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
 }
 
 /* ===== TEMAS LİSTESİ ===== */
-let _temasDashboardLoading = false;
+// v2.10.3: Generation counter — filtre değişince eski dashboard çağrısı çekilir
+let _temasDashboardGen = 0;
 let _temasDashboardTimer = null;
 
 function loadTemasDashboardDebounced(){
@@ -745,9 +746,7 @@ function loadTemasDashboardDebounced(){
 }
 
 async function loadTemasDashboard(){
-  // Lock: aynı anda sadece 1 çalışsın
-  if(_temasDashboardLoading) return;
-  _temasDashboardLoading = true;
+  const myGen = ++_temasDashboardGen;
 
   const setCard=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
 
@@ -848,6 +847,7 @@ async function loadTemasDashboard(){
       sb.from('customers').select('ncst',{count:'exact',head:true}).eq('aktif',true)
     );
     const {count:portfoyTotal} = await portfoyQ;
+    if(myGen!==_temasDashboardGen) return; // filtre değişti — çekil
 
     // ============ TOPLAM ZİYARET ============
     // 1 sorgu — visits tablosu
@@ -855,6 +855,7 @@ async function loadTemasDashboard(){
     if(filterSd) tvQ=tvQ.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
     tvQ=tvQ.eq('durum','Gerçekleşti');
     const {count:totalVisit} = await tvQ;
+    if(myGen!==_temasDashboardGen) return;
 
     // ============ TEMAS EDİLEN MÜŞTERİ (unique NCST) ============
     // visits'ten sayfalı çek, JS'de Set ile say
@@ -872,6 +873,7 @@ async function loadTemasDashboard(){
       from+=PAGE;
     }
     const contactedTotal = contactedSet.size;
+    if(myGen!==_temasDashboardGen) return;
 
     // ============ DOM GÜNCELLE ============
     setCard('tmsPortfoy',    (portfoyTotal||0).toLocaleString('tr-TR'));
@@ -969,7 +971,6 @@ async function loadTemasDashboard(){
     }
 
   }catch(err){console.error(err);toast('Ozet yuklenemedi','error');}
-  finally{ _temasDashboardLoading=false; }
 }
 
 // ============================================================
@@ -1130,14 +1131,15 @@ function toggleTemasStatusList(val,el){
   else listStatusArr.push(val);
   loadTemasDashboardDebounced(); // Sayıları + listeyi birlikte güncelle
 }
-let _temasListLoading = false;
+// v2.10.3: Boolean lock yerine generation counter — filtre değişince eski async çağrı çekilir
+let _temasListGen = 0;
 async function renderTemasList(){
-  if(_temasListLoading) return;
-  _temasListLoading = true;
+  const myGen = ++_temasListGen;
   const c=document.getElementById('temasFilteredList');
-  if(listStatusArr.length===0){c.innerHTML='<div class="empty">En az bir durum seçin.</div>';_temasListLoading=false;return;}
+  if(listStatusArr.length===0){c.innerHTML='<div class="empty">En az bir durum seçin.</div>';return;}
   c.innerHTML='<div class="loader"><div class="spinner"></div></div>';
   if(Object.keys(myIdToName).length===0) await loadKcmMyIds();
+  if(myGen!==_temasListGen) return; // filtre değişti, bu çağrı eski — çekil
     // v30.40: İstanbul saatiyle
   const now=new Date();
   const todayTR2=trDateStr(now);
@@ -1183,6 +1185,7 @@ async function renderTemasList(){
       if(tmsMusteriNcst) q=q.eq('ncst',tmsMusteriNcst);
       const filteredQ=await _applyTemasListFilter(q);
       const{data,error}=await filteredQ;
+      if(myGen!==_temasListGen) return; // stale
       console.log('[renderTemasList] Gerçekleşti count=',data?.length,'error=',error?.message);
       if(error)throw error;if(data)allData=allData.concat(data);
     }
@@ -1192,18 +1195,20 @@ async function renderTemasList(){
       if(tmsMusteriNcst) q=q.eq('ncst',tmsMusteriNcst);
       const filteredQ2=await _applyTemasListFilter(q);
       const{data,error}=await filteredQ2;
+      if(myGen!==_temasListGen) return; // stale
       console.log('[renderTemasList] Planlandı count=',data?.length,'error=',error?.message);
       if(error)throw error;if(data)allData=allData.concat(data);
     }
     if(allData.length===0){c.innerHTML='<div class="empty">Kayıt bulunamadı.</div>';return;}
     // Müşteri bilgileri
     let custMap={};const ncstList=[...new Set(allData.map(v=>v.ncst))];
-    if(ncstList.length>0){const{data:cd}=await sb.from('customers').select('ncst,unvan,my_id').in('ncst',ncstList);if(cd)cd.forEach(f=>{custMap[f.ncst]={unvan:f.unvan,my_id:f.my_id};});}
+    if(ncstList.length>0){const{data:cd}=await sb.from('customers').select('ncst,unvan,my_id').in('ncst',ncstList);if(myGen!==_temasListGen) return;if(cd)cd.forEach(f=>{custMap[f.ncst]={unvan:f.unvan,my_id:f.my_id};});}
     // v30.29: Kontak isimlerini batch çek
     let kontakMap={};
     const contactIds=[...new Set(allData.map(v=>v.contact_id).filter(Boolean))];
     if(contactIds.length>0){
       const{data:kontaklar}=await sb.from('contacts').select('contact_id,ad_soyad').in('contact_id',contactIds);
+      if(myGen!==_temasListGen) return; // stale
       if(kontaklar)kontaklar.forEach(k=>{kontakMap[k.contact_id]=k.ad_soyad;});
     }
     allData.sort((a,b)=>{const da=new Date(a.durum==='Planlandı'?a.planlanan_tarih:a.tarih_saat).getTime();const db=new Date(b.durum==='Planlandı'?b.planlanan_tarih:b.tarih_saat).getTime();return db-da;});
@@ -1239,7 +1244,6 @@ const custObj=typeof custMap[v.ncst]==='object'?custMap[v.ncst]:{unvan:custMap[v
           ${!isPlan&&v.ziyaret_sonucu?`<div style="font-size:11px;color:var(--text2);margin-bottom:2px;">✅ Sonuç: <b>${escapeHTML(v.ziyaret_sonucu)}</b></div>`:''}
           <div class="visit-tags mt-8"><span class="tag ${isPlan?'tag-amber':'tag-green'}">${v.durum}</span>${v.urun_gruplari?`<span class="tag tag-blue">${escapeHTML(v.urun_gruplari.substring(0,40))}</span>`:''}</div></div>`;}).join('');
   }catch(err){console.error(err);c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;}
-  finally{_temasListLoading=false;}
 }
 
 /* ===== TEMAS DÜZENLE ===== */
@@ -1406,9 +1410,9 @@ async function openTemasFormForEdit(visit, editable){
     });
   }
 
-  // Notlar boş
+  // v2.10.3 (Bug1): Notları ziyaret_amaci_detay'dan yükle — önceki kod hep sıfırlıyordu
   const notEl=document.getElementById('temasNotes');
-  if(notEl) notEl.value='';
+  if(notEl) notEl.value=visit.ziyaret_amaci_detay||'';
 
   // BUG-2: Müşteri + Kontak
   if(visit.ncst){
