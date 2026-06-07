@@ -1,10 +1,11 @@
 // ============================================================
-// temas.js — v2.10.3
+// temas.js — v2.10.4
 // Son güncelleme: 2026-06-08
 // Değişiklikler:
-//   v2.10.3 — A: Gerçekleşen tarih yeni+edit modda sistem anına sabitlenir (disabled)
-//             B: Gerçekleşen kayıt 8 saat sonra readonly; Planlandı butonuna kilitleme
-//   v2.10.2 — Lock + debounce eklendi: eşzamanlı çoklu çağrı engellendi
+//   v2.10.4 — Performans: bağımsız sorgular Promise.all ile paralel hale getirildi
+//             renderTemasList: Gerçekleşti+Planlandı paralel
+//             loadTemasDashboard: portfoy+ziyaret+contactedSet paralel; MY+FMY sayıları paralel
+//   v2.10.3 — A: tarih readonly; B: 8 saat kuralı; Bug1: notlar; filtre generation counter
 //   v2.10.1 — loadTemasDashboard yeniden yazıldı: scope bazlı 3-15 sorguya indirildi
 //   v2.10.0 — Temas ana ekran performans: liste önce, kartlar arka planda; zaman filtresi metriklere uygulandı
 //   v2.9.0 — B4 fix: listTimeFilter kullanımı, renderTemasList zaman bloğu
@@ -841,37 +842,37 @@ async function loadTemasDashboard(){
       showMYFMY   = true;
     }
 
-    // ============ PORTFÖY SAYISI ============
-    // 1 sorgu — customers tablosu
-    const portfoyQ = custFilter(
-      sb.from('customers').select('ncst',{count:'exact',head:true}).eq('aktif',true)
-    );
-    const {count:portfoyTotal} = await portfoyQ;
-    if(myGen!==_temasDashboardGen) return; // filtre değişti — çekil
+    // ============ PORTFÖY, ZİYARET SAYISI, TEMAS EDİLEN — PARALEL ============
+    // v2.10.4: 3 bağımsız sorgu Promise.all ile paralel (önceden sıralıydı, ~2x hızlanma)
+    const _fetchContactedSet = async () => {
+      const s = new Set();
+      let from = 0;
+      const PAGE = 1000;
+      while(true){
+        let cq = visitFilter(sb.from('visits').select('ncst'));
+        if(filterSd) cq = cq.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
+        cq = cq.eq('durum','Gerçekleşti').range(from, from+PAGE-1);
+        const {data:cData} = await cq;
+        if(!cData||!cData.length) break;
+        cData.forEach(v=>{ if(v.ncst) s.add(v.ncst); });
+        if(cData.length<PAGE) break;
+        from += PAGE;
+      }
+      return s;
+    };
+    let tvQBuilder = visitFilter(sb.from('visits').select('visit_id',{count:'exact',head:true}));
+    if(filterSd) tvQBuilder = tvQBuilder.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
+    tvQBuilder = tvQBuilder.eq('durum','Gerçekleşti');
 
-    // ============ TOPLAM ZİYARET ============
-    // 1 sorgu — visits tablosu
-    let tvQ = visitFilter(sb.from('visits').select('visit_id',{count:'exact',head:true}));
-    if(filterSd) tvQ=tvQ.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-    tvQ=tvQ.eq('durum','Gerçekleşti');
-    const {count:totalVisit} = await tvQ;
-    if(myGen!==_temasDashboardGen) return;
-
-    // ============ TEMAS EDİLEN MÜŞTERİ (unique NCST) ============
-    // visits'ten sayfalı çek, JS'de Set ile say
-    const contactedSet = new Set();
-    let from=0;
-    const PAGE=1000;
-    while(true){
-      let cq = visitFilter(sb.from('visits').select('ncst'));
-      if(filterSd) cq=cq.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-      cq=cq.eq('durum','Gerçekleşti').range(from,from+PAGE-1);
-      const {data:cData} = await cq;
-      if(!cData||!cData.length) break;
-      cData.forEach(v=>{if(v.ncst)contactedSet.add(v.ncst);});
-      if(cData.length<PAGE) break;
-      from+=PAGE;
-    }
+    const [
+      {count:portfoyTotal},
+      {count:totalVisit},
+      contactedSet
+    ] = await Promise.all([
+      custFilter(sb.from('customers').select('ncst',{count:'exact',head:true}).eq('aktif',true)),
+      tvQBuilder,
+      _fetchContactedSet()
+    ]);
     const contactedTotal = contactedSet.size;
     if(myGen!==_temasDashboardGen) return;
 
@@ -924,29 +925,22 @@ async function loadTemasDashboard(){
       const contactedMY  = [...contactedSet].filter(n=>myNcst.has(n)).length;
       const contactedFMY = [...contactedSet].filter(n=>fmyNcst.has(n)).length;
 
-      // Temas sayısı MY/FMY
-      const countVisitsMY  = await (async()=>{
-        if(!myIdList.length) return 0;
+      // v2.10.4: MY ve FMY temas sayıları Promise.all ile paralel (önceden sıralıydı)
+      const _countVisitsForIds = async (ids) => {
+        if(!ids.length) return 0;
         const CHUNK=300; let total=0;
-        for(let i=0;i<myIdList.length;i+=CHUNK){
-          const ch=myIdList.slice(i,i+CHUNK);
+        for(let i=0;i<ids.length;i+=CHUNK){
+          const ch=ids.slice(i,i+CHUNK);
           let vq=sb.from('visits').select('visit_id',{count:'exact',head:true}).in('my_id',ch).eq('durum','Gerçekleşti');
           if(filterSd) vq=vq.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
           const {count}=await vq; total+=count||0;
         }
         return total;
-      })();
-      const countVisitsFMY = await (async()=>{
-        if(!fmyIdList.length) return 0;
-        const CHUNK=300; let total=0;
-        for(let i=0;i<fmyIdList.length;i+=CHUNK){
-          const ch=fmyIdList.slice(i,i+CHUNK);
-          let vq=sb.from('visits').select('visit_id',{count:'exact',head:true}).in('my_id',ch).eq('durum','Gerçekleşti');
-          if(filterSd) vq=vq.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-          const {count}=await vq; total+=count||0;
-        }
-        return total;
-      })();
+      };
+      const [countVisitsMY, countVisitsFMY] = await Promise.all([
+        _countVisitsForIds(myIdList),
+        _countVisitsForIds(fmyIdList)
+      ]);
 
       setCard('tmsPortfoyMY',    portfoyMY.toLocaleString('tr-TR'));
       setCard('tmsPortfoyFMY',   portfoyFMY.toLocaleString('tr-TR'));
@@ -1178,27 +1172,29 @@ async function renderTemasList(){
   let allData=[];
   try{
     const tmsMusteriNcst=document.getElementById('tmsMusteriNcst')?.value||'';
-    console.log('[renderTemasList] sd=',sd,'ed=',ed,'statusArr=',listStatusArr);
-    if(listStatusArr.includes('Gerçekleşti')){
-      let q=sb.from('visits').select('*').eq('durum','Gerçekleşti').order('tarih_saat',{ascending:false}).limit(200);
-      if(sd) q=q.gte('tarih_saat',sd).lte('tarih_saat',ed);
-      if(tmsMusteriNcst) q=q.eq('ncst',tmsMusteriNcst);
-      const filteredQ=await _applyTemasListFilter(q);
-      const{data,error}=await filteredQ;
-      if(myGen!==_temasListGen) return; // stale
-      console.log('[renderTemasList] Gerçekleşti count=',data?.length,'error=',error?.message);
-      if(error)throw error;if(data)allData=allData.concat(data);
-    }
-    if(listStatusArr.includes('Planlandı')){
-      let q=sb.from('visits').select('*').eq('durum','Planlandı').order('planlanan_tarih',{ascending:true}).limit(200);
-      if(sd) q=q.gte('planlanan_tarih',sd.split('T')[0]).lte('planlanan_tarih',ed.split('T')[0]);
-      if(tmsMusteriNcst) q=q.eq('ncst',tmsMusteriNcst);
-      const filteredQ2=await _applyTemasListFilter(q);
-      const{data,error}=await filteredQ2;
-      if(myGen!==_temasListGen) return; // stale
-      console.log('[renderTemasList] Planlandı count=',data?.length,'error=',error?.message);
-      if(error)throw error;if(data)allData=allData.concat(data);
-    }
+    // v2.10.4: Gerçekleşti + Planlandı sorgularını Promise.all ile paralel çalıştır
+    const _fetchVisitsByDurum = async (durum) => {
+      if(!listStatusArr.includes(durum)) return [];
+      let q = sb.from('visits').select('*').eq('durum', durum);
+      if(durum==='Gerçekleşti'){
+        q = q.order('tarih_saat',{ascending:false}).limit(200);
+        if(sd) q = q.gte('tarih_saat',sd).lte('tarih_saat',ed);
+      } else {
+        q = q.order('planlanan_tarih',{ascending:true}).limit(200);
+        if(sd) q = q.gte('planlanan_tarih',sd.split('T')[0]).lte('planlanan_tarih',ed.split('T')[0]);
+      }
+      if(tmsMusteriNcst) q = q.eq('ncst', tmsMusteriNcst);
+      const filteredQ = await _applyTemasListFilter(q);
+      const {data, error} = await filteredQ;
+      if(error) throw error;
+      return data||[];
+    };
+    const [gercData, planData] = await Promise.all([
+      _fetchVisitsByDurum('Gerçekleşti'),
+      _fetchVisitsByDurum('Planlandı')
+    ]);
+    if(myGen!==_temasListGen) return; // stale — filtre değişti
+    allData = [...gercData, ...planData];
     if(allData.length===0){c.innerHTML='<div class="empty">Kayıt bulunamadı.</div>';return;}
     // Müşteri bilgileri
     let custMap={};const ncstList=[...new Set(allData.map(v=>v.ncst))];
