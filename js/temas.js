@@ -1,11 +1,11 @@
 // ============================================================
-// temas.js — v2.10.4
+// temas.js — v2.10.5
 // Son güncelleme: 2026-06-08
 // Değişiklikler:
-//   v2.10.4 — Performans: bağımsız sorgular Promise.all ile paralel hale getirildi
-//             renderTemasList: Gerçekleşti+Planlandı paralel
-//             loadTemasDashboard: portfoy+ziyaret+contactedSet paralel; MY+FMY sayıları paralel
-//   v2.10.3 — A: tarih readonly; B: 8 saat kuralı; Bug1: notlar; filtre generation counter
+//   v2.10.5 — portfoyQ: sanal MY + my_id=NULL hariç (gerçek portföy büyüklüğü)
+//             contactedSet ikiye ayrıldı: portföy oranı (portfoy_disi hariç) + tüm unique
+//             resMY/resFMY: is_sanal=false filtresi; contactedMY/FMY allContactedSet'ten
+//   v2.10.4 — Performans: bağımsız sorgular Promise.all ile paralel
 //   v2.10.1 — loadTemasDashboard yeniden yazıldı: scope bazlı 3-15 sorguya indirildi
 //   v2.10.0 — Temas ana ekran performans: liste önce, kartlar arka planda; zaman filtresi metriklere uygulandı
 //   v2.9.0 — B4 fix: listTimeFilter kullanımı, renderTemasList zaman bloğu
@@ -843,15 +843,18 @@ async function loadTemasDashboard(){
     }
 
     // ============ PORTFÖY, ZİYARET SAYISI, TEMAS EDİLEN — PARALEL ============
-    // v2.10.4: 3 bağımsız sorgu Promise.all ile paralel (önceden sıralıydı, ~2x hızlanma)
-    const _fetchContactedSet = async () => {
+    // v2.10.5: portfoyQ sanal MY hariç; iki ayrı contactedSet (portföy için, tümü için)
+    const _fetchContactedSet = async (portfoyOnly=false) => {
       const s = new Set();
       let from = 0;
       const PAGE = 1000;
       while(true){
         let cq = visitFilter(sb.from('visits').select('ncst'));
         if(filterSd) cq = cq.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
-        cq = cq.eq('durum','Gerçekleşti').range(from, from+PAGE-1);
+        cq = cq.eq('durum','Gerçekleşti');
+        // portfoyOnly: portfoy_disi=false veya NULL olan ziyaretler (portföy oranı için)
+        if(portfoyOnly) cq = cq.not('portfoy_disi','eq',true);
+        cq = cq.range(from, from+PAGE-1);
         const {data:cData} = await cq;
         if(!cData||!cData.length) break;
         cData.forEach(v=>{ if(v.ncst) s.add(v.ncst); });
@@ -860,35 +863,49 @@ async function loadTemasDashboard(){
       }
       return s;
     };
+
+    // portfoyQ: sanal MY'lere atanmış ve my_id=NULL müşteriler hariç
+    let portfoyQBuilder = custFilter(
+      sb.from('customers').select('ncst',{count:'exact',head:true}).eq('aktif',true)
+    ).not('my_id','is',null);
+    if(sanalMyIds && sanalMyIds.length > 0){
+      portfoyQBuilder = portfoyQBuilder.not('my_id','in',`(${sanalMyIds.join(',')})`);
+    }
+
     let tvQBuilder = visitFilter(sb.from('visits').select('visit_id',{count:'exact',head:true}));
     if(filterSd) tvQBuilder = tvQBuilder.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
     tvQBuilder = tvQBuilder.eq('durum','Gerçekleşti');
 
+    // 4 bağımsız sorgu paralel: portfoy büyüklüğü, toplam ziyaret, portföy temas, tüm temas
     const [
       {count:portfoyTotal},
       {count:totalVisit},
-      contactedSet
+      portfoyContactedSet,
+      allContactedSet
     ] = await Promise.all([
-      custFilter(sb.from('customers').select('ncst',{count:'exact',head:true}).eq('aktif',true)),
+      portfoyQBuilder,
       tvQBuilder,
-      _fetchContactedSet()
+      _fetchContactedSet(true),   // Portföy müşterisi ziyaretleri (oran için)
+      _fetchContactedSet(false)   // Tüm unique müşteri (KÇM kart 5 için)
     ]);
-    const contactedTotal = contactedSet.size;
+    const portfoyContactedTotal = portfoyContactedSet.size;
+    const allContactedTotal = allContactedSet.size;
     if(myGen!==_temasDashboardGen) return;
 
     // ============ DOM GÜNCELLE ============
     setCard('tmsPortfoy',    (portfoyTotal||0).toLocaleString('tr-TR'));
     setCard('tmsTotalVisit', (totalVisit||0).toLocaleString('tr-TR'));
-    setCard('tmsContacted',  contactedTotal.toLocaleString('tr-TR'));
-    setCard('tmsRatio', portfoyTotal>0 ? '%'+Math.round((contactedTotal/portfoyTotal)*100) : '%0');
+    setCard('tmsContacted',  allContactedTotal.toLocaleString('tr-TR'));   // Kart 5: tüm unique müşteri
+    setCard('tmsRatio', portfoyTotal>0 ? '%'+Math.round((portfoyContactedTotal/portfoyTotal)*100) : '%0'); // Kart 1: portföy temas %
 
     // MY/FMY kırılımı — sadece KÇM/Admin için
     if(showMYFMY){
       // MY portföy
       const kcmId = fTKcmId ? parseInt(fTKcmId) : currentUser.kcm_id;
+      // v2.10.5: is_sanal=false — sanal MY'ler MY/FMY kırılımına dahil edilmesin
       const [resMY, resFMY] = await Promise.all([
-        sb.from('users').select('my_id').eq('aktif',true).eq('yetki_seviyesi','MY').eq('kcm_id',kcmId),
-        sb.from('users').select('my_id').eq('aktif',true).eq('yetki_seviyesi','FMY').eq('kcm_id',kcmId)
+        sb.from('users').select('my_id').eq('aktif',true).eq('yetki_seviyesi','MY').eq('kcm_id',kcmId).eq('is_sanal',false),
+        sb.from('users').select('my_id').eq('aktif',true).eq('yetki_seviyesi','FMY').eq('kcm_id',kcmId).eq('is_sanal',false)
       ]);
       const myIdList  = (resMY.data||[]).map(u=>u.my_id);
       const fmyIdList = (resFMY.data||[]).map(u=>u.my_id);
@@ -922,8 +939,9 @@ async function loadTemasDashboard(){
       };
 
       const [myNcst, fmyNcst] = await Promise.all([getMyCustNcst(myIdList), getMyCustNcst(fmyIdList)]);
-      const contactedMY  = [...contactedSet].filter(n=>myNcst.has(n)).length;
-      const contactedFMY = [...contactedSet].filter(n=>fmyNcst.has(n)).length;
+      // v2.10.5: allContactedSet kullan — portföy müşterilerine yapılan tüm ziyaretler dahil
+      const contactedMY  = [...allContactedSet].filter(n=>myNcst.has(n)).length;
+      const contactedFMY = [...allContactedSet].filter(n=>fmyNcst.has(n)).length;
 
       // v2.10.4: MY ve FMY temas sayıları Promise.all ile paralel (önceden sıralıydı)
       const _countVisitsForIds = async (ids) => {
