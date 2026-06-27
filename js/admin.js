@@ -1,7 +1,24 @@
+// ============================================================
+// admin.js — v1.1.0
+// Son güncelleme: 2026-06-24
+// Değişiklikler:
+//   v1.1.0 — Ziyaret Seçenekleri ekranına parent_id destekli kademeli yapı eklendi.
+//            Yeni tipler: islem, temas_sonuc_ust/detay, sikayet_kategori/cozum_yontemi/
+//            kapalis_durumu, firsat_sonuc_ust/detay. prompt() tabanlı ekleme/düzenleme
+//            yerine zoptModal (üst seçenek dropdown'lı) kullanılıyor.
+// ============================================================
 'use strict';
 /* ===== ZİYARET SEÇENEKLERİ YÖNETİMİ ===== */
 // ===== ZİYARET SEÇENEKLERİ YÖNETİMİ =====
 let _zoptAktifTip = 'amac';
+
+// v1.1.0: Hangi tip hangi tipin alt kademesi (parent) — child tip:parent tip
+const ZOPT_PARENT_MAP = {
+  'sikayet_cozum_yontemi': 'sikayet_kategori',
+  'temas_sonuc_detay':     'temas_sonuc_ust',
+  'firsat_sonuc_detay':    'firsat_sonuc_ust',
+  'islem':                 'amac'
+};
 
 async function initZiyaretOpt(){
   zoptTipSec('amac', document.getElementById('zoptBtn_amac'));
@@ -24,6 +41,14 @@ async function zoptListeYukle(){
   if(error){ el.innerHTML=`<div style="color:var(--red);">${escapeHTML(error.message)}</div>`; return; }
   if(!data?.length){ el.innerHTML='<div class="empty">Kayıt yok.</div>'; return; }
 
+  // v1.1.0: Bu tip bir alt kademe mi? Üst seçeneklerin adını çek (gösterim için)
+  const parentTip = ZOPT_PARENT_MAP[_zoptAktifTip];
+  let parentNameMap = {};
+  if(parentTip){
+    const{data:parents}=await sb.from('visit_results').select('result_id,sonuc_adi').eq('tip',parentTip);
+    (parents||[]).forEach(p=>{ parentNameMap[p.result_id]=p.sonuc_adi; });
+  }
+
   el.innerHTML = data.map(r=>`
     <div draggable="true" data-id="${r.result_id}" data-sira="${r.sira}"
       style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;cursor:grab;touch-action:none;"
@@ -32,9 +57,12 @@ async function zoptListeYukle(){
       ondrop="zoptDrop(event,${r.result_id})"
       ondragend="zoptDragEnd(event)">
       <span style="color:var(--text3);font-size:16px;cursor:grab;">☰</span>
-      <div style="flex:1;font-size:13px;${r.aktif?'':'opacity:0.4;text-decoration:line-through;'}">${escapeHTML(r.sonuc_adi)}</div>
+      <div style="flex:1;">
+        <div style="font-size:13px;${r.aktif?'':'opacity:0.4;text-decoration:line-through;'}">${escapeHTML(r.sonuc_adi)}</div>
+        ${parentTip?`<div style="font-size:10px;color:var(--text3);margin-top:2px;">↳ ${r.parent_id&&parentNameMap[r.parent_id]?escapeHTML(parentNameMap[r.parent_id]):'<span style=\"color:var(--amber);\">Bağlı değil</span>'}</div>`:''}
+      </div>
       <div style="display:flex;gap:4px;">
-        <button onclick="zoptDuzenle(${r.result_id},'${escapeHTML(r.sonuc_adi)}',${r.sira})" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;">✏️</button>
+        <button onclick="zoptAcModal(${r.result_id},'${escapeHTML(r.sonuc_adi)}',${r.parent_id||'null'})" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;">✏️</button>
         <button onclick="zoptAktifToggle(${r.result_id},${!r.aktif})" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;${r.aktif?'color:var(--green);':'color:var(--text3);'}">${r.aktif?'✅':'⭕'}</button>
         <button onclick="zoptSil(${r.result_id})" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;color:var(--red);">🗑</button>
       </div>
@@ -92,26 +120,58 @@ async function zoptSiralamaKaydet(){
   toast('Sıralama kaydedildi','success');
 }
 
-function zoptYeniEkle(){
-  const ad = prompt('Yeni seçenek adı:','');
-  if(!ad?.trim()) return;
-  zoptKaydet(null, ad.trim());
+// v1.1.0: Modal tabanlı ekleme/düzenleme — parent_id'li tipler için üst seçim dropdown'u içerir
+let _zoptEditId = null;
+
+async function zoptYeniEkle(){
+  await zoptAcModal(null, '', null);
 }
 
-function zoptDuzenle(id, mevcutAd, mevcutSira){
-  const yeniAd = prompt('Seçenek adını düzenle:', mevcutAd);
-  if(yeniAd===null) return;
-  if(!yeniAd.trim()){ toast('Ad boş olamaz','error'); return; }
-  zoptKaydet(id, yeniAd.trim(), mevcutSira);
+async function zoptAcModal(id, mevcutAd, mevcutParentId){
+  _zoptEditId = id;
+  const parentTip = ZOPT_PARENT_MAP[_zoptAktifTip];
+  const adInput = document.getElementById('zoptModalAd');
+  const parentWrap = document.getElementById('zoptModalParentWrap');
+  const parentSelect = document.getElementById('zoptModalParentSelect');
+  const baslik = document.getElementById('zoptModalBaslik');
+  if(baslik) baslik.textContent = id ? 'Seçeneği Düzenle' : 'Yeni Seçenek Ekle';
+  if(adInput) adInput.value = mevcutAd||'';
+
+  if(parentTip){
+    if(parentWrap) parentWrap.style.display='block';
+    const{data:parents}=await sb.from('visit_results').select('result_id,sonuc_adi').eq('tip',parentTip).eq('aktif',true).order('sira');
+    if(parentSelect){
+      parentSelect.innerHTML = '<option value="">— Seçiniz —</option>' +
+        (parents||[]).map(p=>`<option value="${p.result_id}" ${p.result_id===mevcutParentId?'selected':''}>${escapeHTML(p.sonuc_adi)}</option>`).join('');
+    }
+  } else {
+    if(parentWrap) parentWrap.style.display='none';
+  }
+  openModal('zoptModal');
 }
 
-async function zoptKaydet(id, ad, sira){
-  const payload = {sonuc_adi:ad, tip:_zoptAktifTip, aktif:true};
+async function zoptModalKaydet(){
+  const ad = document.getElementById('zoptModalAd')?.value.trim();
+  if(!ad){ toast('Ad boş olamaz','error'); return; }
+  const parentTip = ZOPT_PARENT_MAP[_zoptAktifTip];
+  let parentId = null;
+  if(parentTip){
+    const v = document.getElementById('zoptModalParentSelect')?.value;
+    if(!v){ toast('Üst seçenek seçmelisiniz','error'); return; }
+    parentId = parseInt(v);
+  }
+  await zoptKaydet(_zoptEditId, ad, null, parentId);
+  closeModal('zoptModal');
+}
+
+async function zoptKaydet(id, ad, sira, parentId){
+  const payload = {sonuc_adi:ad, tip:_zoptAktifTip, parent_id: parentId ?? null};
   let error;
   if(id){
-    const res = await sb.from('visit_results').update({sonuc_adi:ad}).eq('result_id',id);
+    const res = await sb.from('visit_results').update({sonuc_adi:ad, parent_id: parentId ?? null}).eq('result_id',id);
     error = res.error;
   } else {
+    payload.aktif = true;
     // En yüksek sira + 1
     const {data:maxRow} = await sb.from('visit_results').select('sira').eq('tip',_zoptAktifTip).order('sira',{ascending:false}).limit(1);
     payload.sira = (maxRow?.[0]?.sira||0) + 1;
@@ -1547,3 +1607,52 @@ async function veriSagligiDuzelt(){
   }
 }
 
+
+// ============================================================
+// v1.x.x: Sanal Profil / Impersonation
+// Admin istediği kullanıcının profilini görüntüleyebilir.
+// ============================================================
+let _impersonateList = [];
+
+async function openImpersonateModal(){
+  if(!hasPerm('admin_panel')){toast('Yetkisiz erişim','error');return;}
+  // Listeyi çek (zaten yüklüyse tekrar çekme)
+  if(_impersonateList.length===0){
+    const{data}=await sb.from('users')
+      .select('my_id,ad_soyad,yetki_seviyesi,kcm_id,kcm_groups(kcm_adi)')
+      .eq('aktif',true)
+      .order('ad_soyad');
+    _impersonateList=data||[];
+  }
+  renderImpersonateList('');
+  openModal('impersonateModal');
+}
+
+function renderImpersonateList(arama){
+  const el=document.getElementById('impersonateListDiv');
+  if(!el) return;
+  const q=arama.toLowerCase();
+  const filtered=_impersonateList.filter(u=>
+    u.ad_soyad.toLowerCase().includes(q)||
+    (u.yetki_seviyesi||'').toLowerCase().includes(q)
+  );
+  if(!filtered.length){el.innerHTML='<div class="empty">Kullanıcı bulunamadı.</div>';return;}
+  el.innerHTML=filtered.map(u=>{
+    const rol=u.yetki_seviyesi||'';
+    const kcm=u.kcm_groups?.kcm_adi||'';
+    return `<div onclick="impersonateUser(${u.my_id})" style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onmouseover="this.style.background='var(--navy3)'" onmouseout="this.style.background=''">
+      <div>
+        <div style="font-size:13px;font-weight:600;">${escapeHTML(u.ad_soyad)}</div>
+        <div style="font-size:11px;color:var(--text3);">${escapeHTML(rol)}${kcm?' — '+escapeHTML(kcm):''}</div>
+      </div>
+      <span style="font-size:11px;color:var(--blue);">Görüntüle →</span>
+    </div>`;
+  }).join('');
+}
+
+async function impersonateUser(myId){
+  const user=_impersonateList.find(u=>u.my_id===myId);
+  if(!user){toast('Kullanıcı bulunamadı','error');return;}
+  closeModal('impersonateModal');
+  await startImpersonation(user);
+}
