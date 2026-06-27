@@ -1,8 +1,35 @@
 // ============================================================
-// config.js — v1.2.1
-// Son güncelleme: 2026-06-01
+// config.js — v1.2.8
+// Son güncelleme: 2026-06-24
 // Değişiklikler:
-//   v1.2.0 — applyScope Operasyon Müdürü kapsam düzeltmesi
+//   v1.2.8 — Önceki teslimatta APP_VERSION değişti (V30.51) ama bu başlık
+//            güncellenmemişti — kullanıcı uyardı, düzeltildi.
+// Son güncelleme: 2026-06-24
+// Değişiklikler:
+//   v1.2.7 — APP_VERSION tek kaynak değişkeni eklendi. Artık görünür versiyon
+//            numarasını değiştirmek için 19 ayrı yeri elle güncellemek gerekmiyor —
+//            sadece bu tek satırı değiştirip applyAppVersion() çağrılır (auth.js'te
+//            otomatik çağrılıyor). HTML'deki tüm "V30.XX" metinleri class="app-ver"
+//            ile işaretlendi, sayfa yüklenince buradan otomatik dolduruluyor.
+//   v1.2.6 — TURKCELL BÖLGE YÖNETİCİSİ rolü PERM matrisine eklendi.
+//            Scope: musteri/temas/firsat/rapor_temas/rapor_firsat/gorev = KÇM
+//            (Operasyon Müdürü ile aynı — kendi KÇM'sinin tüm verisini görür)
+//            Eylem yetkileri: KÇM MÜDÜRÜ ile aynı, HARİÇ:
+//            musteri_sil, hedef_giris, hedef_excel, hedef_kalem_yonet,
+//            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
+
+// v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
+const APP_VERSION = 'V30.53';
+function applyAppVersion(){
+  document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
+  document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
+}
+
+//   v1.2.5 — TAKIM LİDERİ musteri:KÇM (tüm KÇM), diğer modüller BAĞLI (takım scope)
+//   v1.2.4 — TAKIM LİDERİ scope: BAĞLI→KÇM (6 modül: musteri/temas/firsat/rapor/gorev)
+//   v1.2.3 — musteri_duzenle: MY/FMY eklendi (kendi müşterisini edit edebilir)
+//   v1.2.2 — PERM.scope.musteri MY/FMY: PRT→KÇM (tüm KÇM müşterilerini görebilir)
+//   v1.2.1 — applyScope MY/FMY temas/fırsat scope KÇM yapıldı
 //   v1.1.0 — repTypeArr başlangıç değerlerine 'Fiziksel Ziyaret' eklendi
 //   v1.0.0 — ilk versiyon
 // ============================================================
@@ -42,12 +69,13 @@ const PERM = {
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
-      'TAKIM LİDERİ': 'BAĞLI',
+      'TURKCELL BÖLGE YÖNETİCİSİ': 'KÇM', // v1.2.6: Operasyon Müdürü ile aynı — kendi KÇM'sinin tüm verisi
+      'TAKIM LİDERİ': 'KÇM', // v1.2.4: Takım Lideri tüm KÇM müşterilerini görür
       'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
       'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
       'SATIŞ DESTEK': 'KÇM',
-      'MY': 'PRT',
-      'FMY': 'PRT',
+      'MY': 'KÇM',  // v2.10.7: PRT→KÇM — tüm KÇM müşterilerini görebilir
+      'FMY': 'KÇM', // v2.10.7: PRT→KÇM
     },
     temas: {
       'ADMIN': 'TÜM',
@@ -55,6 +83,7 @@ const PERM = {
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
+      'TURKCELL BÖLGE YÖNETİCİSİ': 'KÇM', // v1.2.6: Operasyon Müdürü ile aynı — kendi KÇM'sinin tüm verisi
       'TAKIM LİDERİ': 'BAĞLI',
       'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
       'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
@@ -68,6 +97,7 @@ const PERM = {
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
+      'TURKCELL BÖLGE YÖNETİCİSİ': 'KÇM', // v1.2.6: Operasyon Müdürü ile aynı — kendi KÇM'sinin tüm verisi
       'TAKIM LİDERİ': 'BAĞLI',
       'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
       'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
@@ -81,6 +111,7 @@ const PERM = {
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
+      'TURKCELL BÖLGE YÖNETİCİSİ': 'KÇM', // v1.2.6: Operasyon Müdürü ile aynı — kendi KÇM'sinin tüm verisi
       'TAKIM LİDERİ': 'BAĞLI',
       'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
       'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
@@ -94,6 +125,7 @@ const PERM = {
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
+      'TURKCELL BÖLGE YÖNETİCİSİ': 'KÇM', // v1.2.6: Operasyon Müdürü ile aynı — kendi KÇM'sinin tüm verisi
       'TAKIM LİDERİ': 'BAĞLI',
       'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
       'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
@@ -107,6 +139,7 @@ const PERM = {
       'ÇÖZÜM SATIŞ MÜDÜRÜ': 'TÜM',
       'KÇM MÜDÜRÜ': 'KÇM',
       'OPERASYON MÜDÜRÜ': 'KÇM',
+      'TURKCELL BÖLGE YÖNETİCİSİ': 'KÇM', // v1.2.6: Operasyon Müdürü ile aynı — kendi KÇM'sinin tüm verisi
       'TAKIM LİDERİ': 'BAĞLI',
       'ÇÖZÜM SATIŞ UZMANI': 'TÜM',
       'ÇÖZÜM SATIŞ TEMSİLCİSİ': 'BAĞLI',
@@ -121,26 +154,26 @@ const PERM = {
   kullanici_yonet:        ['ADMIN','SATIŞ DİREKTÖRÜ'],
   urun_yonet:             ['ADMIN'],
   duyuru_yonet:           ['ADMIN','SATIŞ DİREKTÖRÜ'],
-  talep_yonet:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ'],
-  yonetici_panel:         ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+  talep_yonet:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ'],
+  yonetici_panel:         ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
 
-  musteri_ekle:           ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
-  musteri_duzenle:        ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK'],
+  musteri_ekle:           ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  musteri_duzenle:        ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'], // v1.2.3: MY/FMY kendi müşterisini edit edebilir
   musteri_sil:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ'],
-  portfoy_devri:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ'],
-  ncst_guncelle:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','SATIŞ DESTEK'],
+  portfoy_devri:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ'],
+  ncst_guncelle:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','SATIŞ DESTEK'],
 
-  temas_ekle:             ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
-  temas_duzenle:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
-  temas_baskasi_duzenle:  ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','ÇÖZÜM SATIŞ UZMANI'],
-  temas_sil:              ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ'],
+  temas_ekle:             ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  temas_duzenle:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  temas_baskasi_duzenle:  ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','ÇÖZÜM SATIŞ UZMANI'],
+  temas_sil:              ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ'],
 
-  firsat_ekle:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
-  firsat_adim:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
-  firsat_baskasi_duzenle: ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
-  firsat_gerceklesen:     ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK'],
-  firsat_iptal_talep:     ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','MY','FMY'],
-  firsat_iptal_onayla:    ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+  firsat_ekle:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  firsat_adim:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  firsat_baskasi_duzenle: ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
+  firsat_gerceklesen:     ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK'],
+  firsat_iptal_talep:     ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','MY','FMY'],
+  firsat_iptal_onayla:    ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
   firsat_sil:             ['ADMIN'],
 
   // MY ve FMY max adım kontrolü — Evrak'tan ileriye gidemez
@@ -150,7 +183,7 @@ const PERM = {
   hedef_excel:            ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
   hedef_kalem_yonet:      ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ'],
 
-  kontak_yonet:           ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
+  kontak_yonet:           ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TURKCELL BÖLGE YÖNETİCİSİ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI','ÇÖZÜM SATIŞ TEMSİLCİSİ','SATIŞ DESTEK','MY','FMY'],
   sifre_sifirla:          ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','ÇÖZÜM SATIŞ UZMANI'],
   urun_hedef_map:         ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ'],
 };

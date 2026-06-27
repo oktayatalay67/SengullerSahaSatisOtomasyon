@@ -1,7 +1,12 @@
 // ============================================================
-// musteri.js — v1.1.1
-// Son güncelleme: 2026-05-31
+// musteri.js — v1.1.3
+// Son güncelleme: 2026-06-16
 // Değişiklikler:
+//   v1.1.3 — loadMusteriOzetler: temas sayımı satır-çekip-JS'de-sayma yerine
+//            server-side COUNT'a çevrildi. Önceki yöntem PostgREST max-rows
+//            limitine (10.000) çarpıp sessizce kesiliyordu — gerçek sayı daha
+//            yüksek olsa da ekranda 10.000 sabit görünüyordu.
+//   v1.1.2 — onMusteriSearch: forForm=false (musteri scope, kcm_id filtresi) — sanal MY müşterileri dahil
 //   v1.1.1 — onMusteriSearch KÇM scope: MY başkasının/atanmamış müşterisini arayabilir
 //   v1.1.0 — selectMusteri: başkasının portföyündeki müşteri sadece okuma + kontak ekleme
 // ============================================================
@@ -582,10 +587,11 @@ async function loadMusteriOzetler(){
     }
     document.getElementById('moToplamMusteri').textContent = toplamC;
 
-    // Temas ve fırsat sorguları - filtre varsa uygula, yoksa applyRBAC
+    // v1.3.1: Temas ve fırsat sorguları - satır çekip JS'de saymak yerine server-side COUNT
+    // (önceki yöntem PostgREST'in max-rows limitine çarpıp sessizce kesiliyordu)
     const birYilOnce = new Date(); birYilOnce.setFullYear(birYilOnce.getFullYear()-1);
-    let temasQ = sb.from('visits').select('ncst,durum').eq('durum','Gerçekleşti').gte('tarih_saat', birYilOnce.toISOString()).limit(100000);
-    let temasPlanlananQ = sb.from('visits').select('ncst,durum').eq('durum','Planlandı').limit(100000);
+    let temasQ = sb.from('visits').select('durum',{count:'exact',head:true}).eq('durum','Gerçekleşti').gte('tarih_saat', birYilOnce.toISOString());
+    let temasPlanlananQ = sb.from('visits').select('durum',{count:'exact',head:true}).eq('durum','Planlandı');
     let oppQ = sb.from('opportunities').select('adim,durum,beklenen_ciro').limit(100000);
 
     if(fMyId){
@@ -605,10 +611,9 @@ async function loadMusteriOzetler(){
       temasPlanlananQ = applyRBAC(temasPlanlananQ);
       oppQ = applyRBAC(oppQ);
     }
-    const [{data:temasGercekData},{data:temasPlanlananData}] = await Promise.all([temasQ, temasPlanlananQ]);
-    const temasData = [...(temasGercekData||[]), ...(temasPlanlananData||[])];
-    const temasGercekC = (temasData||[]).filter(v=>v.durum==='Gerçekleşti').length;
-    const temasPlanlananC = (temasData||[]).filter(v=>v.durum==='Planlandı').length;
+    const [{count:temasGercekC0},{count:temasPlanlananC0}] = await Promise.all([temasQ, temasPlanlananQ]);
+    const temasGercekC = temasGercekC0||0;
+    const temasPlanlananC = temasPlanlananC0||0;
     const moTG=document.getElementById('moTemasGercek');
     const moTP=document.getElementById('moTemasPlanlanan');
     if(moTG) moTG.textContent = temasGercekC;
@@ -777,8 +782,8 @@ async function onMusteriSearch(val){
   }
   document.getElementById('musteriDefaultList').innerHTML = '';
   musteriSearchTimer = setTimeout(async()=>{
-    // v1.1.1: MY/FMY müşteri aramasında KÇM scope — kendi portföyü dışındaki müşterileri de bulabilsin
-    const {data} = await getCustomerBaseQuery(true)
+    // v1.2.3: forForm=false — musteri scope (kcm_id filtresi), sanal MY müşterilerini de kapsar
+    const {data} = await getCustomerBaseQuery(false)
       .or(`ncst.ilike.%${val}%,unvan.ilike.%${val}%,vergi_no.ilike.%${val}%`)
       .limit(10);
     if(!data || !data.length){
@@ -1039,4 +1044,3 @@ async function loadOppMusteriOzet(ncst){
     document.getElementById('oppMusteriOzetBox').classList.remove('hide');
   }catch(e){}
 }
-

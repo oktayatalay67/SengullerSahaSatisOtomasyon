@@ -1,10 +1,28 @@
 // ============================================================
-// gorev.js — v1.2.0
-// Son güncelleme: 2026-06-08
+// gorev.js — v1.2.8
+// Son güncelleme: 2026-06-24
 // Değişiklikler:
+//   v1.2.8 — PERFORMANS: v1.2.7'de eklenen "kendi müşterilerinin ncst listesi"
+//            sorgusu her loadGorevler çağrısında (60sn'lik sessiz yenileme dahil)
+//            tekrar çalışıyordu. _getOwnNcstCached() ile oturum boyunca bir kez
+//            çekilip önbelleğe alınıyor artık.
+//   v1.2.7 — İKİ AYRI DÜZELTME BİRLEŞTİ:
+//            1) Admin'e görev silme yetkisi: gorevSil zaten vardı ama hiçbir UI
+//               butonu çağırmıyordu. openGorevDetay'a Admin için "🗑 Görevi Sil"
+//               butonu eklendi; gorevSil fonksiyonuna da admin kontrolü eklendi.
+//            2) DAHA ÖNCE PLANLANIP UYGULANMAMIŞ düzeltmeler şimdi yapıldı:
+//               YETKILI listesine SATIŞ DESTEK ve TURKCELL BÖLGE YÖNETİCİSİ eklendi
+//               (önceden dar/kendi-görevi-görme moduna hapsoluyorlardı).
+//               MY/FMY için musteri_my_id koşulu eklendi — kendi müşterisine
+//               başkası tarafından açılıp üçüncü kişiye atanan görevleri artık görebiliyor.
+//   v1.2.6 — (bu numara önceki bir teslimat ile çakıştığı için atlandı, v1.2.7'ye geçildi)
+//   v1.2.4 — gorevZiyaretOlustur: visitId döndürür; gorevDurumGuncelle: formu aç
+//   v1.2.3 — gorevDurumGuncelle: GOREV.tasks cache yerine DB sorgusu (race condition fix)
+//   v1.2.2 — Görev başlangıç durumu 'Atandı'; ziyaret 'Başladı'ya çekilince açılır
+//             Portföy dışı müşteride toast + manuel Temas Oluştur butonu
+//             gorevTemasOlustur fonksiyonu eklendi; ystRoller ile yönetici yetki kontrolü
+//   v1.2.1 — gorevZiyaretOlustur koşulu: sikayet/firsat/potansiyel tipleri de ziyaret oluşturur
 //   v1.2.0 — C: gorevZiyaretOlustur direkt DB kaydı (form açmıyor)
-//             task_id visits tablosuna yazılır, göreve visit_id set edilir
-//   v1.1.0 — gorevMusteriAra KÇM scope (getCustomerBaseQuery(true))
 // ============================================================
 // ===== GÖREV MODÜLÜ =====
 // ============================================================
@@ -29,8 +47,9 @@ var GOREV = {
 };
 
 // Görev durumları
-var GOREV_DURUMLAR = ['Başladı','Devam','Beklemede','Tamamlandı','Reddedildi','İptal'];
+var GOREV_DURUMLAR = ['Atandı','Başladı','Devam','Beklemede','Tamamlandı','Reddedildi','İptal'];
 var GOREV_DURUM_RENK = {
+  'Atandı':     '#a78bfa',
   'Başladı':    '#4f9cf9',
   'Devam':      '#34d399',
   'Beklemede':  '#fbbf24',
@@ -68,6 +87,18 @@ async function loadTaskTypes() {
 // ============================================================
 // GÖREV LİSTESİ YÜKLEME
 // ============================================================
+// v1.2.8: MY/FMY'nin kendi müşteri ncst listesi — oturum boyunca bir kez çekilir,
+// her loadGorevler çağrısında (60sn'lik sessiz yenileme dahil) tekrar sorgulanmaz.
+let _ownNcstCache = null;
+let _ownNcstCacheMyId = null;
+async function _getOwnNcstCached(myId) {
+  if (_ownNcstCache !== null && _ownNcstCacheMyId === myId) return _ownNcstCache;
+  const { data } = await sb.from('customers').select('ncst').eq('my_id', myId);
+  _ownNcstCache = (data || []).map(c => c.ncst).filter(Boolean);
+  _ownNcstCacheMyId = myId;
+  return _ownNcstCache;
+}
+
 async function loadGorevler(silent) {
   const listEl = document.getElementById('gorevListesi');
   if (!silent && listEl) listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
@@ -82,9 +113,17 @@ async function loadGorevler(silent) {
 
   // Yönetici tümünü görür, diğerleri sadece ilgili olanları
   const r = (currentUser.yetki_seviyesi || '').toUpperCase();
-  const YETKILI = ['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','OPERASYON MÜDÜRÜ'];
+  const YETKILI = ['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TURKCELL BÖLGE YÖNETİCİSİ'];
   if (!YETKILI.includes(r)) {
-    q = q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid);
+    // v1.2.8: ncst listesi önbelleğe alındı — her loadGorevler çağrısında (60sn'de bir
+    // sessiz yenileme dahil) tekrar sorgulanmıyor, sadece bu oturumda bir kez çekiliyor.
+    const ownNcstList = await _getOwnNcstCached(mid);
+    if (ownNcstList.length) {
+      const ncstFilter = ownNcstList.map(n => '"' + String(n).replace(/"/g,'') + '"').join(',');
+      q = q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid + ',ncst.in.(' + ncstFilter + ')');
+    } else {
+      q = q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid);
+    }
   } else if (currentUser.kcm_id) {
     // KÇM yöneticisi: kendi KÇM'indeki görevler
     const { data: kcmUsers } = await sb.from('users')
@@ -242,10 +281,18 @@ function renderGorevKarti(t) {
 
   const benimGorevim = t.atanan_id === mid;
   const benimatadim  = t.atayan_id === mid;
+  const r2 = (currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const ystRoller = ['KÇM MÜDÜRÜ','TAKIM LİDERİ','ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','OPERASYON MÜDÜRÜ'];
 
   // Aksiyon butonları
   let aksiyonlar = '';
-  if (benimGorevim && !['Tamamlandı','Reddedildi','İptal'].includes(t.durum)) {
+
+  // v1.2.2: Atandı → Başla butonu (atanan + yöneticisi)
+  if (t.durum === 'Atandı' && (benimGorevim || ystRoller.includes(r2))) {
+    aksiyonlar += '<button class="btn btn-green btn-sm" style="padding:5px 10px;font-size:11px;background:#a78bfa;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Başladı\')">▶ Başla</button> ';
+  }
+
+  if (benimGorevim && !['Atandı','Tamamlandı','Reddedildi','İptal'].includes(t.durum)) {
     aksiyonlar += '<button class="btn btn-green btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Tamamlandı\')">✓ Tamamla</button> ';
     if (t.durum !== 'Beklemede')
       aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Beklemede\')">⏸ Beklet</button> ';
@@ -254,13 +301,16 @@ function renderGorevKarti(t) {
     aksiyonlar += '<button class="btn btn-green btn-sm" style="padding:5px 10px;font-size:11px;background:var(--green);" onclick="gorevOnayla(' + t.task_id + ')">✓ Onayla</button> ';
     aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;color:var(--red);" onclick="gorevReddet(' + t.task_id + ')">✗ Reddet</button> ';
   }
-  if ((benimatadim || (currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN')
-    && !['Tamamlandı','İptal'].includes(t.durum)) {
+  if ((benimatadim || ystRoller.includes(r2)) && !['Tamamlandı','İptal'].includes(t.durum)) {
     aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openGorevEdit(' + t.task_id + ')">✏️</button> ';
   }
   // Bağlı ziyaret/fırsat butonu
   if (t.visit_id) aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevZiyaretAc(' + t.task_id + ')">📍 Ziyaret</button> ';
   if (t.opp_id)   aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openEditOppModal(' + t.opp_id + ')">💼 Fırsat</button> ';
+  // v1.2.2: Ziyaret oluşmadıysa manuel temas butonu
+  if (!t.visit_id && t.ncst && !['Atandı','Tamamlandı','Reddedildi','İptal'].includes(t.durum) && (benimGorevim || ystRoller.includes(r2))) {
+    aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;color:var(--blue);" onclick="gorevTemasOlustur(' + t.task_id + ')">📝 Temas Oluştur</button> ';
+  }
 
   return '<div class="visit-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid ' + renk + ';' + (gecikti ? 'background:rgba(248,113,113,.05);' : '') + '">' +
     '<div onclick="openGorevDetay(' + t.task_id + ')" style="flex:1;">' +
@@ -326,6 +376,11 @@ async function openGorevDetay(taskId) {
   if (benimatadim && t.durum === 'Tamamlandı' && !t.onay_tarihi) {
     aksiyonHTML += '<button class="btn" style="background:var(--green);padding:6px 12px;" onclick="gorevOnayla(' + taskId + ');closeModal(\'gorevDetayModal\')">✓ Tamamlandı Onayla</button>';
     aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;color:var(--red);border-color:var(--red);" onclick="gorevReddet(' + taskId + ');closeModal(\'gorevDetayModal\')">✗ Reddet</button>';
+  }
+  // v1.2.6: Admin için görev silme — durum/sahiplik farketmez, her zaman görünür
+  const isAdmin = (currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase()==='ADMIN';
+  if (isAdmin) {
+    aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;color:var(--red);border-color:var(--red);margin-left:auto;" onclick="gorevSil(' + taskId + ');closeModal(\'gorevDetayModal\')">🗑 Görevi Sil</button>';
   }
 
   // Not ekleme
@@ -399,6 +454,16 @@ async function openYeniGorev() {
     '<div class="field"><label>Açıklama</label>' +
     '<textarea id="gfAciklama" placeholder="Detaylar..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;min-height:70px;resize:vertical;"></textarea></div>' +
 
+    // v1.2.4: Sikayet tipine ozel alanlar
+    '<div id="gfSikayetAlanlari" style="display:none;padding:10px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.3);border-radius:8px;margin-bottom:8px;">' +
+    '<div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:8px;">Müşteri Şikayeti Detayları</div>' +
+    '<div class="field" style="margin-bottom:8px;"><label style="font-size:11px;">Şikayet Konusu</label>' +
+    '<input type="text" id="gfSikayetKonu" placeholder="Örn: Hat kesilmesi, fatura hatası..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;"></div>' +
+    '<div class="field" style="margin-bottom:0;"><label style="font-size:11px;">Müşterinin İfadesi</label>' +
+    '<textarea id="gfSikayetDetay" placeholder="Müşterinin aktardığı şikayet detayı..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;min-height:60px;resize:vertical;font-size:13px;"></textarea></div>' +
+    '</div>' +
+
+
     '<div class="field"><label>Atanacak Kişi *</label>' +
     '<select id="gfAtanan" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;">' +
     kulOpts + '</select></div>' +
@@ -427,13 +492,29 @@ function gorevTipDegisti() {
   const form = opt ? opt.dataset.form : 'genel';
   const div  = document.getElementById('gfBagliFormDiv');
   const tip  = document.getElementById('gfBagliFormTip');
-  if (!div || !tip) return;
-  if (form && form !== 'genel') {
-    const formAd = { 'ziyaret':'ziyaret formu', 'firsat':'ziyaret + fırsat formu', 'ziyaret_firsat':'ziyaret + fırsat formu' };
-    tip.textContent = formAd[form] || form;
-    div.style.display = '';
-  } else {
-    div.style.display = 'none';
+  const sikayetDiv = document.getElementById('gfSikayetAlanlari');
+  // v1.2.4: Tüm bağlı form tipleri için etiket
+  const formAd = {
+    'ziyaret':        'ziyaret formu',
+    'ziyaret_firsat': 'ziyaret + fırsat formu',
+    'firsat':         'satış fırsatı + ziyaret formu',
+    'sikayet':        'şikayet + ziyaret formu',
+    'potansiyel':     'potansiyel belirleme + ziyaret formu'
+  };
+  if (div && tip) {
+    if (form && form !== 'genel') {
+      tip.textContent = formAd[form] || form;
+      div.style.display = '';
+      // Sikayet tipinde özel vurgu
+      div.style.borderColor = form==='sikayet' ? 'rgba(239,68,68,.4)' : 'rgba(77,159,255,.2)';
+      div.style.background  = form==='sikayet' ? 'rgba(239,68,68,.06)' : 'rgba(77,159,255,.08)';
+    } else {
+      div.style.display = 'none';
+    }
+  }
+  // v1.2.4: Sikayet tipinde ek açıklama alanı göster
+  if(sikayetDiv){
+    sikayetDiv.style.display = form==='sikayet' ? '' : 'none';
   }
 }
 
@@ -471,6 +552,12 @@ async function saveGorev() {
   const tipId   = parseInt(document.getElementById('gfTip').value);
   const baslik  = (document.getElementById('gfBaslik').value||'').trim();
   const aciklama= (document.getElementById('gfAciklama').value||'').trim();
+  // v1.2.4: Sikayet tipiyse konu + detayı aciklama'ya ekle
+  const sikayetKonu  = (document.getElementById('gfSikayetKonu')?.value||'').trim();
+  const sikayetDetay = (document.getElementById('gfSikayetDetay')?.value||'').trim();
+  const finalAciklama = (sikayetKonu||sikayetDetay)
+    ? [aciklama, sikayetKonu?'Konu: '+sikayetKonu:'', sikayetDetay?'Detay: '+sikayetDetay:''].filter(Boolean).join('\n')
+    : aciklama;
   const atananId= parseInt(document.getElementById('gfAtanan').value);
   const ncst    = document.getElementById('gfMusteriNcst').value||null;
   const deadline= document.getElementById('gfDeadline').value||null;
@@ -484,11 +571,11 @@ async function saveGorev() {
   const payload = {
     type_id:       tipId,
     baslik:        baslik,
-    aciklama:      aciklama||null,
+    aciklama:      finalAciklama||null,
     ncst:          ncst,
     atayan_id:     currentUser.my_id,
     atanan_id:     atananId,
-    durum:         'Başladı',
+    durum:         'Atandı', // v1.2.2: Başladı→Atandı; ziyaret 'Başladı'ya çekilince açılır
     baslama_tarihi:new Date().toISOString(),
     deadline:      deadline,
     guncelleme_tarihi: new Date().toISOString(),
@@ -508,15 +595,10 @@ async function saveGorev() {
     detay:   'Görev oluşturuldu' + (ncst ? ' — Müşteri: '+ncst : ''),
   });
 
-  // Bağlı form otomatik aç
   closeModal('gorevFormModal');
   toast('Görev oluşturuldu ✅','success');
   await loadGorevler();
-
-  // Görev tipine göre otomatik form aç
-  if (ncst && (form === 'ziyaret' || form === 'ziyaret_firsat')) {
-    await gorevZiyaretOlustur(gorevId, ncst, tip, form === 'ziyaret_firsat');
-  }
+  // v1.2.2: Otomatik ziyaret artık buradan değil — atanan 'Başladı'ya çekince açılır
 }
 
 // ============================================================
@@ -565,6 +647,7 @@ async function gorevZiyaretOlustur(gorevId, ncst, tip, firstatDa) {
   });
 
   toast('Planlanan ziyaret otomatik oluşturuldu ✅', 'success');
+  return visitId; // v1.2.4: visitId döndür — çağıran gorevDurumGuncelle formu açacak
 }
 
 // ============================================================
@@ -584,7 +667,45 @@ async function gorevDurumGuncelle(taskId, yeniDurum) {
     detay:   'Durum güncellendi: ' + yeniDurum,
   });
 
+  // v1.2.2: Başladı'ya çekilince otomatik ziyaret oluştur
+  // Cache yerine DB'den çek — race condition önlenir
+  if (yeniDurum === 'Başladı') {
+    const { data: task } = await sb.from('tasks')
+      .select('task_id,type_id,ncst,visit_id')
+      .eq('task_id', taskId).single();
+    if (task && task.ncst && !task.visit_id) {
+      const tip = (GOREV.taskTypes || []).find(function(t) { return t.type_id === task.type_id; });
+      const form = tip ? tip.bagli_form : 'genel';
+      const ziyaretGerektiren = ['ziyaret','ziyaret_firsat','sikayet','firsat','potansiyel'];
+      if (ziyaretGerektiren.includes(form)) {
+        const { data: cust } = await sb.from('customers').select('my_id').eq('ncst', task.ncst).single();
+        const portfoyDisi = !cust || !cust.my_id || (sanalMyIds && sanalMyIds.includes(cust.my_id));
+        if (!portfoyDisi) {
+          const yeniVisitId = await gorevZiyaretOlustur(taskId, task.ncst, tip, form === 'ziyaret_firsat' || form === 'firsat');
+          // v1.2.4: Ziyaret oluşturuldu — temas formunu ekranda aç
+          if(yeniVisitId && typeof showEditVisitModalById === 'function'){
+            window._gorevId = taskId;
+            await loadGorevler();
+            await showEditVisitModalById(yeniVisitId);
+            return; // loadGorevler zaten çağrıldı
+          }
+        } else {
+          toast('Portföy dışı müşteri — Temas Oluştur butonu ile manuel temas ekleyin','info');
+        }
+      }
+    }
+  }
+
   toast('Durum güncellendi','success');
+  await loadGorevler();
+}
+
+// v1.2.2: Manuel temas oluşturma (portföy dışı müşteriler için)
+async function gorevTemasOlustur(taskId) {
+  const task = GOREV.tasks.find(function(t) { return t.task_id === taskId; });
+  if (!task || !task.ncst) { toast('Müşteri bilgisi eksik','error'); return; }
+  const tip = GOREV.taskTypes.find(function(t) { return t.type_id === task.type_id; });
+  await gorevZiyaretOlustur(taskId, task.ncst, tip, false);
   await loadGorevler();
 }
 
@@ -657,6 +778,10 @@ async function gorevZiyaretAc(taskId) {
 // GÖREV SİLME
 // ============================================================
 async function gorevSil(taskId) {
+  // v1.2.6: Sadece Admin silebilir — UI'da buton gizli olsa da, fonksiyon seviyesinde de korunsun
+  if ((currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase()!=='ADMIN') {
+    toast('Bu işlem için admin yetkisi gerekli','error'); return;
+  }
   if (!confirm('Bu görevi silmek istediğinize emin misiniz?')) return;
   const { error } = await sb.from('task_logs').delete().eq('task_id', taskId);
   const { error: e2 } = await sb.from('tasks').delete().eq('task_id', taskId);
@@ -839,4 +964,3 @@ async function gorevZiyaretKaydedildi(visitId) {
 }
 
 console.log('Görev modülü yüklendi ✓');
-
