@@ -1,7 +1,24 @@
 // ============================================================
-// temas.js — v2.10.24
+// temas.js — v2.10.26
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
+//   v2.10.26 — KRİTİK (çok eski "Bug G" — uzun süre beklemişti, şimdi düzeltildi):
+//              Müşteri Düzenle modalı 3 sorunluydu: (1) Ünvan+NCST sadece Admin'e
+//              gösteriliyordu, MY/FMY için ekran kimliksiz görünüyordu — artık
+//              herkese salt okunur başlık olarak gösteriliyor. (2) Sahiplik
+//              kontrolü HİÇ yoktu — musteri_duzenle yetkisi olan herkes (MY/FMY
+//              dahil) başkasının müşterisini sınırsızca düzenleyebiliyordu,
+//              özellikle Temas/Fırsat formundan açıldığında. Artık modal kendi
+//              içinde sahiplik kontrolü yapıyor: kendi müşterisi değilse tüm
+//              alanlar disabled, Kaydet butonu gizleniyor, uyarı banner'ı çıkıyor.
+//              (3) submitCustUpdate'e de aynı kontrol eklendi (UI gizliği yetmez).
+//   v2.10.25 — KRİTİK (firsat.js'teki not bug'ıyla aynı sınıf): Bir temastan
+//              oluşturulan fırsatlar, o temas düzenleme için yeniden açıldığında
+//              hiç gösterilmiyordu (tmsEklenmisFirsatList sadece sıfırlanıyor,
+//              mevcut bağlı fırsatlar hiç yüklenmiyordu). Kullanıcı "fırsat
+//              eklenmemiş" zannedip aynısını tekrar ekleyip mükerrer kayıt
+//              oluşturma riski vardı. Artık "Bu temastan oluşturulan fırsat(lar)"
+//              bilgi kutusu olarak gösteriliyor, tıklayınca fırsat detayı açılır.
 //   v2.10.24 — NCST boş kayıt önleme: visitData oluşturulmadan hemen önce son bir
 //              güvenlik kontrolü eklendi. Normal akış zaten NCST'yi garanti
 //              dolduruyordu (veri denetiminde 0 boş NCST bulundu) ama bu ek bariyer
@@ -778,6 +795,14 @@ function openCustEditModal(c, source){
   if(!c){toast('Müşteri seçili değil','error');return;}
   currentEditingCustNcst = c.ncst;
   const adm = (currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';
+
+  // v2.10.26: KRİTİK — Ünvan ve NCST artık HERKESE gösteriliyor (salt okunur).
+  // Önceden sadece Admin görüyordu, MY/FMY için ekran "kimliksiz" görünüyordu.
+  const unvanDisp=document.getElementById('custEditUnvanDisplay');
+  const ncstDisp=document.getElementById('custEditNcstDisplay');
+  if(unvanDisp) unvanDisp.textContent = c.unvan||'(Ünvan yok)';
+  if(ncstDisp) ncstDisp.textContent = 'NCST: '+(c.ncst||'—');
+
   if(adm){
     document.getElementById('adminFields').classList.remove('hide');
     document.getElementById('editCustNcst').value = c.ncst||'';
@@ -800,6 +825,32 @@ function openCustEditModal(c, source){
   document.getElementById('editCustAdres').value = c.adres||'';
   document.getElementById('editCustTelefon').value = c.telefon||'';
   window._custUpdateSource = source||'temas';
+
+  // v2.10.26: KRİTİK — sahiplik kontrolü merkezi hale getirildi. Önceden sadece
+  // Müşteri listesi ekranı bu kontrolü yapıyordu; Temas/Fırsat formundan
+  // "Müşteriyi Düzenle" ile açıldığında bu kontrol tamamen atlanıyordu —
+  // MY/FMY başkasının müşterisini sınırsızca düzenleyebiliyordu.
+  const _rEdit=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const _myRoller=['MY','FMY','USER'];
+  const isOwn = !c.my_id || c.my_id===currentUser.my_id; // my_id boşsa (atanmamış) düzenlemeye izin ver
+  const readonly = _myRoller.includes(_rEdit) && !isOwn;
+
+  const banner=document.getElementById('custEditReadonlyBanner');
+  const saveBtn=document.getElementById('custEditSaveBtn');
+  const modalEl=document.getElementById('custEditModal');
+  if(banner) banner.classList.toggle('hide', !readonly);
+  if(saveBtn) saveBtn.style.display = readonly?'none':'';
+  if(modalEl){
+    modalEl.querySelectorAll('input,textarea,select').forEach(el=>{
+      if(el.id==='editCustNcst'||el.id==='editCustUnvan') return; // bu ikisi zaten admin dışı gizli
+      el.disabled = readonly;
+    });
+    modalEl.querySelectorAll('.chip-btn').forEach(el=>{
+      el.style.pointerEvents = readonly?'none':'';
+      el.style.opacity = readonly?'0.5':'';
+    });
+  }
+
   openModal('custEditModal');
 }
 function openCustEditFromTemas(){
@@ -831,6 +882,17 @@ function _setToggle(type,val){
 async function submitCustUpdate(){
   if(!currentEditingCustNcst)return;
   if(!hasPerm('musteri_duzenle')){toast('Müşteri düzenleme yetkiniz yok','error');closeModal('custEditModal');return;}
+  // v2.10.26: KRİTİK — sahiplik kontrolü burada da yapılıyor (UI'da disable edilmiş
+  // olması yetmez, biri DOM'u manipüle edip Kaydet'i tekrar görünür yapabilir).
+  const _rSubmit=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  if(['MY','FMY','USER'].includes(_rSubmit)){
+    const{data:custCheck}=await sb.from('customers').select('my_id').eq('ncst',currentEditingCustNcst).single();
+    if(custCheck?.my_id && custCheck.my_id!==currentUser.my_id){
+      toast('Bu müşteri başka bir MY\'nin portföyünde, düzenleyemezsiniz','error');
+      closeModal('custEditModal');
+      return;
+    }
+  }
   // Sadece customers tablosunda gerçekten var olan sütunlar
   const upd={
     il:document.getElementById('editCustIl').value||null,
@@ -1864,6 +1926,25 @@ async function openTemasFormForEdit(visit, editable){
       loadLogs('visits',visit.visit_id).then(logs=>{
         logSec.innerHTML=renderLoglar?.(logs)||renderLogSection('visits',visit.visit_id,logs,'v_'+visit.visit_id)||'<div style="font-size:12px;color:var(--text3);">Kayıt yok.</div>';
       });
+    }
+  }
+
+  // v2.10.25: KRİTİK — bu temastan oluşturulan fırsatlar düzenlemede hiç gösterilmiyordu.
+  // tmsEklenmisFirsatList (yeni eklenecekler) sadece bu oturum içindi, mevcut bağlı
+  // fırsatları hiç yüklemiyordu — kullanıcı "fırsat eklenmemiş" zannedip aynısını
+  // tekrar ekleyip mükerrer kayıt oluşturabiliyordu. Artık bilgi olarak gösteriliyor.
+  if(visit.visit_id){
+    const{data:baglFirsatlar}=await sb.from('opportunities').select('opp_id,urun_adi,beklenen_ciro,adim').eq('visit_id',visit.visit_id);
+    const mevcutFirsatBox=document.getElementById('temasMevcutFirsatBox');
+    if(mevcutFirsatBox){
+      if(baglFirsatlar?.length){
+        mevcutFirsatBox.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:6px;">✅ Bu temastan oluşturulan fırsat(lar):</div>'+
+          baglFirsatlar.map(f=>`<div style="padding:6px 10px;background:rgba(0,214,143,.08);border:1px solid rgba(0,214,143,.3);border-radius:6px;margin-bottom:4px;font-size:12px;cursor:pointer;" onclick="openEditOppModal(${f.opp_id})">📦 ${escapeHTML(f.urun_adi||'')} — ${f.adim||''} ${f.beklenen_ciro?'('+fmtTL(f.beklenen_ciro)+')':''}</div>`).join('');
+        mevcutFirsatBox.classList.remove('hide');
+      } else {
+        mevcutFirsatBox.innerHTML='';
+        mevcutFirsatBox.classList.add('hide');
+      }
     }
   }
 

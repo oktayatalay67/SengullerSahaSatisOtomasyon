@@ -1,5 +1,8 @@
 // ============================================================
-// config.js — v1.2.8
+// config.js — v1.2.10
+// Son güncelleme: 2026-06-24
+// Değişiklikler:
+//   v1.2.10 — APP_VERSION → V30.58
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
 //   v1.2.8 — Önceki teslimatta APP_VERSION değişti (V30.51) ama bu başlık
@@ -19,7 +22,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.53';
+const APP_VERSION = 'V30.58';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

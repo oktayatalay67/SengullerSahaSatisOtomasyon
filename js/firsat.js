@@ -1,7 +1,19 @@
 // ============================================================
-// firsat.js — v1.2.0
-// Son güncelleme: 2026-05-30
+// firsat.js — v1.2.2
+// Son güncelleme: 2026-06-24
 // Değişiklikler:
+//   v1.2.2 — ÇOK KRİTİK: "Giren" (my_id) her düzenlemede güncel kullanıcıya
+//            değişiyordu — fırsatı kim girmişse adı kayboluyor, son düzenleyenin
+//            adıyla değişiyordu. Artık my_id SADECE ilk oluşturmada yazılıyor,
+//            düzenlemede dokunulmuyor. Düzenleyenin kimliği zaten addLog ile
+//            timeline'a ayrıca yazılıyor, bu yeterli.
+//   v1.2.1 — KRİTİK: "Not / Güncelleme" alanı düzenleme modunda her zaman boş
+//            açılıyordu ("yeni not için") ama Kaydet'e basılınca bu boş değer
+//            mevcut notun ÜZERİNE yazılıp SİLİYORDU. Artık not boşsa payload'a
+//            hiç dahil edilmiyor, mevcut not korunuyor. Ayrıca: loglama
+//            mekanizmasından önce girilmiş eski notlar timeline'da hiç
+//            görünmüyordu — artık log yoksa mevcut not sentetik bir
+//            "Not (geçmiş)" kaydı olarak timeline'da gösteriliyor.
 //   v1.2.0 — B7 fix: MY yeni fırsatta Gerçekleşen adımına geçemez
 //   v1.1.0 — B3 fix: saveOpp eski adım update öncesi okunuyor
 // ============================================================
@@ -266,7 +278,19 @@ async function openEditOppModal(oppId){
     const logSec=document.getElementById('oppLogSection');
     if(logSec){
       logSec.classList.remove('hide');
-      const logs=await loadLogs('opportunities',oppId);
+      let logs=await loadLogs('opportunities',oppId);
+      // v1.2.1: Hiç log yoksa ama eski bir not (aciklama) varsa — bu, loglama
+      // mekanizmasından ÖNCE girilmiş bir not olabilir. Geriye dönük kaybolmasın,
+      // sentetik bir timeline kaydı olarak gösterelim.
+      const notLogVarMi = logs.some(l => l.aksiyon === 'Not' && l.detay === o.aciklama);
+      if(o.aciklama && !notLogVarMi){
+        logs = [...logs, {
+          aksiyon: 'Not (geçmiş)',
+          detay: o.aciklama,
+          olusturma_tarihi: o.guncelleme_tarihi || o.olusturma_tarihi || null,
+          user_ad: myIdToName?.[o.my_id] || ''
+        }];
+      }
       logSec.innerHTML=renderLogSection('opportunities',oppId,logs,'opp_'+oppId);
     }
     // v30.31: Kontak listesi yükle + retry ile seçili getir
@@ -429,13 +453,27 @@ function selectOppCust(ncst,unvan){
     guncelleme_tarihi:new Date().toISOString(),
     beklenen_ciro:toplamTutar||null,
     tahmini_kapanis_tarihi:kapanis,
-    durum:adim, adim, aciklama, olasilik,
-    my_id:currentUser.my_id,
+    durum:adim, adim, olasilik,
     kcm_id:oppKcmId,
     musteri_my_id:oppMusteriMyId,
     contact_id:oppSecilenKontakId||null,
     onay_durumu:null
   };
+  // v1.2.2: KRİTİK BUG FIX — my_id ("Giren") önceden HER kayıtta currentUser.my_id
+  // olarak yazılıyordu, yani biri düzenlediğinde fırsatı kim girmişse onun adı
+  // kaybolup düzenleyenin adıyla değişiyordu. Artık SADECE yeni kayıtta (ilk
+  // oluşturmada) my_id yazılıyor; düzenlemede dokunulmuyor, orijinal giren korunuyor.
+  // Düzenleyenin kimliği zaten addLog ile timeline'a ayrıca yazılıyor (yeterli).
+  if(!currentEditingOppId){
+    payload.my_id = currentUser.my_id;
+  }
+  // v1.2.1: KRİTİK FIX — düzenleme modunda Not alanı her zaman boş açılıyordu
+  // (yeni not eklemek için). Eğer kullanıcı boş bıraktıysa, mevcut notu SİLMEYELİM —
+  // payload'a aciklama'yı hiç dahil etmiyoruz, DB'deki mevcut değer korunuyor.
+  // Yeni kayıtta (currentEditingOppId yok) her zaman dahil ediyoruz (null olsa da sorun değil).
+  if(!currentEditingOppId || aciklama){
+    payload.aciklama = aciklama;
+  }
 
   // === DB İşlemi ===
   let error, oppId=currentEditingOppId;
