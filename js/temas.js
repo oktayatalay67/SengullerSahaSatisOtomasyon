@@ -1,7 +1,23 @@
 // ============================================================
-// temas.js — v2.10.26
-// Son güncelleme: 2026-06-24
+// temas.js — v2.10.29
+// Son güncelleme: 2026-06-28
 // Değişiklikler:
+//   v2.10.29 — KRİTİK: _loadSikayetOptions artık eski complaint_options yerine
+//              visit_results'tan okuyor. Admin panelinden düzenlenen liste ile
+//              gerçek form artık AYNI kaynağı kullanıyor (önceden iki ayrı,
+//              birbirinden habersiz liste vardı — admin'de değişiklik yapılsa
+//              formda hiç görünmüyordu).
+//   v2.10.28 — Saat sorunu KÖKTEN çözüldü: getTimezoneOffset() bazlı yöntem
+//              (cihazın kendi saat dilimi ayarına bağımlı) yerine, config.js'teki
+//              toIstanbulDatetimeLocalValue() kullanılıyor — cihaz ayarından
+//              TAMAMEN bağımsız, her zaman explicit 'Europe/Istanbul'. Hem yeni
+//              kayıt varsayılan saati hem düzenleme ekranı bu fonksiyona geçti.
+//              Temas Raporu ekranında da saat artık gösteriliyor (fmtDateTime).
+//   v2.10.27 — Saat sorunu: (1) Düzenleme ekranında sabit "+3 saat" yerine
+//              cihazın kendi saat dilimi kullanılıyor (getTimezoneOffset bazlı,
+//              yeni kayıt ekranıyla tutarlı hale getirildi). (2) Temas listesi
+//              kartlarında Gerçekleşen temaslarda saat hiç gösterilmiyordu
+//              (sadece tarih) — artık fmtDateTime ile saat de gösteriliyor.
 //   v2.10.26 — KRİTİK (çok eski "Bug G" — uzun süre beklemişti, şimdi düzeltildi):
 //              Müşteri Düzenle modalı 3 sorunluydu: (1) Ünvan+NCST sadece Admin'e
 //              gösteriliyordu, MY/FMY için ekran kimliksiz görünüyordu — artık
@@ -157,9 +173,9 @@ function setTemasDurumu(val){
     const gtInp=document.getElementById('temasGercTarih');
     if(gtBox) gtBox.classList.remove('hide');
     if(gtInp){
-      const now=new Date();
-      now.setMinutes(now.getMinutes()-now.getTimezoneOffset());
-      gtInp.value=now.toISOString().slice(0,16);
+      // v2.10.28: cihaz saat dilimine bağımlı getTimezoneOffset yerine,
+      // cihaz ayarından tamamen bağımsız sağlam fonksiyon kullanılıyor.
+      gtInp.value=toIstanbulDatetimeLocalValue(new Date().toISOString());
       gtInp.disabled=true;
       gtInp.style.opacity='0.5';
       gtInp.title='Gerçekleşen temas tarihi sistem tarafından atanır, değiştirilemez';
@@ -484,11 +500,20 @@ function hideGorevBloklar(){
 
 async function _loadSikayetOptions(){
   if(Object.keys(_sikayetOptions).length>0) return; // cache dolu
-  const{data}=await sb.from('complaint_options').select('*').eq('aktif',true).order('sira');
+  // v2.10.29: KRİTİK FIX — artık eski complaint_options yerine visit_results'tan
+  // okunuyor. Admin panelinden düzenlenen liste ile form artık AYNI kaynağı
+  // kullanıyor (önceden iki ayrı, birbirinden habersiz liste vardı).
+  // result_id/sonuc_adi → option_id/deger olarak normalize ediliyor, böylece
+  // aşağıdaki render/seçim fonksiyonları değişmeden çalışıyor.
+  const{data}=await sb.from('visit_results')
+    .select('*')
+    .in('tip',['sikayet_kategori','sikayet_cozum_yontemi','sikayet_kapalis_durumu'])
+    .eq('aktif',true).order('sira');
   _sikayetOptions={};
   (data||[]).forEach(o=>{
-    if(!_sikayetOptions[o.tip]) _sikayetOptions[o.tip]=[];
-    _sikayetOptions[o.tip].push(o);
+    const tipAdi = o.tip.replace('sikayet_','');
+    if(!_sikayetOptions[tipAdi]) _sikayetOptions[tipAdi]=[];
+    _sikayetOptions[tipAdi].push({option_id:o.result_id, deger:o.sonuc_adi, parent_id:o.parent_id});
   });
 }
 
@@ -1688,7 +1713,7 @@ async function renderTemasList(){
       if(kontaklar)kontaklar.forEach(k=>{kontakMap[k.contact_id]=k.ad_soyad;});
     }
     allData.sort((a,b)=>{const da=new Date(a.durum==='Planlandı'?a.planlanan_tarih:a.tarih_saat).getTime();const db=new Date(b.durum==='Planlandı'?b.planlanan_tarih:b.tarih_saat).getTime();return db-da;});
-    c.innerHTML=allData.slice(0,100).map(v=>{const isPlan=v.durum==='Planlandı';const dateStr=isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):new Date(v.tarih_saat).toLocaleDateString('tr-TR'); // v30.21: planlanan_tarih formatı GG.AA.YYYY
+    c.innerHTML=allData.slice(0,100).map(v=>{const isPlan=v.durum==='Planlandı';const dateStr=isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):fmtDateTime(v.tarih_saat); // v2.10.27: saat de gösterilsin
 const custObj=typeof custMap[v.ncst]==='object'?custMap[v.ncst]:{unvan:custMap[v.ncst]||v.ncst,my_id:null};const firmName=custObj.unvan||v.ncst;const custMyId=custObj.my_id;return `<div class="visit-card" style="position:relative;" onclick="showEditVisitModalById(${v.visit_id})"><div class="visit-firm">${escapeHTML(firmName)}</div>${isAdmin()?`<button onclick="event.stopPropagation();deleteVisit(${v.visit_id})" style="position:absolute;top:8px;right:8px;background:none;border:1px solid var(--red);color:var(--red);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;">🗑</button>`:''}
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
             <span style="font-size:11px;color:var(--text2);">📍 ${escapeHTML(v.temas_turu||'')}</span>
@@ -1854,10 +1879,9 @@ async function openTemasFormForEdit(visit, editable){
   const tarihEl=document.getElementById('temasGercTarih');
   if(tarihEl){
     if(!isPlan&&visit.tarih_saat){
-      // v30.40: UTC'den İstanbul (+3)
-      const d=new Date(visit.tarih_saat);
-      const trD=new Date(d.getTime()+3*60*60*1000);
-      tarihEl.value=trD.toISOString().slice(0,16);
+      // v2.10.28: cihaz saat dilimine bağımlı yöntem yerine, cihaz ayarından
+      // tamamen bağımsız sağlam fonksiyon kullanılıyor (Excel raporuyla tutarlı).
+      tarihEl.value=toIstanbulDatetimeLocalValue(visit.tarih_saat);
     }
     tarihEl.disabled=!isPlan;
     tarihEl.style.opacity=(!isPlan)?'0.5':'1';
@@ -2025,6 +2049,6 @@ async function fetchAdvancedReport(){
     window._lastReportData=allData;
     window._lastReportCustMap=custMap;
     document.getElementById('repExcelBtn')?.classList.remove('hide');
-    c.innerHTML=allData.slice(0,200).map(v=>{const isPlan=v.durum==='Planlandı';const firmName=custMap[v.ncst]||v.ncst;return `<div class="visit-card"><div class="visit-firm">${escapeHTML(firmName)}</div><div class="visit-my">📅 ${isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):fmtDate(v.tarih_saat)} | 📍 ${escapeHTML(v.temas_turu)}</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">${escapeHTML(v.ziyaret_amaci||'')}</div><div class="visit-tags mt-8"><span class="tag tag-gray">${v.durum}</span></div></div>`;}).join('');
+    c.innerHTML=allData.slice(0,200).map(v=>{const isPlan=v.durum==='Planlandı';const firmName=custMap[v.ncst]||v.ncst;return `<div class="visit-card"><div class="visit-firm">${escapeHTML(firmName)}</div><div class="visit-my">📅 ${isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):fmtDateTime(v.tarih_saat)} | 📍 ${escapeHTML(v.temas_turu)}</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">${escapeHTML(v.ziyaret_amaci||'')}</div><div class="visit-tags mt-8"><span class="tag tag-gray">${v.durum}</span></div></div>`;}).join('');
   }catch(err){c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;}
 }

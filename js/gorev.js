@@ -1,7 +1,13 @@
 // ============================================================
-// gorev.js — v1.2.8
+// gorev.js — v1.2.9
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
+//   v1.2.9 — Saat takibi eklendi: (1) Görev Geçmişi'ndeki (timeline) saatler
+//            artık cihaz saat dilimine bağımlı değil, fmtDateTime() ile
+//            explicit 'Europe/Istanbul' kullanıyor. (2) Görev detayına
+//            görünür "Oluşturuldu" satırı eklendi (önceden hiç gösterilmiyordu,
+//            sadece geçmiş kayıtlarına gömülüydü). (3) "Başlama" artık saat
+//            de gösteriyor (önceden sadece tarih).
 //   v1.2.8 — PERFORMANS: v1.2.7'de eklenen "kendi müşterilerinin ncst listesi"
 //            sorgusu her loadGorevler çağrısında (60sn'lik sessiz yenileme dahil)
 //            tekrar çalışıyordu. _getOwnNcstCached() ile oturum boyunca bir kez
@@ -349,7 +355,9 @@ async function openGorevDetay(taskId) {
   const renk   = GOREV_DURUM_RENK[t.durum] || '#6b7280';
 
   const logHTML = (logs || []).map(function(l) {
-    const zaman = new Date(l.olusturma_tarihi).toLocaleString('tr-TR');
+    // v1.2.9: cihaz saat dilimine bağımlı toLocaleString yerine, explicit
+    // 'Europe/Istanbul' kullanan fmtDateTime() ile tutarlı hale getirildi.
+    const zaman = fmtDateTime(l.olusturma_tarihi);
     return '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">' +
       '<div style="display:flex;justify-content:space-between;margin-bottom:2px;">' +
         '<span style="font-weight:600;color:var(--text);">' + escapeHTML(l.user_ad||'') + '</span>' +
@@ -407,7 +415,8 @@ async function openGorevDetay(taskId) {
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:12px;">' +
       '<div style="color:var(--text3);">Atayan: <span style="color:var(--text);">' + escapeHTML(atayan) + '</span></div>' +
       '<div style="color:var(--text3);">Atanan: <span style="color:var(--text);">' + escapeHTML(atanan) + '</span></div>' +
-      '<div style="color:var(--text3);">Başlama: <span style="color:var(--text);">' + (t.baslama_tarihi ? new Date(t.baslama_tarihi).toLocaleDateString('tr-TR') : '—') + '</span></div>' +
+      '<div style="color:var(--text3);">Oluşturuldu: <span style="color:var(--text);">' + fmtDateTime(t.olusturma_tarihi) + '</span></div>' +
+      '<div style="color:var(--text3);">Başlama: <span style="color:var(--text);">' + (t.baslama_tarihi ? fmtDateTime(t.baslama_tarihi) : '—') + '</span></div>' +
       '<div style="color:var(--text3);">Deadline: <span style="color:' + (t.deadline && t.deadline < new Date().toISOString().slice(0,10) && !kapali ? 'var(--red)' : 'var(--text)') + ';">' + (t.deadline||'—') + '</span></div>' +
     '</div>' +
     deadlineHTML +

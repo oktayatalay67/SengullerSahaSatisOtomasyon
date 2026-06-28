@@ -1,7 +1,10 @@
 // ============================================================
-// rapor.js — v1.2.0
-// Son güncelleme: 2026-05-30
+// rapor.js — v1.2.1
+// Son güncelleme: 2026-06-24
 // Değişiklikler:
+//   v1.2.1 — KRİTİK: Excel raporunda saat ham UTC haliyle yazılıyordu (3 saat
+//            geri, gece yarısına yakın ziyaretlerde tarih bile kayabiliyordu).
+//            Artık explicit 'Europe/Istanbul' ile doğru çevriliyor.
 //   v1.2.0 — B5 fix: saveSifre DB'den şifre doğrulama
 // ============================================================
 'use strict';
@@ -80,8 +83,13 @@ async function downloadTemasExcel(){
   const rows=filteredData.map(v=>{
     const cust=custDetailMap[v.ncst]||{};
     const isPlan=v.durum==='Planlandı';
-    const tarihSaat=isPlan?(v.planlanan_tarih||''):(v.tarih_saat||'');
-    const tarih=v.tarih_saat?v.tarih_saat.slice(0,10):(v.planlanan_tarih||'');
+    // v1.2.1: KRİTİK — tarih_saat ham UTC haliyle yazılıyordu, dönüştürülmeden.
+    // Hem saat 3 saat geri görünüyordu hem de gece yarısına yakın ziyaretlerde
+    // tarih bile YANLIŞ güne kayabiliyordu. Artık İstanbul saatine (cihaz
+    // ayarından bağımsız, her zaman doğru) explicit timeZone ile çevriliyor.
+    const tarihSaat=isPlan?(v.planlanan_tarih||''):
+      (v.tarih_saat?new Date(v.tarih_saat).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'');
+    const tarih=v.tarih_saat?new Date(v.tarih_saat).toLocaleDateString('en-CA',{timeZone:'Europe/Istanbul'}):(v.planlanan_tarih||''); // en-CA -> YYYY-MM-DD
     const girenAd=myIdToName[v.my_id]||'';
     const kcmAdi=kcmMap[cust.kcm_id]||'';
     // Kontak bilgisi
