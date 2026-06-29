@@ -1,5 +1,11 @@
+// ============================================================
+// utils.js — v1.0.1
+// Son güncelleme: 2026-06-24
+// Değişiklikler:
+//   v1.0.1 — fmtDateTime: cihazın saat dilimi ayarından bağımsız hale getirildi,
+//            artık her zaman explicit 'Europe/Istanbul' kullanıyor.
+// ============================================================
 'use strict';
-/* ===== YARDIMCILAR ===== */
 /* ===== YARDIMCILAR ===== */
 function escapeHTML(s){if(!s)return '';return String(s).replace(/[&<>'"]/g,t=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t]||t));}
 
@@ -61,9 +67,12 @@ function renderLoglar(logs){
 
 function fmtDateTime(dt){
   if(!dt)return'—';
+  // v1.0.1: Cihazın kendi saat dilimi ayarına bağımlı olmaktan çıkarıldı —
+  // artık her zaman explicit 'Europe/Istanbul' kullanılıyor, cihaz yanlış
+  // ayarlı olsa bile doğru sonuç garanti edilir.
   const d=new Date(dt);
-  return d.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+
-    d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  return d.toLocaleDateString('tr-TR',{timeZone:'Europe/Istanbul',day:'2-digit',month:'2-digit',year:'numeric'})+' '+
+    d.toLocaleTimeString('tr-TR',{timeZone:'Europe/Istanbul',hour:'2-digit',minute:'2-digit'});
 }
 
 async function saveNot(tabloAdi, kayitId, containerId){

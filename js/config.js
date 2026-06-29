@@ -1,5 +1,8 @@
 // ============================================================
-// config.js — v1.2.8
+// config.js — v1.2.14
+// Son güncelleme: 2026-06-28
+// Değişiklikler:
+//   v1.2.14 — APP_VERSION → V30.62
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
 //   v1.2.8 — Önceki teslimatta APP_VERSION değişti (V30.51) ama bu başlık
@@ -19,7 +22,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.53';
+const APP_VERSION = 'V30.62';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
@@ -512,6 +515,21 @@ function trToISO(localDatetimeStr) {
   // Kullanıcı İstanbul saatinde giriyor, +03:00 ekle
   if (!localDatetimeStr) return null;
   return localDatetimeStr + ':00+03:00';
+}
+
+// v1.2.12: datetime-local input'larına değer yazarken kullanılır — cihazın kendi
+// saat dilimi ayarından TAMAMEN bağımsız, her zaman doğru İstanbul saatini üretir
+// (Intl.DateTimeFormat ile explicit 'Europe/Istanbul' kullanır).
+function toIstanbulDatetimeLocalValue(isoOrDateStr){
+  if(!isoOrDateStr) return '';
+  const d=new Date(isoOrDateStr);
+  if(isNaN(d.getTime())) return '';
+  const parts=new Intl.DateTimeFormat('en-CA',{
+    timeZone:'Europe/Istanbul', year:'numeric',month:'2-digit',day:'2-digit',
+    hour:'2-digit',minute:'2-digit',hour12:false
+  }).formatToParts(d);
+  const get=t=>parts.find(p=>p.type===t)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
 }
 // ============================================================
 

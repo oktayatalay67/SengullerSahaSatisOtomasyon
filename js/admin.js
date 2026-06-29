@@ -1,7 +1,15 @@
 // ============================================================
-// admin.js — v1.1.0
+// admin.js — v1.1.1
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
+//   v1.1.1 — ÇOK KRİTİK, UZUN SÜREDİR ÇÖZÜLEMEYEN BUG: Fırsat formundaki "Görüşülen
+//            Kişi" özet satırı (oppKontakOzet) sadece İLK oluşturulduğunda boştu —
+//            sonraki her fırsat açılışında "div zaten var" diye atlanıyor, eski
+//            metin (önceki açılan fırsatın kontak adı) hiç temizlenmiyordu. Bu yüzden
+//            contact_id=NULL olan bir fırsat açıldığında, önceki fırsatın kontak
+//            adı ekranda "yapışıp" kalıyordu (örnek: Mehmet Marangoz). loadOppKontaklar
+//            artık her çağrıda özeti açıkça sıfırlıyor — gerçek bir kontak seçiliyse
+//            toggleOppContact zaten hemen ardından doğru ismi yazacak.
 //   v1.1.0 — Ziyaret Seçenekleri ekranına parent_id destekli kademeli yapı eklendi.
 //            Yeni tipler: islem, temas_sonuc_ust/detay, sikayet_kategori/cozum_yontemi/
 //            kapalis_durumu, firsat_sonuc_ust/detay. prompt() tabanlı ekleme/düzenleme
@@ -762,6 +770,8 @@ async function loadOppKontaklar(ncst){
   const{data}=await sb.from('contacts').select('*').eq('ncst',ncst).neq('aktif',false).order('ad_soyad');
   if(!data?.length){
     list.innerHTML='<div style="padding:8px;font-size:12px;color:var(--text3);">Kontak yok. Yeni kontak ekleyin.</div>';
+    const ozetBos=document.getElementById('oppKontakOzet');
+    if(ozetBos) ozetBos.textContent='';
     return;
   }
   list.innerHTML=data.map(c=>renderKontakItemForForm(c,'toggleOppContact','oppCcheck')).join('');
@@ -773,6 +783,12 @@ async function loadOppKontaklar(ncst){
     ozet.style.cssText='font-size:11px;color:var(--blue);margin-top:6px;font-style:italic;';
     list.parentElement.appendChild(ozet);
   }
+  // v1.1.1: KRİTİK BUG FIX — ozet div sadece İLK oluşturulduğunda boştu, sonraki
+  // açılışlarda (div zaten varsa) eski metni hiç temizlenmiyordu. Bu yüzden
+  // contact_id=NULL olan bir fırsat açıldığında, ÖNCEKİ açılan fırsatın kontak
+  // adı ekranda "yapışıp" kalıyordu. Artık her çağrıda açıkça sıfırlanıyor —
+  // gerçek seçim varsa toggleOppContact zaten hemen sonra dolduracak.
+  ozet.textContent='';
 }
 
 // v30.30 BUG-6a: Çoklu kontak — Map ile sakla
