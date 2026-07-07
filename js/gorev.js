@@ -1,7 +1,9 @@
 // ============================================================
-// gorev.js — v1.2.9
+// gorev.js — v1.2.10
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
+//   v1.2.10 — Şikayet kapanış reddi terminal değil: gorevReddet, bagli_form='sikayet'
+//             görevini 'Devam'a döndürür (yeniden açar), onay/tamamlanma izlerini temizler.
 //   v1.2.9 — Saat takibi eklendi: (1) Görev Geçmişi'ndeki (timeline) saatler
 //            artık cihaz saat dilimine bağımlı değil, fmtDateTime() ile
 //            explicit 'Europe/Istanbul' kullanıyor. (2) Görev detayına
@@ -733,15 +735,20 @@ async function gorevOnayla(taskId) {
 
 async function gorevReddet(taskId) {
   const sebep = prompt('Reddetme sebebi (isteğe bağlı):') || '';
-  const { error } = await sb.from('tasks')
-    .update({ durum: 'Reddedildi', guncelleme_tarihi: new Date().toISOString() })
-    .eq('task_id', taskId);
+  // Şikayet görevinde kapanış reddi TERMİNAL DEĞİL — görevi Devam'a döndürür (yeniden aç).
+  const task = (GOREV.tasks || []).find(function(t){ return t.task_id === taskId; });
+  const form = task && task.task_types ? task.task_types.bagli_form : null;
+  const sikayet = (form === 'sikayet');
+  const upd = { durum: sikayet ? 'Devam' : 'Reddedildi', guncelleme_tarihi: new Date().toISOString() };
+  if (sikayet) { upd.onay_tarihi = null; upd.onaylayan_id = null; upd.tamamlanma_tarihi = null; }
+  const { error } = await sb.from('tasks').update(upd).eq('task_id', taskId);
   if (error) { toast('Hata: '+error.message,'error'); return; }
   await sb.from('task_logs').insert({
     task_id: taskId, user_id: currentUser.my_id, user_ad: currentUser.ad_soyad,
-    aksiyon: 'Reddedildi', detay: sebep || 'Reddedildi',
+    aksiyon: sikayet ? 'Kapanış reddedildi — yeniden açıldı' : 'Reddedildi',
+    detay: sebep || (sikayet ? 'Kapanış reddedildi, görev Devam durumuna alındı' : 'Reddedildi'),
   });
-  toast('Görev reddedildi','info');
+  toast(sikayet ? 'Kapanış reddedildi, görev yeniden açıldı' : 'Görev reddedildi','info');
   await loadGorevler();
 }
 

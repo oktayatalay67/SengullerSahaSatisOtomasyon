@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.2.14
-// Son güncelleme: 2026-06-28
+// config.js — v1.2.16
+// Son güncelleme: 2026-07-04
 // Değişiklikler:
+//   v1.2.16 — APP_VERSION → V30.65. Şikayet yaşam döngüsü: görev MY/FMY beyanıyla
+//             kapanmaz; kapanış 'Çözüldü' → onay bekler (atayan onaylar/reddeder).
+//   v1.2.15 — APP_VERSION → V30.64 (BUG-1: görev sonuç kaydı çağrı sırası fix).
+//             Ayrıca BUG-5 giderildi: sabit V30.62'de takılıydı (redesign V30.63'ü
+//             yazmıştı ama config.js güncellenmemişti).
 //   v1.2.14 — APP_VERSION → V30.62
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
@@ -22,7 +27,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.62';
+const APP_VERSION = 'V30.65';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,22 +1,44 @@
 <!--
 ============================================================
-  index.html — v30.62
+  index.html — v30.65
   Son güncelleme: 2026-06-28
 
   Bağımlılıklar:
     admin.js    v1.1.1
     auth.js     v1.2.10
-    config.js   v1.2.14
+    config.js   v1.2.16
     firsat.js   v1.2.2
-    gorev.js    v1.2.9
+    gorev.js    v1.2.10
     hedef.js    v1.0.0
     musteri.js  v1.1.3
     rapor.js    v1.2.1
     talep.js    v1.0.3
-    temas.js    v2.10.29
+    temas.js    v2.10.32
     utils.js    v1.0.1
 
   Değişiklikler:
+    v30.65 — ŞİKAYET YAŞAM DÖNGÜSÜ: Görev artık MY/FMY beyanıyla kapanmaz.
+             temas.js v2.10.32 — kapanış 'Çözüldü' seçilirse görev Tamamlandı
+             (onay bekliyor) olur ve atayana düşer; aksi halde 'Devam' durumunda
+             kalır (bir görev birden çok temasla aşama aşama ilerler). gorev.js
+             v1.2.10 — atayanın kapanış reddi görevi 'Devam'a döndürür (yeniden
+             açar), silmez. Onay yalnızca atayanda; MY/FMY self-onay yapamaz.
+             config.js v1.2.16 — APP_VERSION V30.65.
+
+    v30.64 — BUG-1 FIX: Görev bağlı temas kaydedilirken görev cevapları
+             (tasks.cevaplar / sonuc_detaylari) ve alan bazlı timeline hiç
+             yazılmıyordu. Kök neden: gorevZiyaretKaydedildi() window._gorevId'yi
+             null'ladığı için bir sonraki bloktaki saveGorevSonuclari çağrısının
+             kapısı geçmiyordu; görev 'Devam' durumunda takılıyordu. temas.js
+             v2.10.31 — görev id'si null'lanmadan önce yerel değişkene alınıyor.
+             (BUG-5 de giderildi: APP_VERSION V30.62'den bump edildi.)
+    v30.63 — BÜYÜK REDESIGN: Görev tipi sistemi tek genel motora taşındı.
+             temas.js v2.10.30 — 3 sabit blok (Şikayet/Fırsat/Potansiyel)
+             kaldırıldı, task_types.soru_seti/sonuc_seti JSON şemasından
+             otomatik form çizen tek motor geldi. Yeni görev tipi = kod
+             değil, admin panelinden şema tanımı. complaints tablosu
+             kullanımdan kalktı (tasks.cevaplar/sonuc_detaylari/sonuc_notu).
+             Alan bazlı değişiklik geçmişi (timeline) eklendi.
     v30.62 — KRİTİK: temas.js v2.10.29 — şikayet form seçenekleri artık eski
              complaint_options yerine visit_results'tan okunuyor. Admin panelinden
              düzenlenen liste ile gerçek form artık aynı kaynağı kullanıyor.
@@ -404,69 +426,17 @@
         <div class="form-section-title" style="margin-bottom:8px;">🕐 Temas Geçmişi</div>
         <div id="temasEditTimeline" style="background:var(--navy2);border-radius:8px;padding:10px 12px;max-height:220px;overflow-y:auto;"></div>
       </div>
-      <!-- v2.10.6: GÖREV BAĞLI ÖZEL BLOKLAR ================================================ -->
-
-      <!-- Müşteri Şikayeti -->
-      <div id="gorevSikayetBlok" class="form-section hide" style="border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.04);">
-        <div class="form-section-title" style="color:#ef4444;">🔴 Müşteri Şikayeti Detayı</div>
+      <!-- v2.10.30: GÖREV TİPİ — TEK DİNAMİK BLOK (3 sabit blok yerine) -->
+      <div id="gorevDinamikBlok" class="form-section hide" style="border:1px solid var(--blue);background:rgba(77,159,255,.04);">
+        <div class="form-section-title" id="gorevDinamikBaslikYazi" style="color:var(--blue);">Görev Detayı</div>
+        <div id="gorevDinamikSoruAlani"></div>
+        <div id="gorevDinamikSonucAlani"></div>
         <div class="field">
-          <label>Şikayet Kategorisi *</label>
-          <div id="sikayetKategoriGrid" class="product-grid"></div>
-        </div>
-        <div class="field">
-          <label>Çözüm Yöntemi</label>
-          <div id="sikayetCozumGrid" class="product-grid"></div>
-        </div>
-        <div class="field">
-          <label>Kapanış Durumu *</label>
-          <div id="sikayetKapalisGrid" class="product-grid"></div>
-        </div>
-        <div class="field">
-          <label>Müşteriye Verilen Taahhüt</label>
-          <textarea id="sikayetTaahhut" placeholder="Verilen söz, tahsis edilen kaynak, destek..."></textarea>
-        </div>
-        <div class="field">
-          <label>Notlar</label>
-          <textarea id="sikayetNotlar" placeholder="Ek notlar..."></textarea>
+          <label>Not</label>
+          <textarea id="gorevDinamikNot" placeholder="Ek notlar..."></textarea>
         </div>
       </div>
-
-      <!-- Satış Gücü Fırsatı -->
-      <div id="gorevFirsatBlok" class="form-section hide" style="border:1px solid rgba(0,214,143,.3);background:rgba(0,214,143,.04);">
-        <div class="form-section-title" style="color:var(--green);">💰 Satış Gücü Fırsat Sonucu</div>
-        <div class="field">
-          <label>Görüşme Sonucu *</label>
-          <div class="chip-grid-box" style="grid-template-columns:1fr 1fr;" id="firsatSonucGrid">
-            <div class="chip-btn" onclick="setGorevFirsatSonuc(this,'Olumlu')">✅ Olumlu</div>
-            <div class="chip-btn" onclick="setGorevFirsatSonuc(this,'Olumsuz')">❌ Olumsuz</div>
-            <div class="chip-btn" onclick="setGorevFirsatSonuc(this,'Potansiyel Yok')">➖ Potansiyel Yok</div>
-            <div class="chip-btn" onclick="setGorevFirsatSonuc(this,'Hatalı Fırsat Kaydı')">⚠️ Hatalı Kayıt</div>
-          </div>
-        </div>
-        <div class="field hide" id="firsatSonucDetayBox">
-          <label>Açıklama</label>
-          <textarea id="firsatSonucDetay" placeholder="Ret sebebi veya ek not..."></textarea>
-        </div>
-      </div>
-
-      <!-- Müşteri Potansiyeli Belirleme -->
-      <div id="gorevPotansiyelBlok" class="form-section hide" style="border:1px solid rgba(96,165,250,.3);background:rgba(96,165,250,.04);">
-        <div class="form-section-title" style="color:#60a5fa;">🔍 Potansiyel Belirleme Sonucu</div>
-        <div class="field">
-          <label>Görüşme Sonucu *</label>
-          <div class="chip-grid-box" style="grid-template-columns:1fr 1fr;" id="potansiyelSonucGrid">
-            <div class="chip-btn" onclick="setGorevPotansiyelSonuc(this,'Fırsat Var')">✅ Fırsat Var</div>
-            <div class="chip-btn" onclick="setGorevPotansiyelSonuc(this,'Potansiyel Yok')">➖ Potansiyel Yok</div>
-            <div class="chip-btn" onclick="setGorevPotansiyelSonuc(this,'Ulaşılamadı')">📵 Ulaşılamadı</div>
-            <div class="chip-btn" onclick="setGorevPotansiyelSonuc(this,'Adreste Yok')">🏚️ Adreste Yok</div>
-          </div>
-        </div>
-        <div class="field hide" id="potansiyelSonucDetayBox">
-          <label>Açıklama</label>
-          <textarea id="potansiyelSonucDetay" placeholder="Ek not..."></textarea>
-        </div>
-      </div>
-      <!-- /GÖREV BAĞLI ÖZEL BLOKLAR ===================================================== -->
+      <!-- /GÖREV TİPİ DİNAMİK BLOK -->
 
       <button class="btn" onclick="saveTemas()" id="saveTemasBtn">💾 Teması Kaydet</button>
     </div>
