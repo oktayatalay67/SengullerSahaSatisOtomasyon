@@ -1,12 +1,12 @@
 <!--
 ============================================================
-  index.html — v30.70
+  index.html — v30.71
   Son güncelleme: 2026-07-08
 
   Bağımlılıklar:
     admin.js    v1.1.1
     auth.js     v1.2.10
-    config.js   v1.2.19
+    config.js   v1.2.20
     firsat.js   v1.2.2
     gorev.js    v1.2.10
     hedef.js    v1.0.0
@@ -22,6 +22,10 @@
              tuzağı) giderildi; filtre önce çözülüp senkron uygulanıyor.
              ?v= cache-busting v30.67'ye alındı. temas.js v2.10.34.
 
+    v30.71 — KRİTİK: "Yeni Temas eski kayıt açıyor" düzeltmesi. yeniTemasAc()
+             tüm sızan state'i sıfırlıyor; "Yeni Temas" boş açılıyor. Ayrıca
+             kaydedilemeyen (yetki/RLS) güncellemede net hata mesajı. (temas.js v2.10.37)
+
     v30.70 — KAYDET TUŞU KAYBI: Planlandı→Gerçekleşti dönüştürme ve planlanandan
              yeni-temas akışlarında formun en altındaki "Teması Kaydet" tuşu
              görünmüyordu (selC sonrası navTo formu yeniden gizliyordu). Race-free
@@ -36,7 +40,7 @@
              temas.js v2.10.35, musteri.js v1.1.5, config.js v1.2.18.
 
     v30.66 — TEMAS RAPOR & FİLTRE PAKETİ:
-             • CACHE-BUSTING: Tüm js modülleri artık ?v=v30.70 ile yükleniyor.
+             • CACHE-BUSTING: Tüm js modülleri artık ?v=v30.71 ile yükleniyor.
                (Eski JS'in tarayıcı/CDN cache'inden sunulması sorununu bitirir —
                her sürümde bu değeri güncelleyin.)
              • BUG-A: Temas ekranı filtreleri — sayaç ve liste tek semantiğe
@@ -158,7 +162,7 @@
 <title>Şengüller Saha Satış V30.62</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- SheetJS (repo-içi, js/ altında, DB-bağımsız) — Temas Raporu Excel çıktısı için -->
-<script src="js/xlsx.full.min.js?v=v30.70"></script>
+<script src="js/xlsx.full.min.js?v=v30.71"></script>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/main.css">
 </head>
@@ -240,7 +244,7 @@
   <div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Temas Yönetimi</div></div>
   <div class="scroll">
     <div class="action-grid">
-      <div class="action-btn" onclick="navTo('pageTemasForm',true)" style="background:var(--blue);border:none;color:#fff;"><span class="action-icon">➕</span><div class="action-label" style="color:#fff;">Yeni Temas</div></div>
+      <div class="action-btn" onclick="yeniTemasAc()" style="background:var(--blue);border:none;color:#fff;"><span class="action-icon">➕</span><div class="action-label" style="color:#fff;">Yeni Temas</div></div>
       <div class="action-btn" onclick="navTo('pageTemasRapor')"><span class="action-icon">📊</span><div class="action-label">Raporlar</div></div>
     </div>
     <div class="section-title">Özet</div>
@@ -2188,17 +2192,17 @@
 </div>
 
 <!-- ===== JAVASCRIPT MODÜLLERİ ===== -->
-<script src="js/config.js?v=v30.70"></script>
-<script src="js/utils.js?v=v30.70"></script>
-<script src="js/auth.js?v=v30.70"></script>
-<script src="js/gorev.js?v=v30.70"></script>
-<script src="js/talep.js?v=v30.70"></script>
-<script src="js/temas.js?v=v30.70"></script>
-<script src="js/firsat.js?v=v30.70"></script>
-<script src="js/musteri.js?v=v30.70"></script>
-<script src="js/hedef.js?v=v30.70"></script>
-<script src="js/admin.js?v=v30.70"></script>
-<script src="js/rapor.js?v=v30.70"></script>
+<script src="js/config.js?v=v30.71"></script>
+<script src="js/utils.js?v=v30.71"></script>
+<script src="js/auth.js?v=v30.71"></script>
+<script src="js/gorev.js?v=v30.71"></script>
+<script src="js/talep.js?v=v30.71"></script>
+<script src="js/temas.js?v=v30.71"></script>
+<script src="js/firsat.js?v=v30.71"></script>
+<script src="js/musteri.js?v=v30.71"></script>
+<script src="js/hedef.js?v=v30.71"></script>
+<script src="js/admin.js?v=v30.71"></script>
+<script src="js/rapor.js?v=v30.71"></script>
 
 </body>
 </html>

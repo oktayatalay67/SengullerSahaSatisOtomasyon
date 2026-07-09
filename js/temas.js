@@ -1,7 +1,14 @@
 // ============================================================
-// temas.js — v2.10.36
+// temas.js — v2.10.37
 // Son güncelleme: 2026-07-09
 // Değişiklikler:
+//   v2.10.37 — KRİTİK (V30.71): "Yeni Temas eski kayıt açıyor" regresyonu.
+//     Önceki bir akıştan (plan→gerçekleştir, +Temas, görev) sızan global state
+//     (pending müşteri/prefill, _gorevId, currentEditingVisitId) yeni teması
+//     dolu/var olan bir kayıt gibi açabiliyordu. yeniTemasAc() eklendi: tüm
+//     state'i sıfırlayıp boş form açar; "Yeni Temas" butonu buna bağlandı.
+//     Ayrıca saveTemas UPDATE yolunda 0-satır (yetki/RLS) durumunda artık net
+//     hata mesajı gösteriliyor ("kaydedilemezse mesaj" isteği).
 //   v2.10.36 — KAYDET TUŞU KAYBI (V30.70): Planlandı→Gerçekleşti ve planlanandan
 //     yeni-temas akışlarında "en altta kaydet tuşu çıkmıyor" düzeltildi. Kök neden:
 //     selC formu açtıktan SONRA navTo/initTemasForm yeniden çalışıp temasRestOfForm'u
@@ -416,6 +423,21 @@ function openPlannedAsNewTemas(visit){
       if(notEl) notEl.value=visit.ziyaret_amaci_detay;
     }
   };
+  navTo('pageTemasForm', true);
+}
+
+// v2.10.37: "Yeni Temas" her zaman TERTEMİZ başlamalı. Önceki bir akıştan
+// (plan→gerçekleştir, +Temas, görev) sızan global state, yeni teması eski bir
+// kayıt gibi (müşteri/alanlar dolu) açabiliyordu. Bu fonksiyon tüm state'i
+// sıfırlayıp boş form açar. Meşru prefill akışları bu fonksiyonu KULLANMAZ;
+// onlar pending'i kendileri set edip navTo çağırır.
+function yeniTemasAc(){
+  window._pendingTemasCustomer = null;
+  window._pendingTemasApply    = null;
+  window._temasEditMode        = false;
+  window._gorevId              = null;
+  window._plannedVisitData     = null;
+  window.currentEditingVisitId = null;
   navTo('pageTemasForm', true);
 }
 
@@ -1267,7 +1289,7 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
   // v30.01: editingId'yi null'lamadan önce yerel değişkene al (log ID bug fix)
   let error,visitId=window.currentEditingVisitId;
   const wasEditing = !!visitId;
-  if(visitId){visitData.guncelleme_tarihi=new Date().toISOString();const res=await sb.from('visits').update(visitData).eq('visit_id',visitId);error=res.error;window.currentEditingVisitId=null;}
+  if(visitId){visitData.guncelleme_tarihi=new Date().toISOString();const res=await sb.from('visits').update(visitData).eq('visit_id',visitId).select();error=res.error;if(!error&&(!res.data||res.data.length===0)){error={message:'Kayıt güncellenemedi — bu ziyaret üzerinde düzenleme yetkiniz olmayabilir ya da kayıt bulunamadı.'};}window.currentEditingVisitId=null;}
   else{
     const res=await sb.from('visits').insert(visitData).select();error=res.error;
     if(!error&&res.data&&res.data.length)visitId=res.data[0].visit_id;
