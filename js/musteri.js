@@ -1,7 +1,16 @@
 // ============================================================
-// musteri.js — v1.1.3
-// Son güncelleme: 2026-06-16
+// musteri.js — v1.1.5
+// Son güncelleme: 2026-07-08
 // Değişiklikler:
+//   v1.1.5 — +Temas yarışı (V30.69): navToTemasForMusteri artık sabit
+//            setTimeout(selC,100) kullanmıyor; hedef müşteriyi window._pending
+//            TemasCustomer'a koyuyor, initTemasForm async akışının sonunda seçiyor.
+//            Form "zaman zaman açılmıyor" sorunu giderildi.
+//   v1.1.4 — BUG-D: MY/USER müşteri varsayılan listesi artık kendi portföyüyle
+//            sınırlı değil; tüm KÇM kapsamını gösteriyor (FMY ile tutarlı, arama
+//            davranışıyla aynı). MY-özel filtre seçilince o MY'ye daralır. Edit
+//            kısıtı (selectMusteri salt-okunur) korunur; başkasının müşterisine
+//            kontak ekleme/temas-fırsat-görev açık kalır.
 //   v1.1.3 — loadMusteriOzetler: temas sayımı satır-çekip-JS'de-sayma yerine
 //            server-side COUNT'a çevrildi. Önceki yöntem PostgREST max-rows
 //            limitine (10.000) çarpıp sessizce kesiliyordu — gerçek sayı daha
@@ -722,23 +731,22 @@ async function loadMusteriDefault(append=false){
   if(Object.keys(myIdToName).length===0) await loadKcmMyIds();
   const c = document.getElementById('musteriDefaultList');
   if(!append) c.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
-  const _rDef=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
   const myFilterVal=document.getElementById('musteriMyFilter')?.value||'';
   const takimFilterVal=document.getElementById('musteriTakimFilter')?.value||'';
   const kcmFilterVal=document.getElementById('musteriKcmFilter')?.value||'';
   let defQ = getCustomerBaseQuery();
-  // MY rolü: varsayılan olarak kendi portföyü, filtre seçilmişse o MY'nin portföyü
-  if(_rDef==='MY'||_rDef==='USER'){
-    const hedefMyId = myFilterVal ? parseInt(myFilterVal) : currentUser.my_id;
-    defQ = sb.from('customers').select('ncst,my_id,kcm_id,unvan,il,ilce,musteri_tipi,aktif').eq('aktif',true).eq('my_id',hedefMyId);
-  } else {
-    if(myFilterVal) defQ=defQ.eq('my_id',parseInt(myFilterVal));
-    else if(takimFilterVal){
-      const{data:takimMyler}=await sb.from('users').select('my_id').eq('takim_lideri_id',parseInt(takimFilterVal));
-      const ids=(takimMyler||[]).map(u=>u.my_id);
-      if(ids.length) defQ=defQ.in('my_id',ids);
-    } else if(kcmFilterVal) defQ=defQ.eq('kcm_id',parseInt(kcmFilterVal));
-  }
+  // v1.1.4 BUG-D: MY/USER artık varsayılan olarak TÜM KÇM müşterilerini görür
+  // (getCustomerBaseQuery zaten KÇM scope uygular). Önceden .eq('my_id',kendisi)
+  // ile kendi portföyüne kısıtlıydı → portföyünde olmayan KÇM müşterilerini
+  // göremiyordu. Edit yetkisi selectMusteri'de ayrıca kontrol ediliyor (salt-okunur).
+  // MY-özel filtre seçilirse o MY'ye daralır; diğer roller mevcut davranışta.
+  if(myFilterVal){
+    defQ=defQ.eq('my_id',parseInt(myFilterVal));
+  } else if(takimFilterVal){
+    const{data:takimMyler}=await sb.from('users').select('my_id').eq('takim_lideri_id',parseInt(takimFilterVal));
+    const ids=(takimMyler||[]).map(u=>u.my_id);
+    if(ids.length) defQ=defQ.in('my_id',ids);
+  } else if(kcmFilterVal) defQ=defQ.eq('kcm_id',parseInt(kcmFilterVal));
   const {data} = await defQ.order('guncelleme_tarihi',{ascending:false,nullsFirst:false}).order('unvan').range(musteriPage*MUSTERI_PAGE_SIZE, (musteriPage+1)*MUSTERI_PAGE_SIZE-1).limit(MUSTERI_PAGE_SIZE);
   if(!data || data.length===0){
     if(!append) c.innerHTML = '<div class="empty">Müşteri bulunamadı.</div>';
@@ -944,8 +952,10 @@ async function loadMusteriFirsatlar(ncst){
 }
 
 function navToTemasForMusteri(){
+  // v1.1.5: Sabit setTimeout(selC,100) yarışı kaldırıldı. Hedef müşteri pending'e
+  // konur; initTemasForm kendi async akışının SONUNDA seçer (bkz. temas.js).
+  window._pendingTemasCustomer = selectedMusteri || null;
   navTo('pageTemasForm', true);
-  if(selectedMusteri) setTimeout(()=>selC(selectedMusteri), 100);
 }
 
 function navToFirsatForMusteri(){

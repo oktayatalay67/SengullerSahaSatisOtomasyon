@@ -1,7 +1,16 @@
 // ============================================================
-// rapor.js — v1.2.1
-// Son güncelleme: 2026-06-24
+// rapor.js — v1.2.3
+// Son güncelleme: 2026-07-08
 // Değişiklikler:
+//   v1.2.3 — FIX (V30.68): "Excel kütüphanesi yüklenemedi". Kütüphane artık
+//            index.html'deki statik <script>'e bağımlı değil; ensureXLSX() ile
+//            ihtiyaç anında js/ altından dinamik yükleniyor (birkaç aday yol
+//            denenir). index.html cache/yol uyuşmazlığı Excel'i engellemez.
+//   v1.2.2 — GELİŞTİRME + BUG-C: downloadTemasExcel artık gerçek .xlsx (vendored
+//            SheetJS) üretiyor, 2 sekme: "Temas Detay" + "MY Özet" (satır=teması
+//            yapan MY, kolon=tarih, hücre=o gün ziyaret sayısı). Kaynak veri
+//            fetch'te filtrelendiği için MY/Takım/KÇM filtresi Excel'e birebir
+//            yansır (BUG-C: artık tüm MY'ler gelmiyor). Sınır yok — tüm kayıtlar.
 //   v1.2.1 — KRİTİK: Excel raporunda saat ham UTC haliyle yazılıyordu (3 saat
 //            geri, gece yarısına yakın ziyaretlerde tarih bile kayabiliyordu).
 //            Artık explicit 'Europe/Istanbul' ile doğru çevriliyor.
@@ -9,22 +18,53 @@
 // ============================================================
 'use strict';
 /* ===== RAPOR & EXCEL ===== */
+
+// v1.2.3: SheetJS'i ihtiyaç anında yerel dosyadan dinamik yükler (CDN yok, DB yok).
+// index.html'deki statik script etiketinin durumundan/cache'inden bağımsızdır.
+// Birden fazla aday yol denenir (kurulumdan kuruluma js/ veya js/vendor/ olabilir).
+let _xlsxLoadingPromise=null;
+function ensureXLSX(){
+  if(typeof XLSX!=='undefined') return Promise.resolve(true);
+  if(_xlsxLoadingPromise) return _xlsxLoadingPromise;
+  const V=(typeof APP_VERSION!=='undefined')?APP_VERSION:'';
+  const adaylar=[
+    'js/xlsx.full.min.js'+(V?('?v='+V):''),
+    'js/vendor/xlsx.full.min.js'+(V?('?v='+V):''),
+    'js/xlsx.full.min.js',
+    'js/vendor/xlsx.full.min.js'
+  ];
+  _xlsxLoadingPromise=new Promise((resolve)=>{
+    let i=0;
+    const dene=()=>{
+      if(typeof XLSX!=='undefined') return resolve(true);
+      if(i>=adaylar.length){ _xlsxLoadingPromise=null; return resolve(false); }
+      const s=document.createElement('script');
+      s.src=adaylar[i++];
+      s.onload=()=>resolve(typeof XLSX!=='undefined'?true:(dene(),undefined));
+      s.onerror=()=>dene();
+      document.head.appendChild(s);
+    };
+    dene();
+  });
+  return _xlsxLoadingPromise;
+}
+
 async function downloadTemasExcel(){
   const data = window._lastReportData;
   const custMap = window._lastReportCustMap||{};
   if(!data||!data.length){toast('Önce raporu getirin','error');return;}
+  const xlsxHazir = await ensureXLSX();
+  if(!xlsxHazir){toast('Excel kütüphanesi yüklenemedi — js/xlsx.full.min.js sunucuda bulunamadı.','error');return;}
   toast('Excel hazırlanıyor...','success');
 
-  // KÇM filtresi
-  const kcmFilter=document.getElementById('repKcmFilter')?.value||'';
-
-  // Müşteri detayları
+  // Müşteri detayları (in listesi 1000'i aşabilir → parçalı)
   const ncstList=[...new Set(data.map(v=>v.ncst))];
   const custDetailMap={};
-  if(ncstList.length>0){
+  for(let i=0;i<ncstList.length;i+=500){
+    const chunk=ncstList.slice(i,i+500);
     const{data:cd}=await sb.from('customers')
       .select('ncst,unvan,kcm_id,my_id,il,ilce')
-      .in('ncst',ncstList);
+      .in('ncst',chunk);
     (cd||[]).forEach(c=>{custDetailMap[c.ncst]=c;});
   }
 
@@ -33,110 +73,111 @@ async function downloadTemasExcel(){
   const kcmMap={};
   (kcmler||[]).forEach(k=>{kcmMap[k.kcm_id]=k.kcm_adi;});
 
-  // Kontak detayları
-  const{data:contacts}=await sb.from('contacts')
-    .select('contact_id,ncst,ad_soyad,telefon,email')
-    .in('ncst',ncstList);
+  // Kontak detayları (parçalı)
   const contactMap={};
-  (contacts||[]).forEach(c=>{
-    if(!contactMap[c.ncst]) contactMap[c.ncst]=[];
-    contactMap[c.ncst].push(c);
-  });
-
-  // Form kolonlarıyla birebir uyumlu başlıklar
-  const headers=[
-    'Id',
-    'Başlangıç saati',
-    'Başlangıç saati2',
-    'E-posta',
-    'Ad',
-    'İsminizi Seçiniz',
-    'Ziyaret edilen firmanın unvanını giriniz',
-    'Sütun1',
-    'Ziyaret edilen firmanın NCST Numarasını giriniz',
-    'Adet Ünvan/Müşteri',
-    'Adet NTCS/Müşteri',
-    'Ziyaret Tarihini Giriniz',
-    'Görüşülen Yetkilinin Adını ve Soyadını Giriniz',
-    'Görüşen Yetkili Kişinin GSM Numarası Giriniz.',
-    'Görüşen Yetkili Kişinin Email Adresini Giriniz.',
-    'Görüşülen Ürün ve Servisler',
-    'Görüşme ile ilgili notlar',
-    'Ziyaret Adresi / İlçe',
-    'Ziyaret Adresi / Mahalle/Sokak/Site/Bina No vb. detay',
-    'Ziyaret sonucu',
-    'Otomatik tarih',
-    'Portföy Kontrol NCST',
-    'Portföy Kontrol İsim',
-    'KÇM'
-  ];
-
-  // KÇM filtrele
-  let filteredData = data;
-  if(kcmFilter){
-    filteredData = data.filter(v=>{
-      const cust=custDetailMap[v.ncst];
-      return cust&&String(cust.kcm_id)===String(kcmFilter);
+  for(let i=0;i<ncstList.length;i+=500){
+    const chunk=ncstList.slice(i,i+500);
+    const{data:contacts}=await sb.from('contacts')
+      .select('contact_id,ncst,ad_soyad,telefon,email')
+      .in('ncst',chunk);
+    (contacts||[]).forEach(c=>{
+      if(!contactMap[c.ncst]) contactMap[c.ncst]=[];
+      contactMap[c.ncst].push(c);
     });
   }
 
-  const rows=filteredData.map(v=>{
+  // ---- Yardımcı: ziyaretin İstanbul günü (YYYY-MM-DD) ----
+  const _gunTR = (v) => {
+    const isPlan=v.durum==='Planlandı';
+    if(isPlan) return v.planlanan_tarih||'';
+    return v.tarih_saat ? new Date(v.tarih_saat).toLocaleDateString('en-CA',{timeZone:'Europe/Istanbul'}) : (v.planlanan_tarih||'');
+  };
+  const _fmtGun = (ymd) => { if(!ymd) return ''; const [y,m,d]=ymd.split('-'); return `${d}.${m}.${y}`; };
+
+  // ================= SEKME 1: TEMAS DETAY =================
+  const headers=[
+    'Id','Başlangıç saati','Başlangıç saati2','E-posta','Ad','İsminizi Seçiniz',
+    'Ziyaret edilen firmanın unvanını giriniz','Sütun1',
+    'Ziyaret edilen firmanın NCST Numarasını giriniz','Adet Ünvan/Müşteri','Adet NTCS/Müşteri',
+    'Ziyaret Tarihini Giriniz','Görüşülen Yetkilinin Adını ve Soyadını Giriniz',
+    'Görüşen Yetkili Kişinin GSM Numarası Giriniz.','Görüşen Yetkili Kişinin Email Adresini Giriniz.',
+    'Görüşülen Ürün ve Servisler','Görüşme ile ilgili notlar','Ziyaret Adresi / İlçe',
+    'Ziyaret Adresi / Mahalle/Sokak/Site/Bina No vb. detay','Ziyaret sonucu','Otomatik tarih',
+    'Portföy Kontrol NCST','Portföy Kontrol İsim','KÇM'
+  ];
+
+  const detayRows=data.map(v=>{
     const cust=custDetailMap[v.ncst]||{};
     const isPlan=v.durum==='Planlandı';
-    // v1.2.1: KRİTİK — tarih_saat ham UTC haliyle yazılıyordu, dönüştürülmeden.
-    // Hem saat 3 saat geri görünüyordu hem de gece yarısına yakın ziyaretlerde
-    // tarih bile YANLIŞ güne kayabiliyordu. Artık İstanbul saatine (cihaz
-    // ayarından bağımsız, her zaman doğru) explicit timeZone ile çevriliyor.
+    // v1.2.1: İstanbul saatine explicit timeZone ile çevriliyor.
     const tarihSaat=isPlan?(v.planlanan_tarih||''):
       (v.tarih_saat?new Date(v.tarih_saat).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'');
-    const tarih=v.tarih_saat?new Date(v.tarih_saat).toLocaleDateString('en-CA',{timeZone:'Europe/Istanbul'}):(v.planlanan_tarih||''); // en-CA -> YYYY-MM-DD
+    const tarih=v.tarih_saat?new Date(v.tarih_saat).toLocaleDateString('en-CA',{timeZone:'Europe/Istanbul'}):(v.planlanan_tarih||'');
     const girenAd=myIdToName[v.my_id]||'';
     const kcmAdi=kcmMap[cust.kcm_id]||'';
-    // Kontak bilgisi
     const kontaklar=contactMap[v.ncst]||[];
     const kontak=kontaklar.find(c=>c.contact_id===v.contact_id)||kontaklar[0]||{};
-
     return [
-      'SNG-SOU-'+v.visit_id,   // Id
-      tarihSaat,                 // Başlangıç saati
-      tarihSaat,                 // Başlangıç saati2
-      '',                        // E-posta
-      '',                        // Ad
-      girenAd,                   // İsminizi Seçiniz
-      custMap[v.ncst]||cust.unvan||v.ncst||'', // Müşteri ünvanı
-      '',                        // Sütun1
-      v.ncst||'',                // NCST
-      '',                        // Adet Ünvan
-      '',                        // Adet NCST
-      tarih,                     // Ziyaret Tarihi
-      kontak.ad_soyad||'',       // Görüşülen Yetkili
-      kontak.telefon||'',        // GSM
-      kontak.email||'',          // Email
-      v.urun_gruplari||'',       // Ürünler
-      v.ziyaret_amaci_detay||v.ziyaret_amaci||'', // Notlar
-      cust.ilce||cust.il||'',   // İlçe
-      '',                        // Mahalle/Sokak
-      v.ziyaret_sonucu||'',      // Sonuç
-      tarih,                     // Otomatik tarih
-      v.ncst||'',                // Portföy Kontrol NCST
-      myIdToName[cust.my_id]||'', // Portföy Kontrol İsim
-      kcmAdi                     // KÇM (en sağ)
+      'SNG-SOU-'+v.visit_id, tarihSaat, tarihSaat, '', '', girenAd,
+      custMap[v.ncst]||cust.unvan||v.ncst||'', '', v.ncst||'', '', '',
+      tarih, kontak.ad_soyad||'', kontak.telefon||'', kontak.email||'',
+      v.urun_gruplari||'', v.ziyaret_amaci_detay||v.ziyaret_amaci||'', cust.ilce||cust.il||'', '',
+      v.ziyaret_sonucu||'', tarih, v.ncst||'', myIdToName[cust.my_id]||'', kcmAdi
     ];
   });
 
+  // ================= SEKME 2: MY ÖZET (pivot) =================
+  // Satır = teması yapan MY | Kolon = gün | Hücre = o gün ziyaret sayısı
+  // Tarih kolonları: filtre aralığı varsa onu, yoksa verideki min–max günü kapsar.
+  const gunler=data.map(_gunTR).filter(Boolean);
+  const sFilter=document.getElementById('repStartDate')?.value||'';
+  const eFilter=document.getElementById('repEndDate')?.value||'';
+  let rangeStart = sFilter || (gunler.length?gunler.reduce((a,b)=>a<b?a:b):'');
+  let rangeEnd   = eFilter || (gunler.length?gunler.reduce((a,b)=>a>b?a:b):'');
+  const gunKolon=[];
+  if(rangeStart && rangeEnd && rangeStart<=rangeEnd){
+    // UTC üzerinden gün gün ilerle (TZ kayması olmadan)
+    let cur=new Date(rangeStart+'T00:00:00Z');
+    const end=new Date(rangeEnd+'T00:00:00Z');
+    let guard=0;
+    while(cur<=end && guard<2000){ gunKolon.push(cur.toISOString().slice(0,10)); cur=new Date(cur.getTime()+86400000); guard++; }
+  }
+  // MY bazlı gün sayacı
+  const myGunSayac={}; // my_id → { gun → adet }
+  const myIdSet=new Set();
+  data.forEach(v=>{
+    const mid=v.my_id; if(mid==null) return;
+    myIdSet.add(mid);
+    const g=_gunTR(v); if(!g) return;
+    if(!myGunSayac[mid]) myGunSayac[mid]={};
+    myGunSayac[mid][g]=(myGunSayac[mid][g]||0)+1;
+  });
+  // Satırları MY adına göre sırala
+  const myIdArr=[...myIdSet].sort((a,b)=>(myIdToName[a]||'').localeCompare(myIdToName[b]||'','tr'));
+  const ozetHeader=['Teması Yapan MY',...gunKolon.map(_fmtGun),'Toplam'];
+  const ozetRows=myIdArr.map(mid=>{
+    const row=[myIdToName[mid]||('MY '+mid)];
+    let toplam=0;
+    gunKolon.forEach(g=>{const n=(myGunSayac[mid]&&myGunSayac[mid][g])||0;row.push(n||'');toplam+=n;});
+    row.push(toplam);
+    return row;
+  });
+  // Genel toplam satırı
+  const genelToplamRow=['GENEL TOPLAM'];
+  let genelToplam=0;
+  gunKolon.forEach(g=>{let s=0;myIdArr.forEach(mid=>{s+=(myGunSayac[mid]&&myGunSayac[mid][g])||0;});genelToplamRow.push(s||'');genelToplam+=s;});
+  genelToplamRow.push(genelToplam);
 
-  const BOM='\uFEFF';
-  const lines=[headers,...rows].map(r=>r.map(csvCell).join(','));
-  const sep='\r\n';
-  const blob=new Blob([BOM+lines.join(sep)],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
+  // ================= WORKBOOK =================
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet([headers,...detayRows]);
+  XLSX.utils.book_append_sheet(wb,ws1,'Temas Detay');
+  const ws2=XLSX.utils.aoa_to_sheet([ozetHeader,...ozetRows,genelToplamRow]);
+  XLSX.utils.book_append_sheet(wb,ws2,'MY Özet');
+
   const d=new Date().toLocaleDateString('tr-TR').replace(/[/.]/g,'-');
-  a.href=url;
-  a.download='Temas_Raporu_'+d+'.csv';
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
-  toast(filteredData.length+' kayıt indirildi','success');
+  XLSX.writeFile(wb,'Temas_Raporu_'+d+'.xlsx');
+  toast(data.length+' kayıt indirildi (2 sekme)','success');
 }
 
 

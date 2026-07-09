@@ -1,7 +1,55 @@
 // ============================================================
-// temas.js — v2.10.29
-// Son güncelleme: 2026-06-28
+// temas.js — v2.10.35
+// Son güncelleme: 2026-07-08
 // Değişiklikler:
+//   v2.10.35 — DASHBOARD ORAN + TEMAS FORM YARIŞI (V30.69):
+//     • Penetrasyon payı artık paydanın ALT KÜMESİ olarak hesaplanıyor:
+//       "sahibi MY'nin bizzat gittiği kendi AKTİF portföy müşterisi" (visit.my_id
+//       === customers.my_id, aktif, sanal değil, kapsam içi). Yalnızca ziyaret
+//       edilen ncst'lerin güncel müşteri kaydı çekilir. Oran ARTIK ASLA %100'ü
+//       geçemez. custInScope predikatı payda ile birebir hizalı. Kırılım (MY/FMY)
+//       de penetratedSet'ten gruplanıyor. Gereksiz portfoyContacted taraması kaldırıldı.
+//     • +Temas yarışı: navToTemasForMusteri'deki sabit setTimeout(selC,100) kaldırıldı.
+//       Hedef müşteri initTemasForm'un async akışının SONUNDA seçiliyor; form artık
+//       "zaman zaman açılmıyor" sorunu yaşamıyor.
+//   v2.10.34 — FIX (V30.67): "q.in is not a function" — rapor filtresi düzeltildi.
+//     _applyReportFilter async'ti ve Supabase builder (thenable) döndürüyordu →
+//     async dönüşünde otomatik await edilip sorgu erken çalışıyor, sonuç nesnesi
+//     dönüyordu; üzerine .in/.order zincirlenince patlıyordu. Artık filtre önce
+//     çözülüp (_resolveReportFilter) senkron uygulanıyor (_applyResolvedFilter);
+//     _fetchAllReportRows senkron buildFn alıyor. Ayrıca "Temas Edilen" kartı +
+//     penetrasyon self-portföye çekildi (≤ portföy, ≤ %100).
+//   v2.10.33 — TEMAS RAPOR & FİLTRE PAKETİ (V30.66):
+//     BUG-A: loadTemasDashboard FULL_ROL listesi düzeltildi (yanlış
+//       'SATIŞ KOORDİNATÖRÜ' vardı, 'ÇÖZÜM SATIŞ MÜDÜRÜ' yoktu → o rol yanlış
+//       dala düşüyordu). _applyTemasListFilter MY filtresi artık my_id (teması
+//       yapan) — sayaçla tek semantik. Temas oranı payı artık "sahibi MY'nin
+//       bizzat kendi portföyüne yaptığı benzersiz temas" (my_id===musteri_my_id);
+//       başkasının ziyareti orana girmez. _fetchContactedSet selfSet döndürür.
+//     BUG-B: fetchAdvancedReport repKcm/repTakim/repMy filtrelerini uygular
+//       (_applyReportFilter), .limit(200) kaldırıldı, tüm kayıtlar .range() ile
+//       sayfalanarak çekilir. Ekranda 100'er "Daha Yükle" (renderReportPage).
+//   v2.10.32 — Şikayet yaşam döngüsü: saveGorevSonuclari artık MY/FMY beyanıyla
+//              görevi KAPATMAZ. Kapanış 'Çözüldü' → durum Tamamlandı(onay bekliyor),
+//              atayana düşer; değilse durum 'Devam'. onay_tarihi bu yolda yazılmaz.
+//   v2.10.31 — BUG-1 FIX: saveGorevSonuclari hiç çağrılmıyordu. gorevZiyaretKaydedildi()
+//              window._gorevId'yi null'ladığı için bir sonraki bloktaki kapı geçmiyor,
+//              cevaplar/sonuc_detaylari boş kalıyor, durum 'Devam'da takılıyordu. Görev
+//              id'si artık null'lanmadan önce yerel _gid değişkenine alınıyor.
+//   v2.10.30 — BÜYÜK REDESIGN: Görev tipi 3 sabit blok (Şikayet/Fırsat/Potansiyel
+//              HTML+JS) kaldırıldı, yerine TEK genel motor geldi. Artık her görev
+//              tipinin soru_seti (başlarken sorulan) ve sonuc_seti (kapanırken
+//              doldurulan) şeması task_types tablosunda JSON olarak tanımlı —
+//              yeni bir görev tipi eklemek kod yazmayı gerektirmiyor, admin
+//              panelinden şema tanımlanması yeterli. Alan tipleri: tek_secim
+//              (visit_results'tan, kademeli olabilir — bagli_alan), evet_hayir,
+//              metin, sayı. hedef_tablo:"customers" olan alanlar customers
+//              tablosuna da yazılıyor (Potansiyel görevinde müşteri profili).
+//              Cevaplar tasks.cevaplar/sonuc_detaylari/sonuc_notu'da tutuluyor —
+//              complaints tablosu artık hiç kullanılmıyor (eski veri taşınmadı,
+//              yeni kayıtlar bu yapıyı kullanıyor). Değişiklik tespiti: kaydette
+//              eski/yeni karşılaştırılıp SADECE değişen alanlar task_logs'a
+//              (timeline) "Alan: 'eski' → 'yeni'" formatında yazılıyor.
 //   v2.10.29 — KRİTİK: _loadSikayetOptions artık eski complaint_options yerine
 //              visit_results'tan okuyor. Admin panelinden düzenlenen liste ile
 //              gerçek form artık AYNI kaynağı kullanıyor (önceden iki ayrı,
@@ -374,7 +422,7 @@ function openPlannedAsNewTemas(visit){
 
 async function initTemasForm(){
   // v30.32: Edit modunda bu fonksiyon atlanır - openTemasFormForEdit kendi doldurur
-  if(window._temasEditMode){ window._temasEditMode=false; return; }
+  if(window._temasEditMode){ window._temasEditMode=false; window._pendingTemasCustomer=null; return; }
   // v2.10.3 (B): Yeni form açılışında durum buton kilitlerini sıfırla
   const btnPlan2=document.getElementById('btnDurumPlanlanan');
   const btnGerc2=document.getElementById('btnDurumGerceklesen');
@@ -432,6 +480,15 @@ async function initTemasForm(){
   // temasRestOfForm gizle
   const restOf=document.getElementById('temasRestOfForm');
   if(restOf) restOf.classList.add('hide');
+  // v2.10.35: Müşteri ekranından "+Temas" ile gelindiyse, hedef müşteriyi form
+  // tamamen hazır olduktan SONRA seç. Önceki sabit setTimeout(selC,100) yarış
+  // yaratıyordu: buildTemasUI 100ms'den uzun sürünce init'in kuyruğu formu selC'den
+  // sonra tekrar gizliyordu ("alanlar açılmıyor"). Artık ezilme yok.
+  if(window._pendingTemasCustomer){
+    const _pc=window._pendingTemasCustomer;
+    window._pendingTemasCustomer=null;
+    await selC(_pc);
+  }
 }
 async function selC(c){
   if(typeof c==='string'){const{data}=await sb.from('customers').select('*').eq('ncst',c).single();if(data)c=data;else return;}
@@ -474,266 +531,355 @@ function setOpportunityConfirm(val){
 // Temas ekranından fırsat modalı aç
 let tmsEklenmisFirsatList = []; // {urun, adet, tutar, adim, olasilik, kapanis, aciklama}
 
-// v2.10.6: Görev bağlı form state
-let _gorevBagliForm    = null;  // 'sikayet'|'firsat'|'potansiyel'|'genel'|null
-let _sikayetSec        = {kategori:null, cozum:null, kapalis:null};
-let _sikayetOptions    = {};    // cache: tip → [{option_id, deger}]
-let _firsatSonuc       = null;  // seçili fırsat sonucu string
-let _potansiyelSonuc   = null;  // seçili potansiyel sonucu string
+// v2.10.30: GÖREV TİPİ — TEK GENEL MOTOR
+// 3 ayrı sabit blok (Şikayet/Fırsat/Potansiyel) kaldırıldı. Artık her görev
+// tipinin soru_seti (görev başlarken sorulan sorular) ve sonuc_seti (görev
+// kapanırken doldurulan sonuç alanları) task_types tablosunda JSON olarak
+// tanımlı. Yeni bir görev tipi eklemek için kod yazmaya gerek yok — admin
+// panelinden task_types.soru_seti/sonuc_seti tanımlanması yeterli.
+//
+// Alan tipi (tip): 'tek_secim' | 'evet_hayir' | 'metin' | 'sayi'
+// bagli_alan: iki farklı anlamda kullanılır —
+//   - secenek_kaynagi olan bir alanda: üst alanın seçimine göre seçenek listesi filtrelenir (kademeli)
+//   - evet_hayir bir üst alana bağlıysa: üst alan "evet" değilse bu alan tamamen gizlenir
+// hedef_tablo/hedef_kolon: doluysa, cevap hem tasks.cevaplar'a hem o tabloya yazılır
+let _gorevBagliForm    = null;  // 'sikayet'|'firsat'|'genel'|... (sadece bölüm görünürlüğü için, layout)
+let _gorevAktifTask    = null;  // {task_id, type_id, soru_seti, sonuc_seti, ziyaret_amaci}
+let _gorevAlanDeger    = {};    // anahtar -> şu anki değer (hem soru hem sonuç alanları karışık)
+let _gorevAlanEski     = {};    // form açıldığındaki ilk değerler (değişiklik tespiti için)
+let _gorevSecenekCache = {};    // secenek_kaynagi (visit_results.tip) -> [{result_id,sonuc_adi,parent_id}]
 
-
-// ============================================================
-// v2.10.6: GÖREV BAĞLI TEMAS FONKSİYONLARI
-// ============================================================
+// Belirli tiplerde, belirli bir sonuç seçilince fırsat ekleme UI'ı otomatik açılsın.
+// Yeni bir görev tipi için bu tetikleme isteniyorsa, buraya tek satır eklenir —
+// motor mantığına dokunulmaz.
+const GOREV_SIKAYET_KAPANIS_TETIK = 'Çözüldü'; // şikayet kapanış tetikleyici (visit_results.sonuc_adi)
+const _GOREV_FIRSAT_TETIKLEYICI = {
+  21: 'Fırsat Olumlu Kapatıldı',   // Satış Gücü Fırsatı
+  22: 'Satış Gerçekleşti'          // Müşteri Potansiyeli Belirleme
+};
 
 function hideGorevBloklar(){
-  ['gorevSikayetBlok','gorevFirsatBlok','gorevPotansiyelBlok'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.classList.add('hide');
-  });
+  const blok=document.getElementById('gorevDinamikBlok');
+  if(blok) blok.classList.add('hide');
   _gorevBagliForm=null;
-  _sikayetSec={kategori:null,cozum:null,kapalis:null};
-  _firsatSonuc=null;
-  _potansiyelSonuc=null;
+  _gorevAktifTask=null;
+  _gorevAlanDeger={};
+  _gorevAlanEski={};
   window._gorevBagliForm=null;
 }
 
-async function _loadSikayetOptions(){
-  if(Object.keys(_sikayetOptions).length>0) return; // cache dolu
-  // v2.10.29: KRİTİK FIX — artık eski complaint_options yerine visit_results'tan
-  // okunuyor. Admin panelinden düzenlenen liste ile form artık AYNI kaynağı
-  // kullanıyor (önceden iki ayrı, birbirinden habersiz liste vardı).
-  // result_id/sonuc_adi → option_id/deger olarak normalize ediliyor, böylece
-  // aşağıdaki render/seçim fonksiyonları değişmeden çalışıyor.
-  const{data}=await sb.from('visit_results')
-    .select('*')
-    .in('tip',['sikayet_kategori','sikayet_cozum_yontemi','sikayet_kapalis_durumu'])
-    .eq('aktif',true).order('sira');
-  _sikayetOptions={};
-  (data||[]).forEach(o=>{
-    const tipAdi = o.tip.replace('sikayet_','');
-    if(!_sikayetOptions[tipAdi]) _sikayetOptions[tipAdi]=[];
-    _sikayetOptions[tipAdi].push({option_id:o.result_id, deger:o.sonuc_adi, parent_id:o.parent_id});
-  });
+// Bir secenek_kaynagi (visit_results.tip) için seçenekleri çeker, cache'ler
+async function _gorevSecenekleriGetir(tip){
+  if(_gorevSecenekCache[tip]) return _gorevSecenekCache[tip];
+  const{data}=await sb.from('visit_results').select('result_id,sonuc_adi,parent_id').eq('tip',tip).eq('aktif',true).order('sira');
+  _gorevSecenekCache[tip]=data||[];
+  return _gorevSecenekCache[tip];
 }
 
-function _renderSikayetChips(tipAdi, containerId, secKey){
-  const options=_sikayetOptions[tipAdi]||[];
-  const container=document.getElementById(containerId);
-  if(!container) return;
-  container.innerHTML=options.map(o=>`
-    <div class="product-chip" data-id="${o.option_id}" onclick="setSikayetChip(this,'${secKey}',${o.option_id})">
-      ${escapeHTML(o.deger)}
-    </div>`).join('');
-}
-
-function setSikayetChip(el, secKey, optionId){
-  const container=el.parentElement;
-  container.querySelectorAll('.product-chip').forEach(c=>c.classList.remove('selected'));
-  el.classList.add('selected');
-  _sikayetSec[secKey]=optionId;
-}
-
-// Mevcut şikayet kaydından chip seçimini geri yükle
-function _preselectSikayetChip(gridId, optionId, secKey){
-  if(!optionId) return;
-  const grid=document.getElementById(gridId);
-  if(!grid) return;
-  const chip=grid.querySelector('[data-id="'+optionId+'"]');
-  if(chip){ chip.classList.add('selected'); _sikayetSec[secKey]=optionId; }
-}
-
-// v2.10.18: Görev tipine göre temas formunu yapılandır
-function _applyGorevFormMode(bagliForm){
+// v2.10.18 davranışı genelleştirildi: görev tipinin ziyaret_amaci'na uyan amaç chip'i otomatik seçilir
+function _applyGorevFormMode(bagliForm, ziyaretAmaci){
   const s4=document.getElementById('temasSection4');
   const s6=document.getElementById('temasSection6');
   const s7=document.getElementById('temasSection7');
   if(bagliForm==='sikayet'){
-    // Şikayet ziyaretinde alakasız bölümler gizlenir
     if(s4) s4.style.display='none';
     if(s6) s6.style.display='none';
     if(s7) s7.style.display='none';
-    // Şikayet amacı otomatik seç
-    setTimeout(()=>{
-      document.querySelectorAll('#temasAmacGrid .product-chip').forEach(chip=>{
-        const t=chip.textContent.trim();
-        if((t.includes('Şikayet')||t.includes('sikayet'))&&!chip.classList.contains('selected')) chip.click();
-      });
-    },150);
   } else {
-    // Diğer tiplerde / temizlenince bölümleri geri aç
     if(s4) s4.style.display='';
     if(s6) s6.style.display='';
     if(s7) s7.style.display='';
   }
+  if(ziyaretAmaci){
+    setTimeout(()=>{
+      document.querySelectorAll('#temasAmacGrid .product-chip').forEach(chip=>{
+        const t=chip.textContent.trim();
+        if(t===ziyaretAmaci && !chip.classList.contains('selected')) chip.click();
+      });
+    },150);
+  }
 }
 
+// Tek bir alanı (field tanımına göre) HTML olarak çizer
+async function _gorevAlanCiz(field, containerEl){
+  const wrap=document.createElement('div');
+  wrap.className='field';
+  wrap.dataset.anahtar=field.anahtar;
+  const label=document.createElement('label');
+  label.textContent=field.etiket+(field.zorunlu?' *':'');
+  wrap.appendChild(label);
+
+  if(field.tip==='tek_secim'){
+    const grid=document.createElement('div');
+    grid.className='product-grid';
+    grid.id='gorevAlan_'+field.anahtar;
+    wrap.appendChild(grid);
+    await _gorevSecimGridDoldur(field, grid);
+  } else if(field.tip==='evet_hayir'){
+    const box=document.createElement('div');
+    box.style.cssText='display:flex;gap:8px;';
+    ['Evet','Hayır'].forEach(opt=>{
+      const chip=document.createElement('div');
+      chip.className='chip-btn';
+      chip.textContent=opt;
+      chip.onclick=()=>{
+        box.querySelectorAll('.chip-btn').forEach(c=>c.classList.remove('selected'));
+        chip.classList.add('selected');
+        _gorevAlanDeger[field.anahtar]=(opt==='Evet');
+        _gorevBagliAlanlariGuncelle(field.anahtar);
+      };
+      box.appendChild(chip);
+    });
+    wrap.appendChild(box);
+  } else if(field.tip==='metin'){
+    const inp=document.createElement('textarea');
+    inp.id='gorevAlan_'+field.anahtar;
+    inp.placeholder=field.etiket+'...';
+    inp.oninput=()=>{ _gorevAlanDeger[field.anahtar]=inp.value; };
+    wrap.appendChild(inp);
+  } else if(field.tip==='sayi'){
+    const inp=document.createElement('input');
+    inp.type='number'; inp.min='0';
+    inp.id='gorevAlan_'+field.anahtar;
+    inp.style.cssText='width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;';
+    inp.oninput=()=>{ _gorevAlanDeger[field.anahtar]=inp.value?parseInt(inp.value):null; };
+    wrap.appendChild(inp);
+  }
+  // bagli_alan'lı metin/sayı alanları — üst evet_hayır şu an "Evet" değilse başlangıçta gizli
+  if(field.bagli_alan && (field.tip==='metin'||field.tip==='sayi')){
+    wrap.style.display = (_gorevAlanDeger[field.bagli_alan]===true) ? '' : 'none';
+  }
+  containerEl.appendChild(wrap);
+}
+
+// tek_secim alanının chip listesini doldurur (bagli_alan varsa, üst seçime göre filtreler)
+async function _gorevSecimGridDoldur(field, grid){
+  let options=await _gorevSecenekleriGetir(field.secenek_kaynagi);
+  if(field.bagli_alan){
+    const ustDeger=_gorevAlanDeger[field.bagli_alan]; // üst alanda seçilen result_id
+    options=options.filter(o=>o.parent_id===ustDeger);
+  }
+  grid.innerHTML=options.map(o=>`<div class="product-chip" data-id="${o.result_id}" onclick="_gorevChipSec('${field.anahtar}',${o.result_id},this)">${escapeHTML(o.sonuc_adi)}</div>`).join('');
+  if(!options.length && field.bagli_alan){
+    grid.innerHTML='<div style="font-size:11px;color:var(--text3);">Önce yukarıdaki alanı seçin</div>';
+  }
+}
+
+function _gorevChipSec(anahtar, resultId, el){
+  el.parentElement.querySelectorAll('.product-chip').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  _gorevAlanDeger[anahtar]=resultId;
+  _gorevBagliAlanlariGuncelle(anahtar);
+}
+
+// Bir alan değiştiğinde, ona bağlı (bagli_alan=bu anahtar) diğer alanları günceller
+function _gorevBagliAlanlariGuncelle(degisenAnahtar){
+  if(!_gorevAktifTask) return;
+  const tumAlanlar=[...(_gorevAktifTask.soru_seti||[]), ...(_gorevAktifTask.sonuc_seti||[])];
+  tumAlanlar.forEach(f=>{
+    if(f.bagli_alan!==degisenAnahtar) return;
+    const elWrap=document.querySelector('[data-anahtar="'+f.anahtar+'"]');
+    if(!elWrap) return;
+    if(f.tip==='tek_secim'){
+      const grid=document.getElementById('gorevAlan_'+f.anahtar);
+      if(grid) _gorevSecimGridDoldur(f, grid);
+      elWrap.style.display='';
+    } else {
+      // metin/sayı bir evet_hayır'a bağlıysa: üst "Evet" değilse gizle
+      const ustDeger=_gorevAlanDeger[f.bagli_alan];
+      elWrap.style.display = ustDeger===true ? '' : 'none';
+      if(ustDeger!==true) _gorevAlanDeger[f.anahtar]=null;
+    }
+  });
+}
+
+// Görev açıldığında — task_types + tasks'tan mevcut cevapları çekip formu çizer
 async function loadGorevBlogu(taskId, visitId){
   if(!taskId){ hideGorevBloklar(); _applyGorevFormMode(null); return; }
   const{data:task}=await sb.from('tasks')
-    .select('task_id,type_id,visit_id,task_types(bagli_form)')
+    .select('task_id,type_id,visit_id,cevaplar,sonuc_detaylari,sonuc_notu,ncst,task_types(bagli_form,soru_seti,sonuc_seti,ziyaret_amaci)')
     .eq('task_id',taskId).single();
   if(!task){ hideGorevBloklar(); _applyGorevFormMode(null); return; }
+
   const bagliForm=task.task_types?.bagli_form||null;
+  const soruSeti=task.task_types?.soru_seti||[];
+  const sonucSeti=task.task_types?.sonuc_seti||[];
   _gorevBagliForm=bagliForm;
   window._gorevBagliForm=bagliForm;
   hideGorevBloklar();
   _gorevBagliForm=bagliForm;
   window._gorevBagliForm=bagliForm;
+  _applyGorevFormMode(bagliForm, task.task_types?.ziyaret_amaci);
 
-  // Görev tipine göre formu yapılandır
-  _applyGorevFormMode(bagliForm);
+  _gorevAktifTask={task_id:taskId, type_id:task.type_id, soru_seti:soruSeti, sonuc_seti:sonucSeti, ncst:task.ncst};
 
-  if(bagliForm==='sikayet'){
-    await _loadSikayetOptions();
-    _renderSikayetChips('kategori',    'sikayetKategoriGrid', 'kategori');
-    _renderSikayetChips('cozum_yontemi','sikayetCozumGrid',   'cozum');
-    _renderSikayetChips('kapalis_durumu','sikayetKapalisGrid','kapalis');
-    // v2.10.18: task_id VE visit_id ile fallback sorgu — chip kalıcılığı
-    const vId = visitId || window.currentEditingVisitId;
-    const orFilter = vId
-      ? `task_id.eq.${taskId},visit_id.eq.${vId}`
-      : `task_id.eq.${taskId}`;
-    const{data:complaint}=await sb.from('complaints')
-      .select('*').or(orFilter).order('complaint_id',{ascending:false}).limit(1).maybeSingle();
-    if(complaint){
-      _preselectSikayetChip('sikayetKategoriGrid', complaint.cat_id,            'kategori');
-      _preselectSikayetChip('sikayetCozumGrid',    complaint.cozum_yontemi_id,  'cozum');
-      _preselectSikayetChip('sikayetKapalisGrid',  complaint.kapalis_durumu_id, 'kapalis');
-      const taahhutEl=document.getElementById('sikayetTaahhut');
-      const notlarEl=document.getElementById('sikayetNotlar');
-      if(taahhutEl&&complaint.musteri_taahhut) taahhutEl.value=complaint.musteri_taahhut;
-      if(notlarEl&&complaint.notlar) notlarEl.value=complaint.notlar;
-    } else {
-      // Yeni ziyaret — görev açıklamasını notlara yaz
-      const{data:taskAciklama}=await sb.from('tasks').select('aciklama').eq('task_id',taskId).single();
-      const notlarEl=document.getElementById('sikayetNotlar');
-      if(notlarEl&&taskAciklama?.aciklama) notlarEl.value=taskAciklama.aciklama;
-    }
-    const blok=document.getElementById('gorevSikayetBlok');
-    if(blok) blok.classList.remove('hide');
-  } else if(bagliForm==='firsat'){
-    const blok=document.getElementById('gorevFirsatBlok');
-    if(blok) blok.classList.remove('hide');
-  } else if(bagliForm==='potansiyel'){
-    const blok=document.getElementById('gorevPotansiyelBlok');
-    if(blok) blok.classList.remove('hide');
+  if(!soruSeti.length && !sonucSeti.length){
+    return; // bu tipin dinamik alanı yok (örn. Genel Görev) — özel blok gösterme
   }
+
+  // Mevcut cevapları yükle (varsa) — değilse customers'tan ilk değer (hedef_tablo alanları için)
+  const mevcutCevaplar = task.cevaplar||{};
+  const mevcutSonuc = task.sonuc_detaylari||{};
+  _gorevAlanDeger = {..._gorevValueObjFromSchema(soruSeti, mevcutCevaplar), ..._gorevValueObjFromSchema(sonucSeti, mevcutSonuc)};
+
+  // hedef_tablo:"customers" alanlarında hiç cevap yoksa, müşterinin kendi kaydından ilk değeri çek
+  const customersAlanlari=[...soruSeti,...sonucSeti].filter(f=>f.hedef_tablo==='customers' && (mevcutCevaplar[f.anahtar]===undefined));
+  if(customersAlanlari.length && task.ncst){
+    const{data:custRow}=await sb.from('customers').select(customersAlanlari.map(f=>f.hedef_kolon).join(',')).eq('ncst',task.ncst).maybeSingle();
+    if(custRow){
+      customersAlanlari.forEach(f=>{ if(custRow[f.hedef_kolon]!=null) _gorevAlanDeger[f.anahtar]=custRow[f.hedef_kolon]; });
+    }
+  }
+  _gorevAlanEski={..._gorevAlanDeger, __not__:task.sonuc_notu||null}; // değişiklik tespiti için anlık fotoğraf
+
+  // Bloğu çiz
+  const blok=document.getElementById('gorevDinamikBlok');
+  const baslikEl=document.getElementById('gorevDinamikBaslikYazi');
+  const soruAlani=document.getElementById('gorevDinamikSoruAlani');
+  const sonucAlani=document.getElementById('gorevDinamikSonucAlani');
+  const notEl=document.getElementById('gorevDinamikNot');
+  if(!blok) return;
+  if(baslikEl) baslikEl.textContent = task.task_types?.ziyaret_amaci || 'Görev Detayı';
+  soruAlani.innerHTML=''; sonucAlani.innerHTML='';
+  for(const f of soruSeti) await _gorevAlanCiz(f, soruAlani);
+  for(const f of sonucSeti) await _gorevAlanCiz(f, sonucAlani);
+  if(notEl) notEl.value=task.sonuc_notu||'';
+  blok.classList.remove('hide');
+
+  // Çizimden sonra mevcut değerleri ekrana (chip seçili / input dolu) yansıt
+  _gorevFormDegerleriYansit(soruSeti);
+  _gorevFormDegerleriYansit(sonucSeti);
 }
 
-function setGorevFirsatSonuc(el, val){
-  document.querySelectorAll('#firsatSonucGrid .chip-btn').forEach(c=>c.classList.remove('selected'));
-  el.classList.add('selected');
-  _firsatSonuc=val;
-  // Detay kutusu: olumsuz ve diğerlerinde göster
-  const detayBox=document.getElementById('firsatSonucDetayBox');
-  if(detayBox) detayBox.classList.toggle('hide', val==='Olumlu');
-  // Olumlu → mevcut fırsat ekleme mekanizmasını aktif et
-  if(val==='Olumlu'){
-    setOpportunityConfirm(true);
-    const firsatUrunBox=document.getElementById('firsatUrunBox');
-    if(firsatUrunBox){
-      firsatUrunBox.classList.remove('hide');
-      firsatUrunBox.scrollIntoView({behavior:'smooth',block:'center'});
-    }
-  } else {
-    setOpportunityConfirm(false);
-  }
+function _gorevValueObjFromSchema(schema, savedObj){
+  const out={};
+  (schema||[]).forEach(f=>{ if(savedObj[f.anahtar]!==undefined) out[f.anahtar]=savedObj[f.anahtar]; });
+  return out;
 }
 
-function setGorevPotansiyelSonuc(el, val){
-  document.querySelectorAll('#potansiyelSonucGrid .chip-btn').forEach(c=>c.classList.remove('selected'));
-  el.classList.add('selected');
-  _potansiyelSonuc=val;
-  // Detay kutusu
-  const detayBox=document.getElementById('potansiyelSonucDetayBox');
-  if(detayBox) detayBox.classList.toggle('hide', val==='Fırsat Var');
-  // Fırsat Var → fırsat ekleme aktif
-  if(val==='Fırsat Var'){
-    setOpportunityConfirm(true);
-    const firsatUrunBox=document.getElementById('firsatUrunBox');
-    if(firsatUrunBox){
-      firsatUrunBox.classList.remove('hide');
-      firsatUrunBox.scrollIntoView({behavior:'smooth',block:'center'});
+function _gorevFormDegerleriYansit(schema){
+  (schema||[]).forEach(f=>{
+    const deger=_gorevAlanDeger[f.anahtar];
+    if(deger===undefined||deger===null) return;
+    if(f.tip==='tek_secim'){
+      const grid=document.getElementById('gorevAlan_'+f.anahtar);
+      const chip=grid?.querySelector('[data-id="'+deger+'"]');
+      if(chip) chip.classList.add('selected');
+    } else if(f.tip==='evet_hayir'){
+      const wrap=document.querySelector('[data-anahtar="'+f.anahtar+'"]');
+      const chips=wrap?.querySelectorAll('.chip-btn');
+      if(chips){ chips.forEach(c=>{ if((c.textContent==='Evet')===deger) c.classList.add('selected'); }); }
+      _gorevBagliAlanlariGuncelle(f.anahtar);
+    } else if(f.tip==='metin'||f.tip==='sayi'){
+      const inp=document.getElementById('gorevAlan_'+f.anahtar);
+      if(inp) inp.value=deger;
     }
-  } else {
-    setOpportunityConfirm(false);
-  }
+  });
 }
 
-// Görev sonuçlarını DB'ye yaz (saveTemas'tan çağrılır)
-// v2.10.13: isPlan parametresi eklendi — Planlandı'da da şikayet verisi kaydedilir (upsert)
+// Görev sonuçlarını DB'ye yaz — tek genel fonksiyon, tüm görev tiplerinde çalışır
 async function saveGorevSonuclari(visitId, taskId, ncst, isPlan=false){
-  const bagliForm=_gorevBagliForm||window._gorevBagliForm;
-  if(!bagliForm||!taskId) return;
+  if(!_gorevAktifTask||!taskId) return true; // dinamik alanı olmayan tip — yapacak bir şey yok
+  const {soru_seti:soruSeti, sonuc_seti:sonucSeti} = _gorevAktifTask;
+  if(!soruSeti.length && !sonucSeti.length) return true;
 
-  if(bagliForm==='sikayet'){
-    // v2.10.14: Kapalis Gerceklesti icin zorunlu, Planlandi icin opsiyonel
-    if(!_sikayetSec.kapalis && !isPlan){
-      toast('Kapaniş durumu seçin','error');
-      return false;
+  // Zorunlu alan kontrolü — Planlandı'da esnetiliyor (önceki davranışla tutarlı)
+  if(!isPlan){
+    const tumAlanlar=[...soruSeti, ...sonucSeti];
+    for(const f of tumAlanlar){
+      const wrap=document.querySelector('[data-anahtar="'+f.anahtar+'"]');
+      const gorunur = !wrap || wrap.style.display!=='none';
+      if(f.zorunlu && gorunur && (_gorevAlanDeger[f.anahtar]===undefined||_gorevAlanDeger[f.anahtar]===null||_gorevAlanDeger[f.anahtar]==='')){
+        toast(f.etiket+' seçimi zorunlu','error');
+        return false;
+      }
     }
-    const complaintPayload={
-      task_id:taskId, visit_id:visitId||null, ncst,
-      kcm_id:currentUser.kcm_id, my_id:currentUser.my_id,
-      cat_id:_sikayetSec.kategori||null,
-      cozum_yontemi_id:_sikayetSec.cozum||null,
-      kapalis_durumu_id:_sikayetSec.kapalis||null,
-      musteri_taahhut:document.getElementById('sikayetTaahhut')?.value||null,
-      notlar:document.getElementById('sikayetNotlar')?.value||null,
-      guncelleme_tarihi:new Date().toISOString()
-    };
-    // Upsert: mevcut sikayet kaydi varsa guncelle, yoksa ekle
-    const{data:existing}=await sb.from('complaints').select('complaint_id').eq('task_id',taskId).maybeSingle();
-    if(existing){
-      const{error}=await sb.from('complaints').update(complaintPayload).eq('complaint_id',existing.complaint_id);
-      if(error){ toast('Sikayet guncellenemedi: '+error.message,'error'); return false; }
-    } else {
-      const{error}=await sb.from('complaints').insert(complaintPayload);
-      if(error){ toast('Sikayet kaydedilemedi: '+error.message,'error'); return false; }
+  }
+
+  const cevaplar={}; soruSeti.forEach(f=>{ if(_gorevAlanDeger[f.anahtar]!==undefined) cevaplar[f.anahtar]=_gorevAlanDeger[f.anahtar]; });
+  const sonucDetaylari={}; sonucSeti.forEach(f=>{ if(_gorevAlanDeger[f.anahtar]!==undefined) sonucDetaylari[f.anahtar]=_gorevAlanDeger[f.anahtar]; });
+  const not=document.getElementById('gorevDinamikNot')?.value||null;
+
+  // hedef_tablo:"customers" alanlarını customers tablosuna da yaz
+  const custUpd={};
+  [...soruSeti,...sonucSeti].forEach(f=>{
+    if(f.hedef_tablo==='customers' && _gorevAlanDeger[f.anahtar]!==undefined && _gorevAlanDeger[f.anahtar]!==null){
+      custUpd[f.hedef_kolon]=_gorevAlanDeger[f.anahtar];
     }
-    const kapalisDeger=(_sikayetOptions['kapalis_durumu']||[]).find(o=>o.option_id===_sikayetSec.kapalis)?.deger||(isPlan?'Devam Ediyor':'Tamamlandi');
-    await sb.from('tasks').update({
-      sonuc:kapalisDeger,
-      sonuc_detay:document.getElementById('sikayetNotlar')?.value||null,
-      durum:isPlan?'Basladi':'Tamamlandi',
-      tamamlanma_tarihi:isPlan?null:new Date().toISOString(),
-      guncelleme_tarihi:new Date().toISOString()
-    }).eq('task_id',taskId);
-    // v2.10.14: Timeline'a sikayet detayini yaz
-    const notlar=document.getElementById('sikayetNotlar')?.value||'';
-    const taahhut=document.getElementById('sikayetTaahhut')?.value||'';
+  });
+  if(Object.keys(custUpd).length && ncst){
+    await sb.from('customers').update(custUpd).eq('ncst',ncst);
+  }
+
+  // Fırsat otomatik tetikleme — sonuç bir "olumlu/satış" seçeneğiyse fırsat ekleme UI'ı açılır
+  const tetikleyiciMetin=_GOREV_FIRSAT_TETIKLEYICI[_gorevAktifTask.type_id];
+  if(tetikleyiciMetin){
+    const ustAlan=sonucSeti.find(f=>f.anahtar==='sonuc_ust');
+    if(ustAlan){
+      const seciliId=_gorevAlanDeger['sonuc_ust'];
+      const opts=await _gorevSecenekleriGetir(ustAlan.secenek_kaynagi);
+      const seciliMetin=opts.find(o=>o.result_id===seciliId)?.sonuc_adi;
+      if(seciliMetin===tetikleyiciMetin && tmsEklenmisFirsatList.length===0 && !isPlan){
+        toast(tetikleyiciMetin+' seçildi ama fırsat eklenmedi','error');
+        return false;
+      }
+    }
+  }
+
+  // Değişiklik tespiti — sadece değişen alanları timeline'a yaz
+  const tumAlanlarLog=[...soruSeti,...sonucSeti];
+  for(const f of tumAlanlarLog){
+    const eski=_gorevAlanEski[f.anahtar];
+    const yeni=_gorevAlanDeger[f.anahtar];
+    if(eski===yeni || (eski==null && yeni==null)) continue;
+    let eskiMetin=eski, yeniMetin=yeni;
+    if(f.tip==='tek_secim'){
+      const opts=await _gorevSecenekleriGetir(f.secenek_kaynagi);
+      eskiMetin=opts.find(o=>o.result_id===eski)?.sonuc_adi||'—';
+      yeniMetin=opts.find(o=>o.result_id===yeni)?.sonuc_adi||'—';
+    } else if(f.tip==='evet_hayir'){
+      eskiMetin=eski===true?'Evet':eski===false?'Hayır':'—';
+      yeniMetin=yeni===true?'Evet':yeni===false?'Hayır':'—';
+    }
     await sb.from('task_logs').insert({
       task_id:taskId, user_id:currentUser.my_id, user_ad:currentUser.ad_soyad,
-      aksiyon: isPlan ? 'Sikayet Kaydedildi (Devam)' : 'Sikayet Kapatildi',
-      detay: [kapalisDeger, notlar?'Not: '+notlar:'', taahhut?'Taahhut: '+taahhut:''].filter(Boolean).join(' | '),
+      aksiyon:f.etiket+' güncellendi',
+      detay:`'${eskiMetin??'—'}' → '${yeniMetin??'—'}'`
     });
-  } else if(bagliForm==='firsat'){
-    if(!_firsatSonuc){ toast('Fırsat sonucu seçin','error'); return false; }
-    if(_firsatSonuc==='Olumlu'&&tmsEklenmisFirsatList.length===0){
-      toast('Olumlu seçildi ama fırsat eklenmedi','error'); return false;
-    }
-    await sb.from('tasks').update({
-      sonuc:_firsatSonuc,
-      sonuc_detay:document.getElementById('firsatSonucDetay')?.value||null,
-      durum:isPlan?'Başladı':'Tamamlandı',
-      tamamlanma_tarihi:isPlan?null:new Date().toISOString(),
-      guncelleme_tarihi:new Date().toISOString()
-    }).eq('task_id',taskId);
-
-  } else if(bagliForm==='potansiyel'){
-    if(!_potansiyelSonuc){ toast('Potansiyel sonucu seçin','error'); return false; }
-    if(_potansiyelSonuc==='Fırsat Var'&&tmsEklenmisFirsatList.length===0){
-      toast('Fırsat Var seçildi ama fırsat eklenmedi','error'); return false;
-    }
-    await sb.from('tasks').update({
-      sonuc:_potansiyelSonuc,
-      sonuc_detay:document.getElementById('potansiyelSonucDetay')?.value||null,
-      durum:isPlan?'Başladı':'Tamamlandı',
-      tamamlanma_tarihi:isPlan?null:new Date().toISOString(),
-      guncelleme_tarihi:new Date().toISOString()
-    }).eq('task_id',taskId);
   }
+  const notEski=_gorevAlanEski['__not__'];
+  if(not!==notEski && (not||notEski)){
+    await sb.from('task_logs').insert({
+      task_id:taskId, user_id:currentUser.my_id, user_ad:currentUser.ad_soyad,
+      aksiyon:'Not güncellendi', detay: not||''
+    });
+  }
+
+  // Görev durumu — ŞİKAYET tipinde MY/FMY beyanıyla KAPANMAZ:
+  // kapanış "Çözüldü" ise Tamamlandı(onay bekliyor) → atayana düşer; değilse Devam (açık kalır).
+  let yeniDurum, yeniTamamlanma;
+  if(isPlan){
+    yeniDurum='Başladı'; yeniTamamlanma=null;
+  } else if(_gorevBagliForm==='sikayet'){
+    const kapanisAlan=sonucSeti.find(f=>f.anahtar==='kapanis');
+    let kapandiMi=false;
+    if(kapanisAlan){
+      const opts=await _gorevSecenekleriGetir(kapanisAlan.secenek_kaynagi);
+      const seciliMetin=opts.find(o=>o.result_id===_gorevAlanDeger['kapanis'])?.sonuc_adi;
+      kapandiMi=(seciliMetin===GOREV_SIKAYET_KAPANIS_TETIK);
+    }
+    yeniDurum=kapandiMi?'Tamamlandı':'Devam';
+    yeniTamamlanma=kapandiMi?new Date().toISOString():null;
+  } else {
+    yeniDurum='Tamamlandı'; yeniTamamlanma=new Date().toISOString(); // diğer tipler — kapsam dışı
+  }
+
+  await sb.from('tasks').update({
+    cevaplar, sonuc_detaylari:sonucDetaylari, sonuc_notu:not,
+    durum:yeniDurum, tamamlanma_tarihi:yeniTamamlanma,
+    guncelleme_tarihi:new Date().toISOString()
+  }).eq('task_id',taskId);
+
   return true;
 }
 
@@ -1170,14 +1316,19 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       logDetay
     );
     toast('Temas Kaydedildi!','success');
+    // v2.10.31 BUG-1 FIX: gorevZiyaretKaydedildi() içeride window._gorevId'yi null'lıyor.
+    // saveGorevSonuclari çağrısı bir sonraki blokta window._gorevId'yi kontrol ettiğinden
+    // veri hiç yazılmıyordu (cevaplar/sonuc_detaylari boş, durum 'Devam'da kalıyordu).
+    // Görev id'sini null'lanmadan önce yerel değişkene alıyoruz.
+    const _gid = window._gorevId;
     // Görev modülü hook — görevden açıldıysa ziyareti bağla
-    if(typeof gorevZiyaretKaydedildi === 'function' && window._gorevId && visitId){
+    if(typeof gorevZiyaretKaydedildi === 'function' && _gid && visitId){
       await gorevZiyaretKaydedildi(visitId);
     }
     // v2.10.13: Görev sonuçlarını kaydet (şikayet/fırsat/potansiyel)
     // isPlan bağımsız çalışır — Planlandı'da da şikayet verisi kaydedilir
-    if((_gorevBagliForm||window._gorevBagliForm) && window._gorevId){
-      const gorevOk = await saveGorevSonuclari(visitId||window.currentEditingVisitId, window._gorevId, ncst, isPlan);
+    if((_gorevBagliForm||window._gorevBagliForm) && _gid){
+      const gorevOk = await saveGorevSonuclari(visitId||window.currentEditingVisitId, _gid, ncst, isPlan);
       if(gorevOk===false){ _savingTemasLock=false; document.getElementById('saveTemasBtn').disabled=false; document.getElementById('saveTemasBtn').textContent=_btnOrijinalText; return; }
     }
     navHistory = [];
@@ -1239,7 +1390,10 @@ async function loadTemasDashboard(){
     if(!filterEd) filterEd=trEndOfDay(todayTR2);
 
     const r2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-    const FULL_ROL=['ADMIN','SATIŞ KOORDİNATÖRÜ','SATIŞ DİREKTÖRÜ'];
+    // v2.10.33 BUG-A: Rol listesi düzeltildi. Önceden 'SATIŞ KOORDİNATÖRÜ' (hiyerarşide
+    // yok) vardı, 'ÇÖZÜM SATIŞ MÜDÜRÜ' yoktu → o rol yanlışlıkla KÇM dalına düşüp
+    // kcm_id=null ile filtresiz kalıyordu. applyRBAC'taki tam-yetki setiyle hizalandı.
+    const FULL_ROL=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
     const MY_ROL=['MY','FMY','USER'];
 
     // ============ EKRAN FİLTRELERİ (Admin/KÇM için) ============
@@ -1251,18 +1405,22 @@ async function loadTemasDashboard(){
     // Login'de kcmMyIds ve bagliMyIds zaten dolu — DB'ye gitme
     let visitFilter  = null; // visits tablosu için
     let custFilter   = null; // customers tablosu için
+    let custInScope  = null; // v2.10.35: müşteri NESNESİ için kapsam predikatı (paydayla birebir)
     let showMYFMY    = false; // MY/FMY kırılımı gösterilsin mi?
 
     if(fTMyId && !isNaN(parseInt(fTMyId))){
       // Ekran filtresi: belirli bir MY
-      visitFilter  = (q) => q.eq('my_id', parseInt(fTMyId));
-      custFilter   = (q) => q.eq('my_id', parseInt(fTMyId));
+      const mid=parseInt(fTMyId);
+      visitFilter  = (q) => q.eq('my_id', mid);
+      custFilter   = (q) => q.eq('my_id', mid);
+      custInScope  = (c) => c.my_id===mid;
       showMYFMY    = false;
     } else if(fTTakimId && !isNaN(parseInt(fTTakimId))){
       // Ekran filtresi: belirli bir takım
       // v2.10.22: showMYFMY artık true — takım için de MY/FMY kırılımı gösteriliyor
       visitFilter = (q) => q.eq('my_id', -1); // geçici — aşağıda override ediliyor
       custFilter  = (q) => q.eq('my_id', -1);
+      custInScope = () => false;
       showMYFMY   = true;
       // Takım filtresi için users'a tek sorgu — yetki_seviyesi de çekiliyor (kırılım için)
       const {data:takimUsers} = await sb.from('users')
@@ -1271,21 +1429,26 @@ async function loadTemasDashboard(){
         .eq('aktif', true);
       const takimIds = (takimUsers||[]).map(u=>u.my_id);
       if(takimIds.length){
+        const tset=new Set(takimIds);
         visitFilter = (q) => q.in('my_id', takimIds);
         custFilter  = (q) => q.in('my_id', takimIds);
+        custInScope = (c) => tset.has(c.my_id);
       }
       // v2.10.22: showMYFMY bloğunda kullanılacak — takım üyelerinin rol bazlı ayrımı
       window._tmsTakimUyeleri = takimUsers||[];
     } else if(fTKcmId && !isNaN(parseInt(fTKcmId))){
       // Ekran filtresi: belirli bir KÇM
-      visitFilter = (q) => q.eq('kcm_id', parseInt(fTKcmId));
-      custFilter  = (q) => q.eq('kcm_id', parseInt(fTKcmId));
+      const kid=parseInt(fTKcmId);
+      visitFilter = (q) => q.eq('kcm_id', kid);
+      custFilter  = (q) => q.eq('kcm_id', kid);
+      custInScope = (c) => c.kcm_id===kid;
       showMYFMY   = true;
     } else if(MY_ROL.includes(r2)){
       // v2.10.7: MY/FMY — kendi girdiği VEYA kendi müşterisine girilen temaslara bakılır
       const mid = currentUser.my_id;
       visitFilter = (q) => q.or(`my_id.eq.${mid},musteri_my_id.eq.${mid}`);
       custFilter  = (q) => q.eq('my_id', currentUser.my_id);
+      custInScope = (c) => c.my_id===currentUser.my_id;
       showMYFMY   = false;
     } else if(FULL_ROL.includes(r2)){
       // Admin/Direktör — filtre yok
@@ -1293,12 +1456,14 @@ async function loadTemasDashboard(){
       // MY/FMY kırılımı anlamlı (hangi KÇM'de olduğu önemli değil, sadece rol ayrımı)
       visitFilter = (q) => q;
       custFilter  = (q) => q;
+      custInScope = () => true;
       showMYFMY   = true;
     } else {
       // KÇM rolleri — kcm_id filtresi (login'de belirlendi)
       const kcmId = currentUser.kcm_id;
       visitFilter = (q) => kcmId ? q.eq('kcm_id', kcmId) : q;
       custFilter  = (q) => kcmId ? q.eq('kcm_id', kcmId) : q;
+      custInScope = (c) => kcmId ? c.kcm_id===kcmId : true;
       showMYFMY   = true;
     }
 
@@ -1306,11 +1471,13 @@ async function loadTemasDashboard(){
     // v2.10.5: portfoyQ sanal MY hariç; iki ayrı contactedSet (portföy için, tümü için)
     const _fetchContactedSet = async (portfoyOnly=false) => {
       const ncstSet = new Set();
+      const selfSet = new Set(); // v2.10.33 BUG-A: my_id===musteri_my_id (sahibi bizzat ziyaret etti)
       const ncstToMyId = new Map(); // ncst → musteri_my_id (ilk görülen değer)
+      const ncstToActors = new Map(); // v2.10.35: ncst → Set(my_id) — ziyareti yapan(lar)
       let from = 0;
       const PAGE = 1000;
       while(true){
-        let cq = visitFilter(sb.from('visits').select('ncst,musteri_my_id'));
+        let cq = visitFilter(sb.from('visits').select('ncst,my_id,musteri_my_id'));
         if(filterSd) cq = cq.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
         cq = cq.eq('durum','Gerçekleşti');
         // portfoyOnly: portfoy_disi=false veya NULL olan ziyaretler (portföy oranı için)
@@ -1318,11 +1485,19 @@ async function loadTemasDashboard(){
         cq = cq.range(from, from+PAGE-1);
         const {data:cData} = await cq;
         if(!cData||!cData.length) break;
-        cData.forEach(v=>{ if(v.ncst){ ncstSet.add(v.ncst); if(v.musteri_my_id&&!ncstToMyId.has(v.ncst)) ncstToMyId.set(v.ncst,v.musteri_my_id); } });
+        cData.forEach(v=>{
+          if(v.ncst){
+            ncstSet.add(v.ncst);
+            if(v.musteri_my_id&&!ncstToMyId.has(v.ncst)) ncstToMyId.set(v.ncst,v.musteri_my_id);
+            if(v.my_id!=null && v.musteri_my_id!=null && v.my_id===v.musteri_my_id) selfSet.add(v.ncst);
+            // v2.10.35: ziyareti yapan MY'yi kaydet (oran payı için "sahibi bizzat gitti mi")
+            if(v.my_id!=null){ if(!ncstToActors.has(v.ncst)) ncstToActors.set(v.ncst,new Set()); ncstToActors.get(v.ncst).add(v.my_id); }
+          }
+        });
         if(cData.length<PAGE) break;
         from += PAGE;
       }
-      return {ncstSet, ncstToMyId};
+      return {ncstSet, selfSet, ncstToMyId, ncstToActors};
     };
 
     // portfoyQ: sanal MY'lere atanmış ve my_id=NULL müşteriler hariç
@@ -1337,30 +1512,54 @@ async function loadTemasDashboard(){
     if(filterSd) tvQBuilder = tvQBuilder.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
     tvQBuilder = tvQBuilder.eq('durum','Gerçekleşti');
 
-    // 4 bağımsız sorgu paralel: portfoy büyüklüğü, toplam ziyaret, portföy temas, tüm temas
+    // 3 bağımsız sorgu paralel: portfoy büyüklüğü, toplam ziyaret, tüm temaslar
     const [
       {count:portfoyTotal},
       {count:totalVisit},
-      portfoyContacted,
       allContacted
     ] = await Promise.all([
       portfoyQBuilder,
       tvQBuilder,
-      _fetchContactedSet(true),   // Portföy müşterisi ziyaretleri (oran için)
-      _fetchContactedSet(false)   // Tüm unique müşteri (KÇM kart 5 için)
+      _fetchContactedSet(false)   // Ziyaret edilen tüm ncst + ziyaretçi haritası
     ]);
-    const portfoyContactedSet = portfoyContacted.ncstSet;
-    const allContactedSet     = allContacted.ncstSet;
-    const allNcstToMyId       = allContacted.ncstToMyId; // v2.10.19: MY/FMY kırılımı için
-    const portfoyContactedTotal = portfoyContactedSet.size;
-    const allContactedTotal = allContactedSet.size;
+    const allNcstToActors     = allContacted.ncstToActors; // v2.10.35: ncst → Set(ziyaret eden my_id)
     if(myGen!==_temasDashboardGen) return;
+
+    // ============ PENETRASYON PAYI (v2.10.35) ============
+    // Pay = paydanın (aktif, sanal olmayan, kapsam içi portföy) ALT KÜMESİ olacak şekilde,
+    // "sahibi MY'nin bizzat gittiği kendi aktif portföy müşterisi" sayısı. Böylece oran
+    // her zaman ≤ %100. Yalnızca ZİYARET EDİLEN ncst'lerin GÜNCEL müşteri kaydı çekilir.
+    const sanalSet = new Set(sanalMyIds||[]);
+    const visitedNcsts = [...allContacted.ncstSet];
+    const custInfoMap = {}; // ncst → {my_id, kcm_id, aktif}
+    for(let i=0;i<visitedNcsts.length;i+=500){
+      const chunk=visitedNcsts.slice(i,i+500);
+      const {data:cinfo}=await sb.from('customers').select('ncst,my_id,kcm_id,aktif').in('ncst',chunk);
+      (cinfo||[]).forEach(c=>{custInfoMap[c.ncst]=c;});
+    }
+    if(myGen!==_temasDashboardGen) return;
+    // penetratedSet: ncst paya girer ↔ müşteri aktif + my_id dolu + sanal değil +
+    // kapsam içinde (paydayla aynı) + sahibi (my_id) bu firmayı BİZZAT ziyaret etmiş.
+    const penetratedSet = new Set();
+    const penetratedOwner = new Map(); // ncst → owner my_id (kırılım gruplaması için)
+    visitedNcsts.forEach(ncst=>{
+      const c=custInfoMap[ncst];
+      if(!c) return;
+      if(c.aktif!==true) return;
+      if(c.my_id==null) return;
+      if(sanalSet.has(c.my_id)) return;
+      if(custInScope && !custInScope(c)) return;
+      const actors=allNcstToActors.get(ncst);
+      if(actors && actors.has(c.my_id)){ penetratedSet.add(ncst); penetratedOwner.set(ncst,c.my_id); }
+    });
 
     // ============ DOM GÜNCELLE ============
     setCard('tmsPortfoy',    (portfoyTotal||0).toLocaleString('tr-TR'));
     setCard('tmsTotalVisit', (totalVisit||0).toLocaleString('tr-TR'));
-    setCard('tmsContacted',  allContactedTotal.toLocaleString('tr-TR'));   // Kart 5: tüm unique müşteri
-    setCard('tmsRatio', portfoyTotal>0 ? '%'+Math.round((portfoyContactedTotal/portfoyTotal)*100) : '%0'); // Kart 1: portföy temas %
+    // v2.10.35: "TEMAS EDİLEN MÜŞTERİ" = portföyünden en az 1 kez BİZZAT ziyaret edilen
+    // benzersiz firma (pay ⊆ payda). Penetrasyon = pay / portföy ≤ %100 garanti.
+    setCard('tmsContacted',  penetratedSet.size.toLocaleString('tr-TR'));
+    setCard('tmsRatio', portfoyTotal>0 ? '%'+Math.round((penetratedSet.size/portfoyTotal)*100) : '%0'); // penetrasyon (Genel)
 
     // MY/FMY kırılımı — sadece KÇM/Admin için
     if(showMYFMY){
@@ -1409,11 +1608,16 @@ async function loadTemasDashboard(){
       };
       const [portfoyMY, portfoyFMY] = await Promise.all([countCustById(myIdList), countCustById(fmyIdList)]);
 
-      // Temas edilen MY/FMY — allNcstToMyId map'ten (customers tablosuna gitme)
+      // v2.10.35: kırılım payı da penetratedSet'ten (pay ⊆ payda) — sahibi bizzat
+      // ziyaret ettiği aktif portföy müşterisi, sahibin grubuna göre gruplanır.
       const myIdSet  = new Set(myIdList);
       const fmyIdSet = new Set(fmyIdList);
-      const contactedMY  = [...allContactedSet].filter(n=>myIdSet.has(allNcstToMyId.get(n))).length;
-      const contactedFMY = [...allContactedSet].filter(n=>fmyIdSet.has(allNcstToMyId.get(n))).length;
+      let penetratedMY=0, penetratedFMY=0;
+      penetratedSet.forEach(ncst=>{
+        const owner=penetratedOwner.get(ncst);
+        if(myIdSet.has(owner)) penetratedMY++;
+        else if(fmyIdSet.has(owner)) penetratedFMY++;
+      });
 
       // Ziyaret sayıları — my_id IN tek sorgu (chunk yok)
       const countVisitsById = async (ids) => {
@@ -1431,12 +1635,12 @@ async function loadTemasDashboard(){
 
       setCard('tmsPortfoyMY',    portfoyMY.toLocaleString('tr-TR'));
       setCard('tmsPortfoyFMY',   portfoyFMY.toLocaleString('tr-TR'));
-      setCard('tmsContactedMY',  contactedMY.toLocaleString('tr-TR'));
-      setCard('tmsContactedFMY', contactedFMY.toLocaleString('tr-TR'));
+      setCard('tmsContactedMY',  penetratedMY.toLocaleString('tr-TR'));
+      setCard('tmsContactedFMY', penetratedFMY.toLocaleString('tr-TR'));
       setCard('tmsTotalMY',      countVisitsMY.toLocaleString('tr-TR'));
       setCard('tmsTotalFMY',     countVisitsFMY.toLocaleString('tr-TR'));
-      const pMY  = portfoyMY>0  ? Math.round((contactedMY/portfoyMY)*100)   : 0;
-      const pFMY = portfoyFMY>0 ? Math.round((contactedFMY/portfoyFMY)*100) : 0;
+      const pMY  = portfoyMY>0  ? Math.round((penetratedMY/portfoyMY)*100)   : 0;
+      const pFMY = portfoyFMY>0 ? Math.round((penetratedFMY/portfoyFMY)*100) : 0;
       setCard('tmsRatioMY',  '%'+pMY);
       setCard('tmsRatioFMY', '%'+pFMY);
     } else {
@@ -1656,7 +1860,9 @@ async function renderTemasList(){
     }
 
     if(fMy&&!isNaN(parseInt(fMy))){
-      return q.or(`my_id.eq.${parseInt(fMy)},musteri_my_id.eq.${parseInt(fMy)}`);
+      // v2.10.33 BUG-A: MY filtresi = teması yapan (my_id). Sayaç ve raporla tek
+      // semantik. Önceden 'my_id OR musteri_my_id' idi → liste ile sayaç çelişiyordu.
+      return q.eq('my_id', parseInt(fMy));
     }
     if(fTakim&&!isNaN(parseInt(fTakim))){
       const takimLiderId=parseInt(fTakim);
@@ -2028,6 +2234,52 @@ async function openEditPlanModal(visitId){
 /* ===== TEMAS RAPORU ===== */
 function toggleRepStatus(val,el){el.classList.toggle('selected');if(repStatusArr.includes(val))repStatusArr=repStatusArr.filter(x=>x!==val);else repStatusArr.push(val);}
 function toggleRepType(val,el){el.classList.toggle('selected');if(repTypeArr.includes(val))repTypeArr=repTypeArr.filter(x=>x!==val);else repTypeArr.push(val);}
+
+// v2.10.34 FIX: Rapor personel filtresi. ÖNEMLİ — Supabase sorgu builder'ı
+// "thenable" olduğu için, builder döndüren bir ASYNC fonksiyon otomatik await
+// edilip sorguyu erken çalıştırır ve sonuç nesnesi döner (üzerine .in/.order
+// zincirlenince 'q.in is not a function' hatası). Bu yüzden filtreyi ÖNCE çözüp
+// (async, takım için tek users sorgusu) bir tanımlayıcı döndürüyoruz; sorguya
+// uygulama SENKRON yapılıyor.
+async function _resolveReportFilter(){
+  const fMy    = document.getElementById('repMyFilter')?.value||'';
+  const fTakim = document.getElementById('repTakimFilter')?.value||'';
+  const fKcm   = document.getElementById('repKcmFilter')?.value||'';
+  if(fMy && !isNaN(parseInt(fMy)))    return {kind:'my',  id:parseInt(fMy)};
+  if(fTakim && !isNaN(parseInt(fTakim))){
+    const takimLiderId=parseInt(fTakim);
+    const{data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',takimLiderId).eq('aktif',true);
+    const ids=[...new Set([takimLiderId,...(tm||[]).map(u=>u.my_id)])];
+    return {kind:'in', ids};
+  }
+  if(fKcm && !isNaN(parseInt(fKcm)))  return {kind:'kcm', id:parseInt(fKcm)};
+  return {kind:'rbac'};
+}
+function _applyResolvedFilter(q, f){
+  if(f.kind==='my')  return q.eq('my_id', f.id);
+  if(f.kind==='in')  return f.ids.length ? q.in('my_id', f.ids) : q.eq('my_id',-1);
+  if(f.kind==='kcm') return q.eq('kcm_id', f.id);
+  return applyRBAC(q); // senkron
+}
+
+// v2.10.33/34 BUG-B: Sınırsız çekim — 1000'lik sayfalarla tüm eşleşen kayıtlar.
+// buildFn SENKRON olmalı ve TAZE bir builder döndürmeli (range içeride uygulanır).
+async function _fetchAllReportRows(buildFn){
+  const all=[];
+  let from=0;
+  const PAGE=1000;
+  while(true){
+    const q = buildFn(from, PAGE);       // senkron → builder
+    const{data,error}=await q;           // tek await → çalıştırır
+    if(error) throw error;
+    if(!data||!data.length) break;
+    all.push(...data);
+    if(data.length<PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 async function fetchAdvancedReport(){
   const c=document.getElementById('reportListContent');
   if(repStatusArr.length===0){c.innerHTML='<div class="empty">Statü seçin.</div>';return;}
@@ -2035,20 +2287,69 @@ async function fetchAdvancedReport(){
   const sDate=document.getElementById('repStartDate').value;const eDate=document.getElementById('repEndDate').value;
   let allData=[];
   try{
-    if(repStatusArr.includes('Gerçekleşti')){let q=sb.from('visits').select('*').eq('durum','Gerçekleşti').limit(200);q=applyRBAC(q);if(repTypeArr.length>0)q=q.in('temas_turu',repTypeArr);if(sDate)q=q.gte('tarih_saat',trStartOfDay(sDate));if(eDate)q=q.lte('tarih_saat',trEndOfDay(eDate));const{data,error}=await q;if(error)throw error;if(data)allData=allData.concat(data);}
-    if(repStatusArr.includes('Planlandı')){let q=sb.from('visits').select('*').eq('durum','Planlandı').limit(200);q=applyRBAC(q);if(repTypeArr.length>0)q=q.in('temas_turu',repTypeArr);if(sDate)q=q.gte('planlanan_tarih',sDate);if(eDate)q=q.lte('planlanan_tarih',eDate);const{data,error}=await q;if(error)throw error;if(data)allData=allData.concat(data);}
-    if(allData.length===0){c.innerHTML='<div class="empty">Kayıt bulunamadı.</div>';return;}
-    let custMap={};const ncstList=[...new Set(allData.map(v=>v.ncst))];if(ncstList.length>0){const{data:cd}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList);if(cd)cd.forEach(f=>{custMap[f.ncst]=f.unvan;});}
+    const filterDesc = await _resolveReportFilter(); // bir kez çöz
+    if(repStatusArr.includes('Gerçekleşti')){
+      const rows = await _fetchAllReportRows((from,PAGE)=>{
+        let q=sb.from('visits').select('*').eq('durum','Gerçekleşti');
+        q=_applyResolvedFilter(q, filterDesc);
+        if(repTypeArr.length>0)q=q.in('temas_turu',repTypeArr);
+        if(sDate)q=q.gte('tarih_saat',trStartOfDay(sDate));
+        if(eDate)q=q.lte('tarih_saat',trEndOfDay(eDate));
+        return q.order('tarih_saat',{ascending:false}).range(from, from+PAGE-1);
+      });
+      allData=allData.concat(rows);
+    }
+    if(repStatusArr.includes('Planlandı')){
+      const rows = await _fetchAllReportRows((from,PAGE)=>{
+        let q=sb.from('visits').select('*').eq('durum','Planlandı');
+        q=_applyResolvedFilter(q, filterDesc);
+        if(repTypeArr.length>0)q=q.in('temas_turu',repTypeArr);
+        if(sDate)q=q.gte('planlanan_tarih',sDate);
+        if(eDate)q=q.lte('planlanan_tarih',eDate);
+        return q.order('planlanan_tarih',{ascending:true}).range(from, from+PAGE-1);
+      });
+      allData=allData.concat(rows);
+    }
+    if(allData.length===0){c.innerHTML='<div class="empty">Kayıt bulunamadı.</div>';const eb=document.getElementById('repExcelBtn');if(eb)eb.classList.add('hide');return;}
+    let custMap={};const ncstList=[...new Set(allData.map(v=>v.ncst))];
+    if(ncstList.length>0){
+      // v2.10.33: müşteri ünvanları da sayfalanarak (in listesi 1000'i aşabilir)
+      for(let i=0;i<ncstList.length;i+=500){
+        const chunk=ncstList.slice(i,i+500);
+        const{data:cd}=await sb.from('customers').select('ncst,unvan').in('ncst',chunk);
+        if(cd)cd.forEach(f=>{custMap[f.ncst]=f.unvan;});
+      }
+    }
     allData.sort((a,b)=>new Date(b.durum==='Planlandı'?b.planlanan_tarih:b.tarih_saat)-new Date(a.durum==='Planlandı'?a.planlanan_tarih:a.tarih_saat));
-    // Excel için veriyi sakla
-    window._lastReportData = allData;
-    window._lastReportCustMap = custMap;
-    // Excel butonunu göster
-    const excelBtn=document.getElementById('repExcelBtn');
-    if(excelBtn) excelBtn.classList.remove('hide');
+    // Excel için veriyi sakla (tam veri — Excel'de sınır yok)
     window._lastReportData=allData;
     window._lastReportCustMap=custMap;
     document.getElementById('repExcelBtn')?.classList.remove('hide');
-    c.innerHTML=allData.slice(0,200).map(v=>{const isPlan=v.durum==='Planlandı';const firmName=custMap[v.ncst]||v.ncst;return `<div class="visit-card"><div class="visit-firm">${escapeHTML(firmName)}</div><div class="visit-my">📅 ${isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):fmtDateTime(v.tarih_saat)} | 📍 ${escapeHTML(v.temas_turu)}</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">${escapeHTML(v.ziyaret_amaci||'')}</div><div class="visit-tags mt-8"><span class="tag tag-gray">${v.durum}</span></div></div>`;}).join('');
+    // Ekranda 100'er "Daha Yükle"
+    window._reportRenderCount=0;
+    renderReportPage(true);
   }catch(err){c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;}
+}
+
+// v2.10.33 BUG-B: Ekran render — bellekteki tam veriden 100'er kart. Excel tamamını alır.
+const REPORT_PAGE_SIZE=100;
+function renderReportPage(reset=false){
+  const c=document.getElementById('reportListContent');
+  const data=window._lastReportData||[];
+  const custMap=window._lastReportCustMap||{};
+  if(reset){c.innerHTML='';window._reportRenderCount=0;}
+  const start=window._reportRenderCount||0;
+  const slice=data.slice(start,start+REPORT_PAGE_SIZE);
+  const html=slice.map(v=>{const isPlan=v.durum==='Planlandı';const firmName=custMap[v.ncst]||v.ncst;return `<div class="visit-card"><div class="visit-firm">${escapeHTML(firmName)}</div><div class="visit-my">📅 ${isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):fmtDateTime(v.tarih_saat)} | 📍 ${escapeHTML(v.temas_turu)}</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">${escapeHTML(v.ziyaret_amaci||'')}</div><div class="visit-tags mt-8"><span class="tag tag-gray">${v.durum}</span></div></div>`;}).join('');
+  // Varsa eski "Daha Yükle" butonunu kaldır
+  const oldBtn=document.getElementById('repLoadMoreBtn');if(oldBtn)oldBtn.remove();
+  const oldInfo=document.getElementById('repCountInfo');if(oldInfo)oldInfo.remove();
+  c.insertAdjacentHTML('beforeend',html);
+  window._reportRenderCount=start+slice.length;
+  // Sayaç bilgisi + daha fazla
+  const shown=window._reportRenderCount;const total=data.length;
+  c.insertAdjacentHTML('beforeend',`<div id="repCountInfo" style="text-align:center;font-size:12px;color:var(--text3);margin-top:8px;">${shown} / ${total} kayıt gösteriliyor${total>shown?' — tamamı Excel çıktısında':''}</div>`);
+  if(total>shown){
+    c.insertAdjacentHTML('beforeend',`<button id="repLoadMoreBtn" class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderReportPage(false)">Daha Yükle (+${Math.min(REPORT_PAGE_SIZE,total-shown)})</button>`);
+  }
 }
