@@ -1,7 +1,15 @@
 // ============================================================
-// temas.js — v2.10.35
-// Son güncelleme: 2026-07-08
+// temas.js — v2.10.36
+// Son güncelleme: 2026-07-09
 // Değişiklikler:
+//   v2.10.36 — KAYDET TUŞU KAYBI (V30.70): Planlandı→Gerçekleşti ve planlanandan
+//     yeni-temas akışlarında "en altta kaydet tuşu çıkmıyor" düzeltildi. Kök neden:
+//     selC formu açtıktan SONRA navTo/initTemasForm yeniden çalışıp temasRestOfForm'u
+//     gizliyordu (ve setTimeout tabanlı prefill buildTemasUI'dan önce çalışıp
+//     kaçırıyordu). openPlannedAsNewTemas ve editPlanCompleteBtn artık race-free
+//     "pending" mekanizmasını kullanıyor: müşteri + prefill, initTemasForm'un
+//     async akışının SONUNDA uygulanıyor. Pending mekanizması apply-callback ile
+//     genişletildi.
 //   v2.10.35 — DASHBOARD ORAN + TEMAS FORM YARIŞI (V30.69):
 //     • Penetrasyon payı artık paydanın ALT KÜMESİ olarak hesaplanıyor:
 //       "sahibi MY'nin bizzat gittiği kendi AKTİF portföy müşterisi" (visit.my_id
@@ -380,49 +388,40 @@ function openPlannedAsNewTemas(visit){
   // Planlanan temas: mevcut kayıt ID'si sakla, form yeni temas gibi açılır
   window.currentEditingVisitId = visit.visit_id;
   window._plannedVisitData = visit;
-  navTo('pageTemasForm', true);
-  // Form başlangıç değerleri
-  setTimeout(()=>{
-    // Durumu Gerçekleşti yap
+  // v2.10.36: Yarış giderildi. Müşteri + prefill, initTemasForm'un async akışının
+  // SONUNDA uygulanır (önceki setTimeout, buildTemasUI'dan önce çalışıp formu
+  // gizletebiliyordu). selC string ncst'i kendisi çözer.
+  window._pendingTemasCustomer = visit.ncst;
+  window._pendingTemasApply = ()=>{
     setTemasDurumu('Gerçekleşti');
-    // Müşteri seç
-    sb.from('customers').select('*').eq('ncst', visit.ncst).single().then(({data})=>{
-      if(data) selC(data);
-    });
-    // Yöntemi seç
+    // Yöntem
     if(visit.temas_turu){
       document.querySelectorAll('#temasYontemiGrid .chip-btn').forEach(btn=>{
-        if(btn.textContent.trim()===visit.temas_turu){
-          btn.classList.add('selected');
-          window._temasYontemi=visit.temas_turu;
-        }
+        if(btn.textContent.trim()===visit.temas_turu){ btn.classList.add('selected'); window._temasYontemi=visit.temas_turu; }
       });
     }
-    // Amaçları seç
+    // Amaçlar
     if(visit.ziyaret_amaci){
       const amaclar=visit.ziyaret_amaci.split(',').map(x=>x.trim()).filter(Boolean);
-      document.querySelectorAll('#temasAmacGrid .product-chip').forEach(chip=>{
-        if(amaclar.includes(chip.textContent.trim())) chip.click();
-      });
+      document.querySelectorAll('#temasAmacGrid .product-chip').forEach(chip=>{ if(amaclar.includes(chip.textContent.trim())) chip.click(); });
     }
-    // Ürünleri seç
+    // Ürünler
     if(visit.urun_gruplari){
       const urunler=visit.urun_gruplari.split(',').map(x=>x.trim()).filter(Boolean);
-      document.querySelectorAll('#temasProductGrid .product-chip').forEach(chip=>{
-        if(urunler.includes(chip.textContent.trim())) chip.click();
-      });
+      document.querySelectorAll('#temasProductGrid .product-chip').forEach(chip=>{ if(urunler.includes(chip.textContent.trim())) chip.click(); });
     }
-    // Notu doldur
+    // Not
     if(visit.ziyaret_amaci_detay){
       const notEl=document.getElementById('temasNotes');
       if(notEl) notEl.value=visit.ziyaret_amaci_detay;
     }
-  }, 300);
+  };
+  navTo('pageTemasForm', true);
 }
 
 async function initTemasForm(){
   // v30.32: Edit modunda bu fonksiyon atlanır - openTemasFormForEdit kendi doldurur
-  if(window._temasEditMode){ window._temasEditMode=false; window._pendingTemasCustomer=null; return; }
+  if(window._temasEditMode){ window._temasEditMode=false; window._pendingTemasCustomer=null; window._pendingTemasApply=null; return; }
   // v2.10.3 (B): Yeni form açılışında durum buton kilitlerini sıfırla
   const btnPlan2=document.getElementById('btnDurumPlanlanan');
   const btnGerc2=document.getElementById('btnDurumGerceklesen');
@@ -484,10 +483,15 @@ async function initTemasForm(){
   // tamamen hazır olduktan SONRA seç. Önceki sabit setTimeout(selC,100) yarış
   // yaratıyordu: buildTemasUI 100ms'den uzun sürünce init'in kuyruğu formu selC'den
   // sonra tekrar gizliyordu ("alanlar açılmıyor"). Artık ezilme yok.
-  if(window._pendingTemasCustomer){
-    const _pc=window._pendingTemasCustomer;
-    window._pendingTemasCustomer=null;
-    await selC(_pc);
+  // v2.10.35/36: Müşteri ekranından "+Temas" veya Planlandı→Gerçekleşti gibi
+  // akışlarda, form TAMAMEN hazır olduktan SONRA müşteri seçilir ve (varsa) prefill
+  // uygulanır. Önceki sabit setTimeout / selC-sonrası-navTo yarışı formu tekrar
+  // gizliyordu ("kaydet tuşu çıkmıyor"). Artık ezilme yok.
+  if(window._pendingTemasCustomer || window._pendingTemasApply){
+    const _pc=window._pendingTemasCustomer; window._pendingTemasCustomer=null;
+    const _apply=window._pendingTemasApply; window._pendingTemasApply=null;
+    if(_pc) await selC(_pc);           // selC string ncst'i de çözer
+    if(typeof _apply==='function'){ try{ await _apply(); }catch(e){ console.warn('pending apply hata:',e); } }
   }
 }
 async function selC(c){
@@ -2227,7 +2231,16 @@ async function openEditPlanModal(visitId){
   document.getElementById('editPlanForm').innerHTML=`<div class="field"><label>Not / Gündem</label><textarea id="editPlanNote">${escapeHTML(plan.ziyaret_amaci||'')}</textarea></div><div class="field"><label>Planlanan Tarih</label><input type="date" id="editPlanDate" value="${plan.planlanan_tarih||''}"></div>`;
   openModal('editPlanModal');
   document.getElementById('editPlanUpdateBtn').onclick=async()=>{await sb.from('visits').update({ziyaret_amaci:document.getElementById('editPlanNote').value,planlanan_tarih:document.getElementById('editPlanDate').value,guncelleme_tarihi:new Date().toISOString()}).eq('visit_id',currentEditPlanId);toast('Plan güncellendi','success');closeModal('editPlanModal');renderTemasList();};
-  document.getElementById('editPlanCompleteBtn').onclick=async()=>{await sb.from('opportunities').update({visit_id:null}).eq('visit_id',currentEditPlanId);await sb.from('visits').delete().eq('visit_id',currentEditPlanId);const{data:cd}=await sb.from('customers').select('*').eq('ncst',plan.ncst).single();if(cd)await selC(cd);setTemasDurumu('Gerçekleşti');document.getElementById('temasNotes').value=plan.ziyaret_amaci||'';closeModal('editPlanModal');navTo('pageTemasForm',false);toast('Formu tamamlayın.','info');};
+  document.getElementById('editPlanCompleteBtn').onclick=async()=>{await sb.from('opportunities').update({visit_id:null}).eq('visit_id',currentEditPlanId);await sb.from('visits').delete().eq('visit_id',currentEditPlanId);
+    // v2.10.36: Önceden selC'den SONRA navTo çağrılıyordu; navTo initTemasForm'u
+    // yeniden çalıştırıp formu gizliyordu (kaydet tuşu kayboluyordu). Artık müşteri
+    // + prefill pending'e konur, initTemasForm sonunda race-free uygulanır.
+    window._pendingTemasCustomer = plan.ncst;
+    window._pendingTemasApply = ()=>{ setTemasDurumu('Gerçekleşti'); const n=document.getElementById('temasNotes'); if(n) n.value=plan.ziyaret_amaci||''; };
+    closeModal('editPlanModal');
+    navTo('pageTemasForm',true);
+    toast('Formu tamamlayın.','info');
+  };
   document.getElementById('editPlanCancelBtn').onclick=async()=>{if(confirm('Temas iptal edilsin mi?')){await sb.from('visits').update({durum:'İptal Edildi'}).eq('visit_id',currentEditPlanId);toast('İptal edildi','success');closeModal('editPlanModal');renderTemasList();}};
 }
 

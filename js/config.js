@@ -1,8 +1,10 @@
 // ============================================================
-// config.js — v1.2.18
+// config.js — v1.2.19
 // Son güncelleme: 2026-07-08
 // Değişiklikler:
 //   v1.2.18 — APP_VERSION → V30.67 (rapor 'q.in' thenable fix + penetrasyon kartı).
+//   v1.2.19 — APP_VERSION → V30.70. Kaydet tuşu kaybı (Planlandı→Gerçekleşti)
+//             düzeltmesi — kod temas.js'te; config yalnız sürüm damgası.
 //   v1.2.18 — APP_VERSION → V30.69. Dashboard penetrasyon payı (pay ⊆ payda,
 //             ≤ %100) + +Temas form yarışı düzeltmeleri (temas.js/musteri.js).
 //   v1.2.17 — APP_VERSION → V30.66. Temas rapor & filtre paketi (BUG-A/B/C/D +
@@ -33,7 +35,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.69';
+const APP_VERSION = 'V30.70';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
