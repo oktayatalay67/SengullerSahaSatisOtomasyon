@@ -1,7 +1,34 @@
 // ============================================================
-// temas.js — v2.10.32
-// Son güncelleme: 2026-07-04
+// temas.js — v2.10.35
+// Son güncelleme: 2026-07-08
 // Değişiklikler:
+//   v2.10.35 — DASHBOARD ORAN + TEMAS FORM YARIŞI (V30.69):
+//     • Penetrasyon payı artık paydanın ALT KÜMESİ olarak hesaplanıyor:
+//       "sahibi MY'nin bizzat gittiği kendi AKTİF portföy müşterisi" (visit.my_id
+//       === customers.my_id, aktif, sanal değil, kapsam içi). Yalnızca ziyaret
+//       edilen ncst'lerin güncel müşteri kaydı çekilir. Oran ARTIK ASLA %100'ü
+//       geçemez. custInScope predikatı payda ile birebir hizalı. Kırılım (MY/FMY)
+//       de penetratedSet'ten gruplanıyor. Gereksiz portfoyContacted taraması kaldırıldı.
+//     • +Temas yarışı: navToTemasForMusteri'deki sabit setTimeout(selC,100) kaldırıldı.
+//       Hedef müşteri initTemasForm'un async akışının SONUNDA seçiliyor; form artık
+//       "zaman zaman açılmıyor" sorunu yaşamıyor.
+//   v2.10.34 — FIX (V30.67): "q.in is not a function" — rapor filtresi düzeltildi.
+//     _applyReportFilter async'ti ve Supabase builder (thenable) döndürüyordu →
+//     async dönüşünde otomatik await edilip sorgu erken çalışıyor, sonuç nesnesi
+//     dönüyordu; üzerine .in/.order zincirlenince patlıyordu. Artık filtre önce
+//     çözülüp (_resolveReportFilter) senkron uygulanıyor (_applyResolvedFilter);
+//     _fetchAllReportRows senkron buildFn alıyor. Ayrıca "Temas Edilen" kartı +
+//     penetrasyon self-portföye çekildi (≤ portföy, ≤ %100).
+//   v2.10.33 — TEMAS RAPOR & FİLTRE PAKETİ (V30.66):
+//     BUG-A: loadTemasDashboard FULL_ROL listesi düzeltildi (yanlış
+//       'SATIŞ KOORDİNATÖRÜ' vardı, 'ÇÖZÜM SATIŞ MÜDÜRÜ' yoktu → o rol yanlış
+//       dala düşüyordu). _applyTemasListFilter MY filtresi artık my_id (teması
+//       yapan) — sayaçla tek semantik. Temas oranı payı artık "sahibi MY'nin
+//       bizzat kendi portföyüne yaptığı benzersiz temas" (my_id===musteri_my_id);
+//       başkasının ziyareti orana girmez. _fetchContactedSet selfSet döndürür.
+//     BUG-B: fetchAdvancedReport repKcm/repTakim/repMy filtrelerini uygular
+//       (_applyReportFilter), .limit(200) kaldırıldı, tüm kayıtlar .range() ile
+//       sayfalanarak çekilir. Ekranda 100'er "Daha Yükle" (renderReportPage).
 //   v2.10.32 — Şikayet yaşam döngüsü: saveGorevSonuclari artık MY/FMY beyanıyla
 //              görevi KAPATMAZ. Kapanış 'Çözüldü' → durum Tamamlandı(onay bekliyor),
 //              atayana düşer; değilse durum 'Devam'. onay_tarihi bu yolda yazılmaz.
@@ -395,7 +422,7 @@ function openPlannedAsNewTemas(visit){
 
 async function initTemasForm(){
   // v30.32: Edit modunda bu fonksiyon atlanır - openTemasFormForEdit kendi doldurur
-  if(window._temasEditMode){ window._temasEditMode=false; return; }
+  if(window._temasEditMode){ window._temasEditMode=false; window._pendingTemasCustomer=null; return; }
   // v2.10.3 (B): Yeni form açılışında durum buton kilitlerini sıfırla
   const btnPlan2=document.getElementById('btnDurumPlanlanan');
   const btnGerc2=document.getElementById('btnDurumGerceklesen');
@@ -453,6 +480,15 @@ async function initTemasForm(){
   // temasRestOfForm gizle
   const restOf=document.getElementById('temasRestOfForm');
   if(restOf) restOf.classList.add('hide');
+  // v2.10.35: Müşteri ekranından "+Temas" ile gelindiyse, hedef müşteriyi form
+  // tamamen hazır olduktan SONRA seç. Önceki sabit setTimeout(selC,100) yarış
+  // yaratıyordu: buildTemasUI 100ms'den uzun sürünce init'in kuyruğu formu selC'den
+  // sonra tekrar gizliyordu ("alanlar açılmıyor"). Artık ezilme yok.
+  if(window._pendingTemasCustomer){
+    const _pc=window._pendingTemasCustomer;
+    window._pendingTemasCustomer=null;
+    await selC(_pc);
+  }
 }
 async function selC(c){
   if(typeof c==='string'){const{data}=await sb.from('customers').select('*').eq('ncst',c).single();if(data)c=data;else return;}
@@ -1354,7 +1390,10 @@ async function loadTemasDashboard(){
     if(!filterEd) filterEd=trEndOfDay(todayTR2);
 
     const r2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-    const FULL_ROL=['ADMIN','SATIŞ KOORDİNATÖRÜ','SATIŞ DİREKTÖRÜ'];
+    // v2.10.33 BUG-A: Rol listesi düzeltildi. Önceden 'SATIŞ KOORDİNATÖRÜ' (hiyerarşide
+    // yok) vardı, 'ÇÖZÜM SATIŞ MÜDÜRÜ' yoktu → o rol yanlışlıkla KÇM dalına düşüp
+    // kcm_id=null ile filtresiz kalıyordu. applyRBAC'taki tam-yetki setiyle hizalandı.
+    const FULL_ROL=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
     const MY_ROL=['MY','FMY','USER'];
 
     // ============ EKRAN FİLTRELERİ (Admin/KÇM için) ============
@@ -1366,18 +1405,22 @@ async function loadTemasDashboard(){
     // Login'de kcmMyIds ve bagliMyIds zaten dolu — DB'ye gitme
     let visitFilter  = null; // visits tablosu için
     let custFilter   = null; // customers tablosu için
+    let custInScope  = null; // v2.10.35: müşteri NESNESİ için kapsam predikatı (paydayla birebir)
     let showMYFMY    = false; // MY/FMY kırılımı gösterilsin mi?
 
     if(fTMyId && !isNaN(parseInt(fTMyId))){
       // Ekran filtresi: belirli bir MY
-      visitFilter  = (q) => q.eq('my_id', parseInt(fTMyId));
-      custFilter   = (q) => q.eq('my_id', parseInt(fTMyId));
+      const mid=parseInt(fTMyId);
+      visitFilter  = (q) => q.eq('my_id', mid);
+      custFilter   = (q) => q.eq('my_id', mid);
+      custInScope  = (c) => c.my_id===mid;
       showMYFMY    = false;
     } else if(fTTakimId && !isNaN(parseInt(fTTakimId))){
       // Ekran filtresi: belirli bir takım
       // v2.10.22: showMYFMY artık true — takım için de MY/FMY kırılımı gösteriliyor
       visitFilter = (q) => q.eq('my_id', -1); // geçici — aşağıda override ediliyor
       custFilter  = (q) => q.eq('my_id', -1);
+      custInScope = () => false;
       showMYFMY   = true;
       // Takım filtresi için users'a tek sorgu — yetki_seviyesi de çekiliyor (kırılım için)
       const {data:takimUsers} = await sb.from('users')
@@ -1386,21 +1429,26 @@ async function loadTemasDashboard(){
         .eq('aktif', true);
       const takimIds = (takimUsers||[]).map(u=>u.my_id);
       if(takimIds.length){
+        const tset=new Set(takimIds);
         visitFilter = (q) => q.in('my_id', takimIds);
         custFilter  = (q) => q.in('my_id', takimIds);
+        custInScope = (c) => tset.has(c.my_id);
       }
       // v2.10.22: showMYFMY bloğunda kullanılacak — takım üyelerinin rol bazlı ayrımı
       window._tmsTakimUyeleri = takimUsers||[];
     } else if(fTKcmId && !isNaN(parseInt(fTKcmId))){
       // Ekran filtresi: belirli bir KÇM
-      visitFilter = (q) => q.eq('kcm_id', parseInt(fTKcmId));
-      custFilter  = (q) => q.eq('kcm_id', parseInt(fTKcmId));
+      const kid=parseInt(fTKcmId);
+      visitFilter = (q) => q.eq('kcm_id', kid);
+      custFilter  = (q) => q.eq('kcm_id', kid);
+      custInScope = (c) => c.kcm_id===kid;
       showMYFMY   = true;
     } else if(MY_ROL.includes(r2)){
       // v2.10.7: MY/FMY — kendi girdiği VEYA kendi müşterisine girilen temaslara bakılır
       const mid = currentUser.my_id;
       visitFilter = (q) => q.or(`my_id.eq.${mid},musteri_my_id.eq.${mid}`);
       custFilter  = (q) => q.eq('my_id', currentUser.my_id);
+      custInScope = (c) => c.my_id===currentUser.my_id;
       showMYFMY   = false;
     } else if(FULL_ROL.includes(r2)){
       // Admin/Direktör — filtre yok
@@ -1408,12 +1456,14 @@ async function loadTemasDashboard(){
       // MY/FMY kırılımı anlamlı (hangi KÇM'de olduğu önemli değil, sadece rol ayrımı)
       visitFilter = (q) => q;
       custFilter  = (q) => q;
+      custInScope = () => true;
       showMYFMY   = true;
     } else {
       // KÇM rolleri — kcm_id filtresi (login'de belirlendi)
       const kcmId = currentUser.kcm_id;
       visitFilter = (q) => kcmId ? q.eq('kcm_id', kcmId) : q;
       custFilter  = (q) => kcmId ? q.eq('kcm_id', kcmId) : q;
+      custInScope = (c) => kcmId ? c.kcm_id===kcmId : true;
       showMYFMY   = true;
     }
 
@@ -1421,11 +1471,13 @@ async function loadTemasDashboard(){
     // v2.10.5: portfoyQ sanal MY hariç; iki ayrı contactedSet (portföy için, tümü için)
     const _fetchContactedSet = async (portfoyOnly=false) => {
       const ncstSet = new Set();
+      const selfSet = new Set(); // v2.10.33 BUG-A: my_id===musteri_my_id (sahibi bizzat ziyaret etti)
       const ncstToMyId = new Map(); // ncst → musteri_my_id (ilk görülen değer)
+      const ncstToActors = new Map(); // v2.10.35: ncst → Set(my_id) — ziyareti yapan(lar)
       let from = 0;
       const PAGE = 1000;
       while(true){
-        let cq = visitFilter(sb.from('visits').select('ncst,musteri_my_id'));
+        let cq = visitFilter(sb.from('visits').select('ncst,my_id,musteri_my_id'));
         if(filterSd) cq = cq.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
         cq = cq.eq('durum','Gerçekleşti');
         // portfoyOnly: portfoy_disi=false veya NULL olan ziyaretler (portföy oranı için)
@@ -1433,11 +1485,19 @@ async function loadTemasDashboard(){
         cq = cq.range(from, from+PAGE-1);
         const {data:cData} = await cq;
         if(!cData||!cData.length) break;
-        cData.forEach(v=>{ if(v.ncst){ ncstSet.add(v.ncst); if(v.musteri_my_id&&!ncstToMyId.has(v.ncst)) ncstToMyId.set(v.ncst,v.musteri_my_id); } });
+        cData.forEach(v=>{
+          if(v.ncst){
+            ncstSet.add(v.ncst);
+            if(v.musteri_my_id&&!ncstToMyId.has(v.ncst)) ncstToMyId.set(v.ncst,v.musteri_my_id);
+            if(v.my_id!=null && v.musteri_my_id!=null && v.my_id===v.musteri_my_id) selfSet.add(v.ncst);
+            // v2.10.35: ziyareti yapan MY'yi kaydet (oran payı için "sahibi bizzat gitti mi")
+            if(v.my_id!=null){ if(!ncstToActors.has(v.ncst)) ncstToActors.set(v.ncst,new Set()); ncstToActors.get(v.ncst).add(v.my_id); }
+          }
+        });
         if(cData.length<PAGE) break;
         from += PAGE;
       }
-      return {ncstSet, ncstToMyId};
+      return {ncstSet, selfSet, ncstToMyId, ncstToActors};
     };
 
     // portfoyQ: sanal MY'lere atanmış ve my_id=NULL müşteriler hariç
@@ -1452,30 +1512,54 @@ async function loadTemasDashboard(){
     if(filterSd) tvQBuilder = tvQBuilder.gte('tarih_saat',filterSd).lte('tarih_saat',filterEd);
     tvQBuilder = tvQBuilder.eq('durum','Gerçekleşti');
 
-    // 4 bağımsız sorgu paralel: portfoy büyüklüğü, toplam ziyaret, portföy temas, tüm temas
+    // 3 bağımsız sorgu paralel: portfoy büyüklüğü, toplam ziyaret, tüm temaslar
     const [
       {count:portfoyTotal},
       {count:totalVisit},
-      portfoyContacted,
       allContacted
     ] = await Promise.all([
       portfoyQBuilder,
       tvQBuilder,
-      _fetchContactedSet(true),   // Portföy müşterisi ziyaretleri (oran için)
-      _fetchContactedSet(false)   // Tüm unique müşteri (KÇM kart 5 için)
+      _fetchContactedSet(false)   // Ziyaret edilen tüm ncst + ziyaretçi haritası
     ]);
-    const portfoyContactedSet = portfoyContacted.ncstSet;
-    const allContactedSet     = allContacted.ncstSet;
-    const allNcstToMyId       = allContacted.ncstToMyId; // v2.10.19: MY/FMY kırılımı için
-    const portfoyContactedTotal = portfoyContactedSet.size;
-    const allContactedTotal = allContactedSet.size;
+    const allNcstToActors     = allContacted.ncstToActors; // v2.10.35: ncst → Set(ziyaret eden my_id)
     if(myGen!==_temasDashboardGen) return;
+
+    // ============ PENETRASYON PAYI (v2.10.35) ============
+    // Pay = paydanın (aktif, sanal olmayan, kapsam içi portföy) ALT KÜMESİ olacak şekilde,
+    // "sahibi MY'nin bizzat gittiği kendi aktif portföy müşterisi" sayısı. Böylece oran
+    // her zaman ≤ %100. Yalnızca ZİYARET EDİLEN ncst'lerin GÜNCEL müşteri kaydı çekilir.
+    const sanalSet = new Set(sanalMyIds||[]);
+    const visitedNcsts = [...allContacted.ncstSet];
+    const custInfoMap = {}; // ncst → {my_id, kcm_id, aktif}
+    for(let i=0;i<visitedNcsts.length;i+=500){
+      const chunk=visitedNcsts.slice(i,i+500);
+      const {data:cinfo}=await sb.from('customers').select('ncst,my_id,kcm_id,aktif').in('ncst',chunk);
+      (cinfo||[]).forEach(c=>{custInfoMap[c.ncst]=c;});
+    }
+    if(myGen!==_temasDashboardGen) return;
+    // penetratedSet: ncst paya girer ↔ müşteri aktif + my_id dolu + sanal değil +
+    // kapsam içinde (paydayla aynı) + sahibi (my_id) bu firmayı BİZZAT ziyaret etmiş.
+    const penetratedSet = new Set();
+    const penetratedOwner = new Map(); // ncst → owner my_id (kırılım gruplaması için)
+    visitedNcsts.forEach(ncst=>{
+      const c=custInfoMap[ncst];
+      if(!c) return;
+      if(c.aktif!==true) return;
+      if(c.my_id==null) return;
+      if(sanalSet.has(c.my_id)) return;
+      if(custInScope && !custInScope(c)) return;
+      const actors=allNcstToActors.get(ncst);
+      if(actors && actors.has(c.my_id)){ penetratedSet.add(ncst); penetratedOwner.set(ncst,c.my_id); }
+    });
 
     // ============ DOM GÜNCELLE ============
     setCard('tmsPortfoy',    (portfoyTotal||0).toLocaleString('tr-TR'));
     setCard('tmsTotalVisit', (totalVisit||0).toLocaleString('tr-TR'));
-    setCard('tmsContacted',  allContactedTotal.toLocaleString('tr-TR'));   // Kart 5: tüm unique müşteri
-    setCard('tmsRatio', portfoyTotal>0 ? '%'+Math.round((portfoyContactedTotal/portfoyTotal)*100) : '%0'); // Kart 1: portföy temas %
+    // v2.10.35: "TEMAS EDİLEN MÜŞTERİ" = portföyünden en az 1 kez BİZZAT ziyaret edilen
+    // benzersiz firma (pay ⊆ payda). Penetrasyon = pay / portföy ≤ %100 garanti.
+    setCard('tmsContacted',  penetratedSet.size.toLocaleString('tr-TR'));
+    setCard('tmsRatio', portfoyTotal>0 ? '%'+Math.round((penetratedSet.size/portfoyTotal)*100) : '%0'); // penetrasyon (Genel)
 
     // MY/FMY kırılımı — sadece KÇM/Admin için
     if(showMYFMY){
@@ -1524,11 +1608,16 @@ async function loadTemasDashboard(){
       };
       const [portfoyMY, portfoyFMY] = await Promise.all([countCustById(myIdList), countCustById(fmyIdList)]);
 
-      // Temas edilen MY/FMY — allNcstToMyId map'ten (customers tablosuna gitme)
+      // v2.10.35: kırılım payı da penetratedSet'ten (pay ⊆ payda) — sahibi bizzat
+      // ziyaret ettiği aktif portföy müşterisi, sahibin grubuna göre gruplanır.
       const myIdSet  = new Set(myIdList);
       const fmyIdSet = new Set(fmyIdList);
-      const contactedMY  = [...allContactedSet].filter(n=>myIdSet.has(allNcstToMyId.get(n))).length;
-      const contactedFMY = [...allContactedSet].filter(n=>fmyIdSet.has(allNcstToMyId.get(n))).length;
+      let penetratedMY=0, penetratedFMY=0;
+      penetratedSet.forEach(ncst=>{
+        const owner=penetratedOwner.get(ncst);
+        if(myIdSet.has(owner)) penetratedMY++;
+        else if(fmyIdSet.has(owner)) penetratedFMY++;
+      });
 
       // Ziyaret sayıları — my_id IN tek sorgu (chunk yok)
       const countVisitsById = async (ids) => {
@@ -1546,12 +1635,12 @@ async function loadTemasDashboard(){
 
       setCard('tmsPortfoyMY',    portfoyMY.toLocaleString('tr-TR'));
       setCard('tmsPortfoyFMY',   portfoyFMY.toLocaleString('tr-TR'));
-      setCard('tmsContactedMY',  contactedMY.toLocaleString('tr-TR'));
-      setCard('tmsContactedFMY', contactedFMY.toLocaleString('tr-TR'));
+      setCard('tmsContactedMY',  penetratedMY.toLocaleString('tr-TR'));
+      setCard('tmsContactedFMY', penetratedFMY.toLocaleString('tr-TR'));
       setCard('tmsTotalMY',      countVisitsMY.toLocaleString('tr-TR'));
       setCard('tmsTotalFMY',     countVisitsFMY.toLocaleString('tr-TR'));
-      const pMY  = portfoyMY>0  ? Math.round((contactedMY/portfoyMY)*100)   : 0;
-      const pFMY = portfoyFMY>0 ? Math.round((contactedFMY/portfoyFMY)*100) : 0;
+      const pMY  = portfoyMY>0  ? Math.round((penetratedMY/portfoyMY)*100)   : 0;
+      const pFMY = portfoyFMY>0 ? Math.round((penetratedFMY/portfoyFMY)*100) : 0;
       setCard('tmsRatioMY',  '%'+pMY);
       setCard('tmsRatioFMY', '%'+pFMY);
     } else {
@@ -1771,7 +1860,9 @@ async function renderTemasList(){
     }
 
     if(fMy&&!isNaN(parseInt(fMy))){
-      return q.or(`my_id.eq.${parseInt(fMy)},musteri_my_id.eq.${parseInt(fMy)}`);
+      // v2.10.33 BUG-A: MY filtresi = teması yapan (my_id). Sayaç ve raporla tek
+      // semantik. Önceden 'my_id OR musteri_my_id' idi → liste ile sayaç çelişiyordu.
+      return q.eq('my_id', parseInt(fMy));
     }
     if(fTakim&&!isNaN(parseInt(fTakim))){
       const takimLiderId=parseInt(fTakim);
@@ -2143,6 +2234,52 @@ async function openEditPlanModal(visitId){
 /* ===== TEMAS RAPORU ===== */
 function toggleRepStatus(val,el){el.classList.toggle('selected');if(repStatusArr.includes(val))repStatusArr=repStatusArr.filter(x=>x!==val);else repStatusArr.push(val);}
 function toggleRepType(val,el){el.classList.toggle('selected');if(repTypeArr.includes(val))repTypeArr=repTypeArr.filter(x=>x!==val);else repTypeArr.push(val);}
+
+// v2.10.34 FIX: Rapor personel filtresi. ÖNEMLİ — Supabase sorgu builder'ı
+// "thenable" olduğu için, builder döndüren bir ASYNC fonksiyon otomatik await
+// edilip sorguyu erken çalıştırır ve sonuç nesnesi döner (üzerine .in/.order
+// zincirlenince 'q.in is not a function' hatası). Bu yüzden filtreyi ÖNCE çözüp
+// (async, takım için tek users sorgusu) bir tanımlayıcı döndürüyoruz; sorguya
+// uygulama SENKRON yapılıyor.
+async function _resolveReportFilter(){
+  const fMy    = document.getElementById('repMyFilter')?.value||'';
+  const fTakim = document.getElementById('repTakimFilter')?.value||'';
+  const fKcm   = document.getElementById('repKcmFilter')?.value||'';
+  if(fMy && !isNaN(parseInt(fMy)))    return {kind:'my',  id:parseInt(fMy)};
+  if(fTakim && !isNaN(parseInt(fTakim))){
+    const takimLiderId=parseInt(fTakim);
+    const{data:tm}=await sb.from('users').select('my_id').eq('takim_lideri_id',takimLiderId).eq('aktif',true);
+    const ids=[...new Set([takimLiderId,...(tm||[]).map(u=>u.my_id)])];
+    return {kind:'in', ids};
+  }
+  if(fKcm && !isNaN(parseInt(fKcm)))  return {kind:'kcm', id:parseInt(fKcm)};
+  return {kind:'rbac'};
+}
+function _applyResolvedFilter(q, f){
+  if(f.kind==='my')  return q.eq('my_id', f.id);
+  if(f.kind==='in')  return f.ids.length ? q.in('my_id', f.ids) : q.eq('my_id',-1);
+  if(f.kind==='kcm') return q.eq('kcm_id', f.id);
+  return applyRBAC(q); // senkron
+}
+
+// v2.10.33/34 BUG-B: Sınırsız çekim — 1000'lik sayfalarla tüm eşleşen kayıtlar.
+// buildFn SENKRON olmalı ve TAZE bir builder döndürmeli (range içeride uygulanır).
+async function _fetchAllReportRows(buildFn){
+  const all=[];
+  let from=0;
+  const PAGE=1000;
+  while(true){
+    const q = buildFn(from, PAGE);       // senkron → builder
+    const{data,error}=await q;           // tek await → çalıştırır
+    if(error) throw error;
+    if(!data||!data.length) break;
+    all.push(...data);
+    if(data.length<PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 async function fetchAdvancedReport(){
   const c=document.getElementById('reportListContent');
   if(repStatusArr.length===0){c.innerHTML='<div class="empty">Statü seçin.</div>';return;}
@@ -2150,20 +2287,69 @@ async function fetchAdvancedReport(){
   const sDate=document.getElementById('repStartDate').value;const eDate=document.getElementById('repEndDate').value;
   let allData=[];
   try{
-    if(repStatusArr.includes('Gerçekleşti')){let q=sb.from('visits').select('*').eq('durum','Gerçekleşti').limit(200);q=applyRBAC(q);if(repTypeArr.length>0)q=q.in('temas_turu',repTypeArr);if(sDate)q=q.gte('tarih_saat',trStartOfDay(sDate));if(eDate)q=q.lte('tarih_saat',trEndOfDay(eDate));const{data,error}=await q;if(error)throw error;if(data)allData=allData.concat(data);}
-    if(repStatusArr.includes('Planlandı')){let q=sb.from('visits').select('*').eq('durum','Planlandı').limit(200);q=applyRBAC(q);if(repTypeArr.length>0)q=q.in('temas_turu',repTypeArr);if(sDate)q=q.gte('planlanan_tarih',sDate);if(eDate)q=q.lte('planlanan_tarih',eDate);const{data,error}=await q;if(error)throw error;if(data)allData=allData.concat(data);}
-    if(allData.length===0){c.innerHTML='<div class="empty">Kayıt bulunamadı.</div>';return;}
-    let custMap={};const ncstList=[...new Set(allData.map(v=>v.ncst))];if(ncstList.length>0){const{data:cd}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList);if(cd)cd.forEach(f=>{custMap[f.ncst]=f.unvan;});}
+    const filterDesc = await _resolveReportFilter(); // bir kez çöz
+    if(repStatusArr.includes('Gerçekleşti')){
+      const rows = await _fetchAllReportRows((from,PAGE)=>{
+        let q=sb.from('visits').select('*').eq('durum','Gerçekleşti');
+        q=_applyResolvedFilter(q, filterDesc);
+        if(repTypeArr.length>0)q=q.in('temas_turu',repTypeArr);
+        if(sDate)q=q.gte('tarih_saat',trStartOfDay(sDate));
+        if(eDate)q=q.lte('tarih_saat',trEndOfDay(eDate));
+        return q.order('tarih_saat',{ascending:false}).range(from, from+PAGE-1);
+      });
+      allData=allData.concat(rows);
+    }
+    if(repStatusArr.includes('Planlandı')){
+      const rows = await _fetchAllReportRows((from,PAGE)=>{
+        let q=sb.from('visits').select('*').eq('durum','Planlandı');
+        q=_applyResolvedFilter(q, filterDesc);
+        if(repTypeArr.length>0)q=q.in('temas_turu',repTypeArr);
+        if(sDate)q=q.gte('planlanan_tarih',sDate);
+        if(eDate)q=q.lte('planlanan_tarih',eDate);
+        return q.order('planlanan_tarih',{ascending:true}).range(from, from+PAGE-1);
+      });
+      allData=allData.concat(rows);
+    }
+    if(allData.length===0){c.innerHTML='<div class="empty">Kayıt bulunamadı.</div>';const eb=document.getElementById('repExcelBtn');if(eb)eb.classList.add('hide');return;}
+    let custMap={};const ncstList=[...new Set(allData.map(v=>v.ncst))];
+    if(ncstList.length>0){
+      // v2.10.33: müşteri ünvanları da sayfalanarak (in listesi 1000'i aşabilir)
+      for(let i=0;i<ncstList.length;i+=500){
+        const chunk=ncstList.slice(i,i+500);
+        const{data:cd}=await sb.from('customers').select('ncst,unvan').in('ncst',chunk);
+        if(cd)cd.forEach(f=>{custMap[f.ncst]=f.unvan;});
+      }
+    }
     allData.sort((a,b)=>new Date(b.durum==='Planlandı'?b.planlanan_tarih:b.tarih_saat)-new Date(a.durum==='Planlandı'?a.planlanan_tarih:a.tarih_saat));
-    // Excel için veriyi sakla
-    window._lastReportData = allData;
-    window._lastReportCustMap = custMap;
-    // Excel butonunu göster
-    const excelBtn=document.getElementById('repExcelBtn');
-    if(excelBtn) excelBtn.classList.remove('hide');
+    // Excel için veriyi sakla (tam veri — Excel'de sınır yok)
     window._lastReportData=allData;
     window._lastReportCustMap=custMap;
     document.getElementById('repExcelBtn')?.classList.remove('hide');
-    c.innerHTML=allData.slice(0,200).map(v=>{const isPlan=v.durum==='Planlandı';const firmName=custMap[v.ncst]||v.ncst;return `<div class="visit-card"><div class="visit-firm">${escapeHTML(firmName)}</div><div class="visit-my">📅 ${isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):fmtDateTime(v.tarih_saat)} | 📍 ${escapeHTML(v.temas_turu)}</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">${escapeHTML(v.ziyaret_amaci||'')}</div><div class="visit-tags mt-8"><span class="tag tag-gray">${v.durum}</span></div></div>`;}).join('');
+    // Ekranda 100'er "Daha Yükle"
+    window._reportRenderCount=0;
+    renderReportPage(true);
   }catch(err){c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;}
+}
+
+// v2.10.33 BUG-B: Ekran render — bellekteki tam veriden 100'er kart. Excel tamamını alır.
+const REPORT_PAGE_SIZE=100;
+function renderReportPage(reset=false){
+  const c=document.getElementById('reportListContent');
+  const data=window._lastReportData||[];
+  const custMap=window._lastReportCustMap||{};
+  if(reset){c.innerHTML='';window._reportRenderCount=0;}
+  const start=window._reportRenderCount||0;
+  const slice=data.slice(start,start+REPORT_PAGE_SIZE);
+  const html=slice.map(v=>{const isPlan=v.durum==='Planlandı';const firmName=custMap[v.ncst]||v.ncst;return `<div class="visit-card"><div class="visit-firm">${escapeHTML(firmName)}</div><div class="visit-my">📅 ${isPlan?(v.planlanan_tarih?new Date(v.planlanan_tarih+'T00:00:00').toLocaleDateString('tr-TR'):'—'):fmtDateTime(v.tarih_saat)} | 📍 ${escapeHTML(v.temas_turu)}</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">${escapeHTML(v.ziyaret_amaci||'')}</div><div class="visit-tags mt-8"><span class="tag tag-gray">${v.durum}</span></div></div>`;}).join('');
+  // Varsa eski "Daha Yükle" butonunu kaldır
+  const oldBtn=document.getElementById('repLoadMoreBtn');if(oldBtn)oldBtn.remove();
+  const oldInfo=document.getElementById('repCountInfo');if(oldInfo)oldInfo.remove();
+  c.insertAdjacentHTML('beforeend',html);
+  window._reportRenderCount=start+slice.length;
+  // Sayaç bilgisi + daha fazla
+  const shown=window._reportRenderCount;const total=data.length;
+  c.insertAdjacentHTML('beforeend',`<div id="repCountInfo" style="text-align:center;font-size:12px;color:var(--text3);margin-top:8px;">${shown} / ${total} kayıt gösteriliyor${total>shown?' — tamamı Excel çıktısında':''}</div>`);
+  if(total>shown){
+    c.insertAdjacentHTML('beforeend',`<button id="repLoadMoreBtn" class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderReportPage(false)">Daha Yükle (+${Math.min(REPORT_PAGE_SIZE,total-shown)})</button>`);
+  }
 }

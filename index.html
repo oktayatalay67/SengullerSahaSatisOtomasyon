@@ -1,22 +1,58 @@
 <!--
 ============================================================
-  index.html — v30.65
-  Son güncelleme: 2026-06-28
+  index.html — v30.69
+  Son güncelleme: 2026-07-08
 
   Bağımlılıklar:
     admin.js    v1.1.1
     auth.js     v1.2.10
-    config.js   v1.2.16
+    config.js   v1.2.18
     firsat.js   v1.2.2
     gorev.js    v1.2.10
     hedef.js    v1.0.0
-    musteri.js  v1.1.3
-    rapor.js    v1.2.1
+    musteri.js  v1.1.4
+    rapor.js    v1.2.2
     talep.js    v1.0.3
-    temas.js    v2.10.32
+    temas.js    v2.10.34
     utils.js    v1.0.1
+    xlsx.full.min.js  SheetJS 0.18.5 (js/ altında, repo-içi, DB-bağımsız)
 
   Değişiklikler:
+    v30.67 — FIX: Rapor 'q.in is not a function' (async builder thenable
+             tuzağı) giderildi; filtre önce çözülüp senkron uygulanıyor.
+             ?v= cache-busting v30.67'ye alındı. temas.js v2.10.34.
+
+    v30.69 — DASHBOARD ORAN + TEMAS FORM YARIŞI:
+             • Temas ekranı penetrasyon oranı artık ASLA %100'ü geçmez. Pay,
+               paydanın alt kümesi olarak hesaplanıyor: "sahibi MY'nin bizzat
+               gittiği kendi AKTİF portföy müşterisi". (temas.js v2.10.35)
+             • Müşteri ekranından "+Temas": form "zaman zaman açılmıyor" yarışı
+               giderildi (temas.js/musteri.js). 
+             temas.js v2.10.35, musteri.js v1.1.5, config.js v1.2.18.
+
+    v30.66 — TEMAS RAPOR & FİLTRE PAKETİ:
+             • CACHE-BUSTING: Tüm js modülleri artık ?v=v30.69 ile yükleniyor.
+               (Eski JS'in tarayıcı/CDN cache'inden sunulması sorununu bitirir —
+               her sürümde bu değeri güncelleyin.)
+             • BUG-A: Temas ekranı filtreleri — sayaç ve liste tek semantiğe
+               (my_id) çekildi; FULL_ROL rol listesi düzeltildi. "TEMAS EDİLEN
+               MÜŞTERİ" kartı ve PENETRASYON artık self-portföy: sahibi MY'nin
+               bizzat kendi portföyünde temas ettiği benzersiz firma / portföy.
+               Böylece temas edilen ≤ portföy ve penetrasyon ≤ %100 (başkasının
+               ziyareti sayılmaz).
+             • BUG-B: Temas Raporu — repKcm/repTakim/repMy filtreleri artık
+               sorguya uygulanıyor; 200 satır limiti kaldırıldı, tüm kayıtlar
+               sayfalanarak çekiliyor. Ekranda 100'er "Daha Yükle".
+             • BUG-C: Excel çıktısı fetch'teki filtrelerden besleniyor —
+               MY/Takım/KÇM filtresi Excel'e birebir yansıyor.
+             • GELİŞTİRME: Excel artık gerçek .xlsx (vendored SheetJS), 2 sekme:
+               "Temas Detay" + "MY Özet" (MY satır, gün kolon, hücre=ziyaret sayısı).
+             • BUG-D: MY/USER müşteri varsayılan listesi kendi portföyü yerine
+               tüm KÇM kapsamına alındı (FMY ile tutarlı). Başkasının müşterisinde
+               edit kapalı, kontak ekleme/temas-fırsat-görev açık (mevcut davranış).
+             temas.js v2.10.33, rapor.js v1.2.2, musteri.js v1.1.4,
+             config.js v1.2.17 — APP_VERSION V30.66.
+
     v30.65 — ŞİKAYET YAŞAM DÖNGÜSÜ: Görev artık MY/FMY beyanıyla kapanmaz.
              temas.js v2.10.32 — kapanış 'Çözüldü' seçilirse görev Tamamlandı
              (onay bekliyor) olur ve atayana düşer; aksi halde 'Devam' durumunda
@@ -116,6 +152,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Şengüller Saha Satış V30.62</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- SheetJS (repo-içi, js/ altında, DB-bağımsız) — Temas Raporu Excel çıktısı için -->
+<script src="js/xlsx.full.min.js?v=v30.69"></script>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/main.css">
 </head>
@@ -787,7 +825,7 @@
         <div class="chip-btn" onclick="setRepPeriod('ay',this)">Bu Ay</div>
       </div>
       <button class="btn" onclick="fetchAdvancedReport()" style="width:100%;background:var(--blue);">🔍 Raporu Getir</button>
-      <button id="repExcelBtn" onclick="downloadTemasExcel()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Form Uyumlu Excel İndir</button>
+      <button id="repExcelBtn" onclick="downloadTemasExcel()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir (2 Sekme: Detay + MY Özet)</button>
     </div>
     <div id="reportListContent"><div class="empty">Filtreleyin.</div></div>
   </div>
@@ -2145,17 +2183,17 @@
 </div>
 
 <!-- ===== JAVASCRIPT MODÜLLERİ ===== -->
-<script src="js/config.js"></script>
-<script src="js/utils.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/gorev.js"></script>
-<script src="js/talep.js"></script>
-<script src="js/temas.js"></script>
-<script src="js/firsat.js"></script>
-<script src="js/musteri.js"></script>
-<script src="js/hedef.js"></script>
-<script src="js/admin.js"></script>
-<script src="js/rapor.js"></script>
+<script src="js/config.js?v=v30.69"></script>
+<script src="js/utils.js?v=v30.69"></script>
+<script src="js/auth.js?v=v30.69"></script>
+<script src="js/gorev.js?v=v30.69"></script>
+<script src="js/talep.js?v=v30.69"></script>
+<script src="js/temas.js?v=v30.69"></script>
+<script src="js/firsat.js?v=v30.69"></script>
+<script src="js/musteri.js?v=v30.69"></script>
+<script src="js/hedef.js?v=v30.69"></script>
+<script src="js/admin.js?v=v30.69"></script>
+<script src="js/rapor.js?v=v30.69"></script>
 
 </body>
 </html>
