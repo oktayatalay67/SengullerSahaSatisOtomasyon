@@ -1,5 +1,5 @@
 // ============================================================
-// auth.js — v1.2.10
+// auth.js — v1.2.11
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
 //   v1.2.10 — setAppVersion artık tek kaynak APP_VERSION'ı (config.js) kullanıyor.
@@ -192,5 +192,15 @@ function stopImpersonation(){
 //         forForm=false → müşteri listesi ekranı (PRT scope, portföy)
 function getCustomerBaseQuery(forForm=false){
   let q=sb.from('customers').select('ncst,my_id,kcm_id,unvan,il,ilce,musteri_tipi,aktif,vergi_no,beyaz_yakali_sayi,sube_lokasyon,sube_detay,sunucu_altyapisi,sunucu_detay,it_ekibi,it_ekip_sayisi,firewall_kullanimi,firewall_detay,adres,telefon,churn_riski,toplam_hat,profil_tamamlandi').eq('aktif',true);
-  return forForm ? applyScope(q,'temas') : applyScope(q,'musteri');
+  // v1.2.11 (V30.72): customers tablosu için KÇM scope'u DAİMA kcm_id ile uygulanır.
+  // Önceden forForm=true → applyScope(q,'temas') çağrılıyordu; applyScope'un temas
+  // dalı KÇM'yi `my_id IN kcmMyIds` olarak filtreliyordu (ziyaret tablosu mantığı).
+  // Bu, sahibi KÇM MY listesinde olmayan/atanmamış müşterileri temas formu
+  // aramasından ELİYORDU — MY/FMY kendi olmayan KÇM müşterisine temas giremiyordu.
+  // Artık customers için kcm_id kullanılıyor (müşteri listesiyle birebir aynı kapsam).
+  const scope = getScope(forForm ? 'temas' : 'musteri');
+  if(scope==='TÜM') return q;
+  if(scope==='KÇM' && currentUser.kcm_id) return q.eq('kcm_id', currentUser.kcm_id);
+  if(scope==='BAĞLI') return q.in('my_id', bagliMyIds);
+  return q.eq('my_id', currentUser.my_id); // PRT: kendi portföyü
 }
