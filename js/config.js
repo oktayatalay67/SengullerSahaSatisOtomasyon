@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.2.21
-// Son güncelleme: 2026-07-08
+// config.js — v1.2.22
+// Son güncelleme: 2026-07-12
 // Değişiklikler:
+//   v1.2.22 — APP_VERSION → V30.73. Temas/Fırsat formu müşteri aramasında
+//             vergi_no ile arama düzeltmesi (kod musteri.js v1.1.6).
+//             config yalnız sürüm damgası.
 //   v1.2.18 — APP_VERSION → V30.67 (rapor 'q.in' thenable fix + penetrasyon kartı).
 //   v1.2.21 — APP_VERSION → V30.72. MY/FMY temas formu müşteri arama KÇM scope
 //             düzeltmesi (kod auth.js). config yalnız sürüm damgası.
@@ -39,7 +42,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.72';
+const APP_VERSION = 'V30.73';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

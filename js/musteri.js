@@ -1,7 +1,12 @@
 // ============================================================
-// musteri.js — v1.1.5
-// Son güncelleme: 2026-07-08
+// musteri.js — v1.1.6
+// Son güncelleme: 2026-07-12
 // Değişiklikler:
+//   v1.1.6 — BUG: searchMusteri (Temas/Fırsat formu müşteri arama) vergi_no ile
+//            arama yapmıyordu; sadece ncst+unvan aranıyordu. Müşteri ekranındaki
+//            onMusteriSearch ise vergi_no'yu da arıyordu. Bu tutarsızlık yüzünden
+//            temsilci vergi no ile arayınca müşteriyi bulamıyor, TMP kayıt açıyordu.
+//            .select() ve .or() zincirine vergi_no eklendi — iki ekran artık aynı.
 //   v1.1.5 — +Temas yarışı (V30.69): navToTemasForMusteri artık sabit
 //            setTimeout(selC,100) kullanmıyor; hedef müşteriyi window._pending
 //            TemasCustomer'a koyuyor, initTemasForm async akışının sonunda seçiyor.
@@ -36,8 +41,8 @@ async function searchMusteri(val, opts){
   }
   _searchTimers[opts.timerId] = setTimeout(async()=>{
     const {data} = await getCustomerBaseQuery(true)  // v1.2.1: forForm=true — KÇM scope
-      .select('ncst,unvan')
-      .or(`ncst.ilike.%${val}%,unvan.ilike.%${val}%`)
+      .select('ncst,unvan,vergi_no')
+      .or(`ncst.ilike.%${val}%,unvan.ilike.%${val}%,vergi_no.ilike.%${val}%`)
       .limit(opts.limit||20);
     if(!data?.length){
       opts.useShowClass ? r.classList.remove('show') : (r.style.display='none');
