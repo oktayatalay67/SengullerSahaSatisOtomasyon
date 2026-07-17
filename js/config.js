@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.2.22
-// Son güncelleme: 2026-07-12
+// config.js — v1.2.24
+// Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.24 — APP_VERSION → V30.75. loadMusteriOzetler özet sayacında FMY unutulması
+//             düzeltildi (musteri.js v1.1.8). FMY müşteri ekranında tüm KÇM sayısı
+//             yerine kendi portföy sayısını görür. Kod değişikliği yalnızca musteri.js.
+//   v1.2.23 — APP_VERSION → V30.74. Müşteri listesi MY/FMY için portföye daraltıldı
+//             (auth.js v1.2.12, musteri.js v1.1.7).
 //   v1.2.22 — APP_VERSION → V30.73. Temas/Fırsat formu müşteri aramasında
 //             vergi_no ile arama düzeltmesi (kod musteri.js v1.1.6).
 //             config yalnız sürüm damgası.
@@ -42,7 +47,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.73';
+const APP_VERSION = 'V30.75';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

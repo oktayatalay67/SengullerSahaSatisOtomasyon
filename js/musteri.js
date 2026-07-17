@@ -1,7 +1,18 @@
 // ============================================================
-// musteri.js — v1.1.6
-// Son güncelleme: 2026-07-12
+// musteri.js — v1.1.8
+// Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.1.8 — (V30.75) BUG: loadMusteriOzetler özet sayacında FMY unutulmuştu.
+//            _scope==='KÇM' dalındaki rol kontrolü `MY||USER` idi; FMY else'e
+//            düşüp müşteri sayısını kcm_id ile (tüm KÇM) sayıyordu. FMY portföyü
+//            yerine tüm KÇM müşteri sayısını görüyordu. Kontrole 'FMY' eklendi —
+//            artık MY/FMY/USER portföy (my_id), yöneticiler KÇM sayar. Liste
+//            (getCustomerBaseQuery, auth.js v1.2.12) zaten doğruydu; bu yalnızca
+//            müşteri ekranı ÖZET sayacını düzeltir. Temas/fırsat sayaçları
+//            applyRBAC kullandığından etkilenmemişti.
+//   v1.1.7 — (V30.74) onMusteriSearch getCustomerBaseQuery(false)→(true): müşteri
+//            listesi portföye daraltıldığı için (auth.js v1.2.12) arama kutusunun
+//            tüm KÇM'yi bulmaya devam etmesi için forForm=true yapıldı.
 //   v1.1.6 — BUG: searchMusteri (Temas/Fırsat formu müşteri arama) vergi_no ile
 //            arama yapmıyordu; sadece ncst+unvan aranıyordu. Müşteri ekranındaki
 //            onMusteriSearch ise vergi_no'yu da arıyordu. Bu tutarsızlık yüzünden
@@ -588,7 +599,7 @@ async function loadMusteriOzetler(){
       toplamC = count||0;
     } else if(_scope==='KÇM'){
       const r2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-      if(r2==='MY'||r2==='USER'){
+      if(r2==='MY'||r2==='FMY'||r2==='USER'){
         const {count:myCount} = await sb.from('customers').select('*',{count:'exact',head:true}).eq('my_id',currentUser.my_id).eq('aktif',true);
         toplamC = myCount||0;
       } else {
@@ -795,8 +806,10 @@ async function onMusteriSearch(val){
   }
   document.getElementById('musteriDefaultList').innerHTML = '';
   musteriSearchTimer = setTimeout(async()=>{
-    // v1.2.3: forForm=false — musteri scope (kcm_id filtresi), sanal MY müşterilerini de kapsar
-    const {data} = await getCustomerBaseQuery(false)
+    // v1.1.7 (V30.74): forForm=true — müşteri ARAMA daima tüm KÇM kapsamında.
+    // Liste portföye daraldı (auth.js v1.2.12); arama KÇM'de kalmalı ki MY başka
+    // müşteriyi de bulabilsin. (false olsaydı arama da portföye düşerdi.)
+    const {data} = await getCustomerBaseQuery(true)
       .or(`ncst.ilike.%${val}%,unvan.ilike.%${val}%,vergi_no.ilike.%${val}%`)
       .limit(10);
     if(!data || !data.length){

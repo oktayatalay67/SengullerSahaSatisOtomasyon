@@ -1,7 +1,11 @@
 // ============================================================
-// auth.js — v1.2.11
-// Son güncelleme: 2026-06-24
+// auth.js — v1.2.12
+// Son güncelleme: 2026-07-12
 // Değişiklikler:
+//   v1.2.12 — (V30.74) getCustomerBaseQuery: müşteri LİSTESİ ile ARAMA kapsamı ayrıldı.
+//             MY/FMY liste ekranında sadece kendi portföyünü (my_id=ben) görür; arama
+//             kutusunda tüm KÇM'yi bulur. Önceden liste de KÇM kapsamındaydı, MY kendi
+//             müşteri sayısı yerine tüm KÇM sayısını görüyordu.
 //   v1.2.10 — setAppVersion artık tek kaynak APP_VERSION'ı (config.js) kullanıyor.
 //             Sayfa açılışında applyAppVersion() otomatik çağrılıyor — HTML'deki
 //             tüm .app-ver etiketleri ve <title> artık elle değil, otomatik dolduruluyor.
@@ -198,6 +202,14 @@ function getCustomerBaseQuery(forForm=false){
   // Bu, sahibi KÇM MY listesinde olmayan/atanmamış müşterileri temas formu
   // aramasından ELİYORDU — MY/FMY kendi olmayan KÇM müşterisine temas giremiyordu.
   // Artık customers için kcm_id kullanılıyor (müşteri listesiyle birebir aynı kapsam).
+  // v1.2.12 (V30.74): Müşteri LİSTESİ (forForm=false) ile müşteri ARAMA (forForm=true) ayrıldı.
+  // MY/FMY liste ekranında SADECE kendi portföyünü görmeli (my_id=ben); arama yapınca
+  // tüm KÇM'yi bulabilmeli. Önceden ikisi de getScope('musteri')='KÇM' alıyordu; bu yüzden
+  // MY müşteri ekranında kendi sayısı yerine tüm KÇM müşteri sayısını görüyordu.
+  const rol=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  if(!forForm && (rol==='MY'||rol==='FMY')){
+    return q.eq('my_id', currentUser.my_id); // liste: kendi portföyü
+  }
   const scope = getScope(forForm ? 'temas' : 'musteri');
   if(scope==='TÜM') return q;
   if(scope==='KÇM' && currentUser.kcm_id) return q.eq('kcm_id', currentUser.kcm_id);

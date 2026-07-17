@@ -1,16 +1,16 @@
 <!--
 ============================================================
-  index.html — v30.73
+  index.html — v30.74
   Son güncelleme: 2026-07-12
 
   Bağımlılıklar:
     admin.js    v1.1.1
-    auth.js     v1.2.11
-    config.js   v1.2.22
+    auth.js     v1.2.12
+    config.js   v1.2.23
     firsat.js   v1.2.2
     gorev.js    v1.2.10
     hedef.js    v1.0.0
-    musteri.js  v1.1.6
+    musteri.js  v1.1.7
     rapor.js    v1.2.2
     talep.js    v1.0.3
     temas.js    v2.10.34
@@ -22,6 +22,14 @@
              tuzağı) giderildi; filtre önce çözülüp senkron uygulanıyor.
              ?v= cache-busting v30.67'ye alındı. temas.js v2.10.34.
 
+    v30.74 — MÜŞTERİ LİSTESİ PORTFÖY KAPSAMI: MY/FMY müşteri ekranında artık
+             yalnızca kendi portföyünü (my_id=ben) görür; önceden tüm KÇM
+             müşterilerini listeliyordu. Müşteri ekranındaki ARAMA kutusu ve
+             Temas/Fırsat/Görev formlarındaki müşteri araması tüm KÇM'yi bulmaya
+             devam eder. Temas/Fırsat/Görev LİSTE görünürlüğü (applyRBAC:
+             my_id VEYA musteri_my_id) değişmedi. (auth.js v1.2.12, musteri.js v1.1.7)
+             CACHE-BUSTING: ?v=v30.74.
+
     v30.73 — TMP SAHTE MÜŞTERİ KÖK NEDENİ: Temas/Fırsat formundaki müşteri
              araması (searchMusteri) vergi_no ile arama yapmıyordu; yalnızca
              ncst+unvan aranıyordu. Müşteri ekranındaki arama ise vergi_no'yu
@@ -29,7 +37,7 @@
              TMP ile başlayan sahte müşteri kaydı açıyordu (290 kayıt oluşmuş).
              searchMusteri .select() ve .or() zincirine vergi_no eklendi — iki
              ekran artık birebir aynı kapsamda arıyor. (musteri.js v1.1.6)
-             CACHE-BUSTING: ?v=v30.73.
+             CACHE-BUSTING: ?v=v30.74.
 
     v30.72 — MY/FMY tüm KÇM'ye temas girebilme: Temas (ve fırsat/görev) formu
              müşteri aramasında, sahibi olmayan/atanmamış KÇM müşterileri
@@ -54,7 +62,7 @@
              temas.js v2.10.35, musteri.js v1.1.5, config.js v1.2.18.
 
     v30.66 — TEMAS RAPOR & FİLTRE PAKETİ:
-             • CACHE-BUSTING: Tüm js modülleri artık ?v=v30.73 ile yükleniyor.
+             • CACHE-BUSTING: Tüm js modülleri artık ?v=v30.74 ile yükleniyor.
                (Eski JS'in tarayıcı/CDN cache'inden sunulması sorununu bitirir —
                her sürümde bu değeri güncelleyin.)
              • BUG-A: Temas ekranı filtreleri — sayaç ve liste tek semantiğe
@@ -173,10 +181,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Şengüller Saha Satış V30.73</title>
+<title>Şengüller Saha Satış V30.74</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- SheetJS (repo-içi, js/ altında, DB-bağımsız) — Temas Raporu Excel çıktısı için -->
-<script src="js/xlsx.full.min.js?v=v30.73"></script>
+<script src="js/xlsx.full.min.js?v=v30.74"></script>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/main.css">
 </head>
@@ -2206,17 +2214,17 @@
 </div>
 
 <!-- ===== JAVASCRIPT MODÜLLERİ ===== -->
-<script src="js/config.js?v=v30.73"></script>
-<script src="js/utils.js?v=v30.73"></script>
-<script src="js/auth.js?v=v30.73"></script>
-<script src="js/gorev.js?v=v30.73"></script>
-<script src="js/talep.js?v=v30.73"></script>
-<script src="js/temas.js?v=v30.73"></script>
-<script src="js/firsat.js?v=v30.73"></script>
-<script src="js/musteri.js?v=v30.73"></script>
-<script src="js/hedef.js?v=v30.73"></script>
-<script src="js/admin.js?v=v30.73"></script>
-<script src="js/rapor.js?v=v30.73"></script>
+<script src="js/config.js?v=v30.74"></script>
+<script src="js/utils.js?v=v30.74"></script>
+<script src="js/auth.js?v=v30.74"></script>
+<script src="js/gorev.js?v=v30.74"></script>
+<script src="js/talep.js?v=v30.74"></script>
+<script src="js/temas.js?v=v30.74"></script>
+<script src="js/firsat.js?v=v30.74"></script>
+<script src="js/musteri.js?v=v30.74"></script>
+<script src="js/hedef.js?v=v30.74"></script>
+<script src="js/admin.js?v=v30.74"></script>
+<script src="js/rapor.js?v=v30.74"></script>
 
 </body>
 </html>
