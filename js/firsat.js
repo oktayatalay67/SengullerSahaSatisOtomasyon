@@ -227,7 +227,7 @@ async function openEditOppModal(oppId){
     const{data:o,error}=await sb.from('opportunities').select('*').eq('opp_id',oppId).single();
     if(error||!o){toast('Fırsat bulunamadı: '+(error?.message||''),'error');return;}
     // Yetki kontrolü - MY KÇM'sindeki tüm kayıtları açabilir
-    const _rOppEdit=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const _rOppEdit=(currentUser.yetki_seviyesi||'').toUpperCase();
     if(_rOppEdit==='MY'||_rOppEdit==='FMY'||_rOppEdit==='USER'){
       // KÇM kontrolü - aynı KÇM'de mi
       if(currentUser.kcm_id && o.kcm_id && o.kcm_id!==currentUser.kcm_id){
@@ -316,7 +316,7 @@ async function openEditOppModal(oppId){
     if(delBtn) delBtn.onclick=()=>deleteOpportunity(oppId);
 
     // Onay butonları - role göre göster
-    const _rOpp=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const _rOpp=(currentUser.yetki_seviyesi||'').toUpperCase();
     const evrakOnayDiv=document.getElementById('oppEvrakOnayDiv');
     const mudurOnayDiv=document.getElementById('oppMudurOnayDiv');
     const iptalOnayDiv=document.getElementById('oppIptalOnayDiv');
@@ -398,7 +398,7 @@ function selectOppCust(ncst,unvan){
   const adim = document.getElementById('oppDurum').value;
   // B7 fix: Hem yeni hem edit modunda Gerçekleşen yetki kontrolü
   {
-    const _rSave=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const _rSave=(currentUser.yetki_seviyesi||'').toUpperCase();
     const myRoller=['MY','FMY','USER'];
     if(myRoller.includes(_rSave)){
       if(adim==='Gerçekleşen'){
@@ -408,7 +408,7 @@ function selectOppCust(ncst,unvan){
   }
   // Edit modunda ek yetki kontrolü
   if(currentEditingOppId){
-    const _rSave=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const _rSave=(currentUser.yetki_seviyesi||'').toUpperCase();
     const myRoller=['MY','FMY','USER'];
     if(myRoller.includes(_rSave)){
       const{data:oppCheck}=await sb.from('opportunities').select('my_id,adim').eq('opp_id',currentEditingOppId).single();
@@ -582,7 +582,7 @@ function setPrAdim(val,el){
 }
 
 async function initPipelineRapor(){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const full=['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
   const myRoller=['MY','FMY','USER'];
 

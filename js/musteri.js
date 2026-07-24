@@ -1,7 +1,9 @@
 // ============================================================
-// musteri.js — v1.1.8
+// musteri.js — v1.1.9
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.1.9 — (V30.77) loadMusteriOzetler: BAGLI kapsam dali eklendi. TAKIM
+//            LIDERI / CST artik tum KCM yerine kendi ekibinin musteri sayisini gorur.
 //   v1.1.8 — (V30.75) BUG: loadMusteriOzetler özet sayacında FMY unutulmuştu.
 //            _scope==='KÇM' dalındaki rol kontrolü `MY||USER` idi; FMY else'e
 //            düşüp müşteri sayısını kcm_id ile (tüm KÇM) sayıyordu. FMY portföyü
@@ -215,7 +217,7 @@ function setRepPeriod(p,el){
 
 
 async function initTemasRapor(){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const full=['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
   const myRoller=['MY','FMY','USER'];
 
@@ -598,7 +600,7 @@ async function loadMusteriOzetler(){
       const {count} = await sb.from('customers').select('*',{count:'exact',head:true}).eq('aktif',true);
       toplamC = count||0;
     } else if(_scope==='KÇM'){
-      const r2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+      const r2=(currentUser.yetki_seviyesi||'').toUpperCase();
       if(r2==='MY'||r2==='FMY'||r2==='USER'){
         const {count:myCount} = await sb.from('customers').select('*',{count:'exact',head:true}).eq('my_id',currentUser.my_id).eq('aktif',true);
         toplamC = myCount||0;
@@ -606,6 +608,12 @@ async function loadMusteriOzetler(){
         const {count:kcmCount} = await sb.from('customers').select('*',{count:'exact',head:true}).eq('kcm_id',currentUser.kcm_id).eq('aktif',true);
         toplamC = kcmCount||0;
       }
+    } else if(_scope==='BAĞLI'){
+      // v1.1.9 (V30.77): TAKIM LİDERİ / ÇST — kendi ekibi. Önceden BAĞLI dalı YOKTU;
+      // KÇM dalına düşüp tüm KÇM müşterisini sayıyordu (ya da PRT'ye düşüp tek kişiyi).
+      const _bIds = (typeof bagliMyIds!=='undefined' && bagliMyIds.length) ? bagliMyIds : [currentUser.my_id];
+      const {count:bCount} = await sb.from('customers').select('*',{count:'exact',head:true}).in('my_id',_bIds).eq('aktif',true);
+      toplamC = bCount||0;
     } else {
       const {count:prtCount} = await sb.from('customers').select('*',{count:'exact',head:true}).eq('my_id',currentUser.my_id).eq('aktif',true);
       toplamC = prtCount||0;
@@ -837,7 +845,7 @@ async function selectMusteri(ncst){
   document.getElementById('musteriDetailBox').classList.remove('hide');
 
   // v1.1.0: MY/FMY başkasının portföyündeki müşteriyi açarsa — sadece okuma + kontak ekleme
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const isMYFMY=(r==='MY'||r==='FMY'||r==='USER');
   const benimPortfoyum = !isMYFMY || (data.my_id === currentUser.my_id);
   // Edit butonlarını göster/gizle
@@ -998,7 +1006,7 @@ async function loadKontaklar(searchVal=''){
   const c = document.getElementById('kontakListesi');
   c.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   try{
-    const r = (currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const r = (currentUser.yetki_seviyesi||'').toUpperCase();
     const full = ['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
     const kcm = ['KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','ÇÖZÜM SATIŞ TEMSİLCİSİ','ÇÖZÜM SATIŞ UZMANI','TURKCELL BÖLGE YÖNETİCİSİ'];
     // Önce erişilebilir müşteri NCST'lerini al

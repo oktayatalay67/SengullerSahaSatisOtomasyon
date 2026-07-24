@@ -1,6 +1,6 @@
 <!--
 ============================================================
-  index.html — v30.74
+  index.html — V30.77
   Son güncelleme: 2026-07-12
 
   Bağımlılıklar:
@@ -22,13 +22,42 @@
              tuzağı) giderildi; filtre önce çözülüp senkron uygulanıyor.
              ?v= cache-busting v30.67'ye alındı. temas.js v2.10.34.
 
+    V30.77 — ROL & YETKİ EKRANI YENİDEN TASARLANDI + PRT+ KAPSAMI
+             • Yatay taşan, sütun başlıkları kesilen matris kaldırıldı. Yeni akış:
+               önce rol seç → o rolün ayarları dikey kart listesinde. Mobilde okunur.
+               Kapsam seçenekleri artık kod değil, açıklamalı etiket ("Kendi ekibi",
+               "Portföy + çapraz" gibi). Eylemler gruplu ve toggle anahtarlı.
+             • YENİ KAPSAM KODU: PRT+ — kendi girdiği VEYA kendi portföyündeki
+               müşteriye başkasının girdiği kayıtlar (çapraz görünürlük).
+               MY/FMY temas + fırsat için doğru kapsam budur; eski PRT yalnızca
+               kendi girdiğini gösterdiği için çapraz kayıtlar kayboluyordu.
+
+    V30.76 — YETKİ KATMANI TEK NOKTA: DATABASE
+             • Rol listesi ve rol→yetki eşlemesi artık YALNIZCA veritabanından
+               yönetilir. config.js içindeki sabit PERM objesi (128 satır) ve
+               admin.js fallbackRoller dizisi kaldırıldı. Kaynak tablolar:
+               public.roles (rol listesi) + public.role_permissions (izinler).
+             • YENİ EKRAN: Admin Panel > Rol & Yetki Yönetimi (yetki.js).
+               Üç sekme: Görüntüleme Kapsamı (modül×rol scope matrisi),
+               Eylem Yetkileri (tıklanabilir izin matrisi), Roller (rol CRUD).
+               Ekranı açma yetkisi yeni "yetki_yonet" izniyle kontrol edilir;
+               ADMIN bu izni kaybedemez (kilitlenme koruması).
+             • Kullanıcı formundaki Yetki Seviyesi ve Görev Tanımı listeleri
+               DB'den doldurulur; index.html'deki sabit <option> listesi silindi
+               (içinde artık var olmayan SATIŞ KOORDİNATÖRÜ rolü duruyordu).
+             • users.role kolonu kullanımdan kaldırıldı: 44 adet ||role fallback'i,
+               admin.js'teki role DB yazımı ve auth.js/hedef.js'teki role SELECT
+               edilmesi temizlendi. users.role_id + FK zaten düşürüldü.
+             • Eksik roller DB'ye eklendi: TURKCELL BÖLGE YÖNETİCİSİ,
+               MUHASEBE & DEPO UZMANI, DASHBOARD, USER.
+
     v30.74 — MÜŞTERİ LİSTESİ PORTFÖY KAPSAMI: MY/FMY müşteri ekranında artık
              yalnızca kendi portföyünü (my_id=ben) görür; önceden tüm KÇM
              müşterilerini listeliyordu. Müşteri ekranındaki ARAMA kutusu ve
              Temas/Fırsat/Görev formlarındaki müşteri araması tüm KÇM'yi bulmaya
              devam eder. Temas/Fırsat/Görev LİSTE görünürlüğü (applyRBAC:
              my_id VEYA musteri_my_id) değişmedi. (auth.js v1.2.12, musteri.js v1.1.7)
-             CACHE-BUSTING: ?v=v30.74.
+             CACHE-BUSTING: ?v=v30.77.
 
     v30.73 — TMP SAHTE MÜŞTERİ KÖK NEDENİ: Temas/Fırsat formundaki müşteri
              araması (searchMusteri) vergi_no ile arama yapmıyordu; yalnızca
@@ -37,7 +66,7 @@
              TMP ile başlayan sahte müşteri kaydı açıyordu (290 kayıt oluşmuş).
              searchMusteri .select() ve .or() zincirine vergi_no eklendi — iki
              ekran artık birebir aynı kapsamda arıyor. (musteri.js v1.1.6)
-             CACHE-BUSTING: ?v=v30.74.
+             CACHE-BUSTING: ?v=v30.77.
 
     v30.72 — MY/FMY tüm KÇM'ye temas girebilme: Temas (ve fırsat/görev) formu
              müşteri aramasında, sahibi olmayan/atanmamış KÇM müşterileri
@@ -62,7 +91,7 @@
              temas.js v2.10.35, musteri.js v1.1.5, config.js v1.2.18.
 
     v30.66 — TEMAS RAPOR & FİLTRE PAKETİ:
-             • CACHE-BUSTING: Tüm js modülleri artık ?v=v30.74 ile yükleniyor.
+             • CACHE-BUSTING: Tüm js modülleri artık ?v=v30.77 ile yükleniyor.
                (Eski JS'in tarayıcı/CDN cache'inden sunulması sorununu bitirir —
                her sürümde bu değeri güncelleyin.)
              • BUG-A: Temas ekranı filtreleri — sayaç ve liste tek semantiğe
@@ -184,7 +213,7 @@
 <title>Şengüller Saha Satış V30.74</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- SheetJS (repo-içi, js/ altında, DB-bağımsız) — Temas Raporu Excel çıktısı için -->
-<script src="js/xlsx.full.min.js?v=v30.74"></script>
+<script src="js/xlsx.full.min.js?v=v30.77"></script>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/main.css">
 </head>
@@ -1228,6 +1257,7 @@
       <div class="menu-box" onclick="adminSayfaAc('ziyaretOpt')"><div class="menu-box-icon">⚙️</div><div class="menu-box-title">Ziyaret Seç.</div></div>
       <div class="menu-box" onclick="adminSayfaAc('veriSagligi')" style="border-color:rgba(255,180,0,.3);"><div class="menu-box-icon">🔧</div><div class="menu-box-title">Veri Sağlığı</div></div>
       <div class="menu-box" onclick="adminSayfaAc('gorevTipleri')"><div class="menu-box-icon">📋</div><div class="menu-box-title">Görev Tipleri</div></div>
+      <div class="menu-box" onclick="adminSayfaAc('yetki')" style="border-color:rgba(96,165,250,.35);"><div class="menu-box-icon">🔐</div><div class="menu-box-title">Rol & Yetki</div></div>
       <div class="menu-box" onclick="openImpersonateModal()" style="border-color:rgba(255,180,0,.3);"><div class="menu-box-icon">👁</div><div class="menu-box-title">Profil Görüntüle</div></div>
     </div>
   </div>
@@ -1395,6 +1425,16 @@
       <button class="btn btn-green btn-sm" onclick="openAddKullaniciModal()" style="width:auto;padding:9px 16px;">+ Yeni Kullanıcı</button>
     </div>
     <div id="adminKullaniciList"></div>
+  </div>
+  <!-- v30.76: ROL & YETKİ YÖNETİMİ — yetki katmanı tek nokta: DATABASE -->
+  <div id="adminTabYetki" class="scroll" style="display:none;padding:14px;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--text2);line-height:1.5;">
+        Roller ve yetkiler <b>yalnızca buradan</b> yönetilir; kod içinde sabit liste yoktur.
+        Yaptığınız değişiklik anında kaydedilir, kullanıcılar <b>bir sonraki girişte</b> yeni yetkiyle gelir.
+      </div>
+    </div>
+    <div id="yetkiIcerik"><div class="loader"><div class="spinner"></div></div></div>
   </div>
   <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V30.62</span> | Admin</div>
 </div>
@@ -1648,6 +1688,35 @@
   </div>
 </div>
 
+<!-- ===== ROL EKLE/DÜZENLE MODAL (v30.76) ===== -->
+<div class="modal-overlay" id="yetkiRolModal" onclick="if(event.target===this)closeModal('yetkiRolModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="yetkiRolModalTitle">Yeni Rol</div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Rol Kodu <span style="color:var(--red);">*</span></label>
+      <input type="text" id="yrRoleAdi" placeholder="ÖRN: BÖLGE MÜDÜRÜ" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Kullanıcı kaydında saklanan değer. Oluşturduktan sonra değiştirilemez.</div>
+    </div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Görünen Ad <span style="color:var(--red);">*</span></label>
+      <input type="text" id="yrGorunenAd" placeholder="Bölge Müdürü" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+    </div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Sıra</label>
+      <input type="number" id="yrSira" value="999" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Açıklama</label>
+      <input type="text" id="yrAciklama" placeholder="Rolün kısa tanımı..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" onclick="closeModal('yetkiRolModal')" style="background:var(--navy3);color:var(--text2);">İptal</button>
+      <button class="btn btn-green" onclick="yetkiRolKaydet()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== KULLANICI MODAL (modalKullanici) ===== -->
 <div class="modal-overlay" id="modalKullanici" onclick="if(event.target===this)closeModal('modalKullanici')">
   <div class="modal">
@@ -1686,16 +1755,8 @@
       </div>
       <div class="field" style="margin-bottom:0;">
         <label>Yetki Seviyesi</label>
-        <select id="kullYetki" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;">
-          <option value="MY">MY</option>
-          <option value="FMY">FMY</option>
-          <option value="TAKIM LİDERİ">Takım Lideri</option>
-          <option value="KÇM MÜDÜRÜ">KÇM Müdürü</option>
-          <option value="SATIŞ DESTEK">Satış Destek</option>
-          <option value="OPERASYON MÜDÜRÜ">Operasyon Müdürü</option>
-          <option value="SATIŞ KOORDİNATÖRÜ">Satış Koordinatörü</option>
-          <option value="ADMIN">Admin</option>
-        </select>
+        <!-- v30.76: Rol listesi DB'den doldurulur (loadYetkiSelect) — sabit option YOK -->
+        <select id="kullYetki" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;"></select>
       </div>
     </div>
 
@@ -2214,17 +2275,18 @@
 </div>
 
 <!-- ===== JAVASCRIPT MODÜLLERİ ===== -->
-<script src="js/config.js?v=v30.74"></script>
-<script src="js/utils.js?v=v30.74"></script>
-<script src="js/auth.js?v=v30.74"></script>
-<script src="js/gorev.js?v=v30.74"></script>
-<script src="js/talep.js?v=v30.74"></script>
-<script src="js/temas.js?v=v30.74"></script>
-<script src="js/firsat.js?v=v30.74"></script>
-<script src="js/musteri.js?v=v30.74"></script>
-<script src="js/hedef.js?v=v30.74"></script>
-<script src="js/admin.js?v=v30.74"></script>
-<script src="js/rapor.js?v=v30.74"></script>
+<script src="js/config.js?v=v30.77"></script>
+<script src="js/yetki.js?v=v30.77"></script>
+<script src="js/utils.js?v=v30.77"></script>
+<script src="js/auth.js?v=v30.77"></script>
+<script src="js/gorev.js?v=v30.77"></script>
+<script src="js/talep.js?v=v30.77"></script>
+<script src="js/temas.js?v=v30.77"></script>
+<script src="js/firsat.js?v=v30.77"></script>
+<script src="js/musteri.js?v=v30.77"></script>
+<script src="js/hedef.js?v=v30.77"></script>
+<script src="js/admin.js?v=v30.77"></script>
+<script src="js/rapor.js?v=v30.77"></script>
 
 </body>
 </html>

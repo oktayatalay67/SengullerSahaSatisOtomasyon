@@ -289,7 +289,7 @@ function renderGorevKarti(t) {
 
   const benimGorevim = t.atanan_id === mid;
   const benimatadim  = t.atayan_id === mid;
-  const r2 = (currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r2 = (currentUser.yetki_seviyesi||'').toUpperCase();
   const ystRoller = ['KÇM MÜDÜRÜ','TAKIM LİDERİ','ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','OPERASYON MÜDÜRÜ'];
 
   // Aksiyon butonları
@@ -388,7 +388,7 @@ async function openGorevDetay(taskId) {
     aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;color:var(--red);border-color:var(--red);" onclick="gorevReddet(' + taskId + ');closeModal(\'gorevDetayModal\')">✗ Reddet</button>';
   }
   // v1.2.6: Admin için görev silme — durum/sahiplik farketmez, her zaman görünür
-  const isAdmin = (currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase()==='ADMIN';
+  const isAdmin = (currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';
   if (isAdmin) {
     aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;color:var(--red);border-color:var(--red);margin-left:auto;" onclick="gorevSil(' + taskId + ');closeModal(\'gorevDetayModal\')">🗑 Görevi Sil</button>';
   }
@@ -795,7 +795,7 @@ async function gorevZiyaretAc(taskId) {
 // ============================================================
 async function gorevSil(taskId) {
   // v1.2.6: Sadece Admin silebilir — UI'da buton gizli olsa da, fonksiyon seviyesinde de korunsun
-  if ((currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase()!=='ADMIN') {
+  if ((currentUser.yetki_seviyesi||'').toUpperCase()!=='ADMIN') {
     toast('Bu işlem için admin yetkisi gerekli','error'); return;
   }
   if (!confirm('Bu görevi silmek istediğinize emin misiniz?')) return;

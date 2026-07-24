@@ -510,7 +510,7 @@ async function adminTalepOkunmamisSayisi(){
 /* ===== EVRAK ONAY AKIŞI ===== */
 // ===== EVRAK ONAY AKIŞI =====
 async function evrakOnayla(oppId){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   if(!['ADMIN','SATIŞ DESTEK','SATIŞ DİREKTÖRÜ'].includes(r)){
     toast('Bu işlem için Satış Destek yetkisi gereklidir','error');return;
   }
@@ -576,7 +576,7 @@ async function hedefeOtomatikIsle(opp, myId){
 
 // Müdür/Takım Lideri - kimin hedefine sayılacağını seçer
 async function mudurOnayiVer(oppId, secilenMyId){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
@@ -607,7 +607,7 @@ async function iptalBaslat(oppId){
 
 // Müdür/Takım Lideri iptal onayı
 async function iptalOnayla(oppId){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
@@ -624,7 +624,7 @@ async function iptalOnayla(oppId){
 
 // İptal reddet
 async function iptalReddet(oppId){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
@@ -637,7 +637,7 @@ async function iptalReddet(oppId){
 }
 
 function isAdmin(){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   return r==='ADMIN'||r==='SATIŞ DİREKTÖRÜ';
 }
 
@@ -743,7 +743,7 @@ async function deleteMusteri(ncst){
 
 async function deleteKontakFromForm(contactId, adSoyad){
   if(!confirm(adSoyad+' silinecek. Onaylıyor musunuz?')) return;
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   let error;
   if(r==='ADMIN'||r==='SATIŞ DİREKTÖRÜ'){
     // Admin: tamamen sil
@@ -841,7 +841,8 @@ function switchAdminTab(tab){
 
 var _adminTabAdlar = {
   'urunler':'Ürünler','kullanicilar':'Kullanıcılar','talepler':'Talepler',
-  'ziyaretOpt':'Ziyaret Seçenekleri','veriSagligi':'Veri Sağlığı','gorevTipleri':'Görev Tipleri'
+  'ziyaretOpt':'Ziyaret Seçenekleri','veriSagligi':'Veri Sağlığı','gorevTipleri':'Görev Tipleri',
+  'yetki':'Rol & Yetki Yönetimi'
 };
 
 function adminSayfaAc(tab){
@@ -854,7 +855,7 @@ function adminSayfaAc(tab){
   if(baslik) baslik.textContent   = _adminTabAdlar[tab] || tab;
 
   // Sadece seçili tab'ı göster
-  ['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri'].forEach(function(t){
+  ['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri','yetki'].forEach(function(t){
     const p = document.getElementById('adminTab'+capitalize(t));
     if(p) p.style.display = (t===tab) ? '' : 'none';
   });
@@ -864,6 +865,7 @@ function adminSayfaAc(tab){
   if(tab==='talepler')    loadAdminTalepler('tumu');
   if(tab==='ziyaretOpt')  initZiyaretOpt();
   if(tab==='gorevTipleri')renderGorevTipleriAdmin();
+  if(tab==='yetki')       initYetkiYonetim();
 }
 
 function adminMenueGeri(){
@@ -872,7 +874,7 @@ function adminMenueGeri(){
   if(menuEl) menuEl.style.display = '';
   if(altEl)  altEl.style.display  = 'none';
   // Tüm tab içeriklerini gizle
-  ['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri'].forEach(function(t){
+  ['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri','yetki'].forEach(function(t){
     const p = document.getElementById('adminTab'+capitalize(t));
     if(p) p.style.display = 'none';
   });
@@ -1228,7 +1230,7 @@ function renderKullanicilar(liste){
             </div>
           </div>
           <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;">
-            <span class="tag tag-gray" style="font-size:10px;">${escapeHTML(u.yetki_seviyesi||u.role||'—')}</span>
+            <span class="tag tag-gray" style="font-size:10px;">${escapeHTML(u.yetki_seviyesi||'—')}</span>
             ${u.aktif?'<span class="tag tag-green" style="font-size:10px;">Aktif</span>':'<span class="tag tag-red" style="font-size:10px;">Pasif</span>'}
             ${u.telefon?`<span class="tag tag-gray" style="font-size:10px;">📞 ${escapeHTML(u.telefon)}</span>`:''}
           </div>
@@ -1263,23 +1265,44 @@ function renderKullanicilar(liste){
 
 // Rolleri DB'den yükle ve select'i doldur
 async function loadRollerSelect(secilenGorev=''){
+  // v30.76: Rol listesi YALNIZCA DB'den (public.roles). Sabit fallback listesi kaldırıldı.
   const sel=document.getElementById('kullGorevTanimi');
   if(!sel) return;
   try{
-    const{data,error}=await sb.from('roles').select('role_id,role_adi,aciklama').order('role_adi');
-    if(error||!data||data.length===0){
-      // Fallback: PERM matrisindeki roller
-      const fallbackRoller=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ',
-        'TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ','ÇÖZÜM SATIŞ UZMANI',
-        'ÇÖZÜM SATIŞ TEMSİLCİSİ','MY','FMY'];
-      sel.innerHTML='<option value="">-- Görev Seçin --</option>'+
-        fallbackRoller.map(r=>`<option value="${escapeHTML(r)}" ${r===secilenGorev?'selected':''}>${escapeHTML(r)}</option>`).join('');
+    const{data,error}=await sb.from('roles')
+      .select('role_adi,gorunen_ad,aciklama,aktif,sira')
+      .eq('aktif',true).order('sira',{ascending:true});
+    if(error) throw error;
+    if(!data||!data.length){
+      sel.innerHTML='<option value="">(rol listesi boş — Rol & Yetki Yönetimi\'nden ekleyin)</option>';
       return;
     }
     sel.innerHTML='<option value="">-- Görev Seçin --</option>'+
-      data.map(r=>`<option value="${escapeHTML(r.role_adi)}" ${r.role_adi===secilenGorev?'selected':''}>${escapeHTML(r.role_adi)}${r.aciklama?' — '+escapeHTML(r.aciklama):''}</option>`).join('');
+      data.map(r=>`<option value="${escapeHTML(r.role_adi)}" ${r.role_adi===secilenGorev?'selected':''}>${escapeHTML(r.gorunen_ad||r.role_adi)}${r.aciklama?' — '+escapeHTML(r.aciklama):''}</option>`).join('');
   }catch(e){
-    console.warn('Roller yüklenemedi:',e);
+    console.error('Roller yüklenemedi:',e);
+    sel.innerHTML='<option value="">(rol listesi yüklenemedi)</option>';
+    if(typeof toast==='function') toast('Rol listesi yüklenemedi','error');
+  }
+}
+
+// v30.76: Yetki Seviyesi <select>'i de DB'den doldurulur (index.html'de sabit option YOK)
+async function loadYetkiSelect(secilenYetki=''){
+  const sel=document.getElementById('kullYetki');
+  if(!sel) return;
+  if(window.ROLES && window.ROLES.length){
+    populateRoleDropdown(sel, secilenYetki);
+    return;
+  }
+  try{
+    const{data,error}=await sb.from('roles')
+      .select('role_adi,gorunen_ad,aktif,sira').eq('aktif',true).order('sira',{ascending:true});
+    if(error) throw error;
+    sel.innerHTML=(data||[]).map(r=>
+      `<option value="${escapeHTML(r.role_adi)}" ${r.role_adi===secilenYetki?'selected':''}>${escapeHTML(r.gorunen_ad||r.role_adi)}</option>`).join('');
+  }catch(e){
+    console.error('Yetki listesi yüklenemedi:',e);
+    sel.innerHTML='<option value="">(yüklenemedi)</option>';
   }
 }
 
@@ -1290,7 +1313,7 @@ async function openAddKullaniciModal(){
   document.getElementById('kullEmail').value='';
   document.getElementById('kullTelefon').value='';
   document.getElementById('kullKcmId').value='';
-  document.getElementById('kullYetki').value='MY';
+  await loadYetkiSelect('MY');
   document.getElementById('kullSifre').value='';
   document.getElementById('kullSifreTekrar').value='';
   document.getElementById('kullSifreInfo').classList.add('hide');
@@ -1320,7 +1343,7 @@ async function openEditKullaniciModal(userId){
   await loadTakimLiderleri(u.takim_lideri_id||null);
   fillKcmSelect('kullKcmId');
   document.getElementById('kullKcmId').value=u.kcm_id||'';
-  document.getElementById('kullYetki').value=u.yetki_seviyesi||u.role||'MY';
+  await loadYetkiSelect(u.yetki_seviyesi||'MY');
   kullAktifDurum=u.aktif!==false;
   updateKullAktifToggle();
   openModal('modalKullanici');
@@ -1392,7 +1415,7 @@ async function saveKullanici(){
   const payload={
     ad_soyad:adSoyad,email,telefon:telefon||null,
     kcm_id:kcmId?parseInt(kcmId):null,kcm_adi:kcmAdi,
-    yetki_seviyesi:efektifYetki,role:efektifYetki,aktif:kullAktifDurum,
+    yetki_seviyesi:efektifYetki,aktif:kullAktifDurum,
     gorev_tanimi:gorevTanimi,
     takim_lideri_id:takimLideriId?parseInt(takimLideriId):null
   };

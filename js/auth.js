@@ -1,7 +1,9 @@
 // ============================================================
-// auth.js — v1.2.12
+// auth.js — v1.2.14
 // Son güncelleme: 2026-07-12
 // Değişiklikler:
+//   v1.2.14 — (V30.77) applyRBAC sabit rol listesi yerine DB scope'u kullanir.
+//             TAKIM LIDERI / CST icin BAGLI dali eklendi; PRT+ destegi.
 //   v1.2.12 — (V30.74) getCustomerBaseQuery: müşteri LİSTESİ ile ARAMA kapsamı ayrıldı.
 //             MY/FMY liste ekranında sadece kendi portföyünü (my_id=ben) görür; arama
 //             kutusunda tüm KÇM'yi bulur. Önceden liste de KÇM kapsamındaydı, MY kendi
@@ -62,7 +64,7 @@ window.onload=async()=>{
         const banner=document.getElementById('impersonationBanner');
         const label=document.getElementById('impersonationLabel');
         if(banner&&label){
-          const rol=currentUser.yetki_seviyesi||currentUser.role||'';
+          const rol=currentUser.yetki_seviyesi||'';
           label.textContent=`${currentUser.ad_soyad} (${rol})`;
           banner.style.display='flex';
           const h=banner.offsetHeight||40;
@@ -110,6 +112,9 @@ let sanalMyIds = []; // v1.2.2: Sanal MY ID'leri — portföy hesabına dahil ed
 
 async function initApp(){
   showPage('pageDash');
+  // v1.2.13 (V30.76): Yetki katmanı DB'den yüklenir — hasPerm/getScope'tan ÖNCE olmalı.
+  const permOk = await loadPermFromDB();
+  if(!permOk){ toast('Yetki bilgisi yüklenemedi — lütfen tekrar giriş yapın','error'); }
   await loadProductsFromDB();
   await loadKcmMyIds();
   await loadBagliMyIds();
@@ -120,13 +125,13 @@ let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)
 let myIdToRol  = {}; // v1.2.4: my_id → yetki_seviyesi (MY/FMY/...)
 
 async function loadKcmMyIds(){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const kcmRoller=['KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','ÇÖZÜM SATIŞ TEMSİLCİSİ','ÇÖZÜM SATIŞ UZMANI','TURKCELL BÖLGE YÖNETİCİSİ','MY','USER'];
   // v1.2.2: is_sanal kolonu da çek
-  const{data:allUsers}=await sb.from('users').select('my_id,ad_soyad,kcm_id,aktif,is_sanal,yetki_seviyesi,role');
+  const{data:allUsers}=await sb.from('users').select('my_id,ad_soyad,kcm_id,aktif,is_sanal,yetki_seviyesi');
   (allUsers||[]).forEach(u=>{
     myIdToName[u.my_id] = u.aktif ? u.ad_soyad : u.ad_soyad+' (Ayrıldı)';
-    myIdToRol[u.my_id]  = (u.yetki_seviyesi||u.role||'MY').toUpperCase();
+    myIdToRol[u.my_id]  = (u.yetki_seviyesi||'MY').toUpperCase();
   });
   // v1.2.2: Sanal MY'leri global diziye al — portföy hesaplarında hariç tutulacak
   sanalMyIds = (allUsers||[]).filter(u=>u.is_sanal).map(u=>u.my_id);
@@ -153,18 +158,30 @@ function loadDashboard(){
 }
 // v1.2.2: applyRBAC — KÇM rolleri sadece kcm_id ile filtreler
 // musteri_my_id.in.(...) OR kaldırıldı: full table scan'e yol açıyordu
-function applyRBAC(q,prefix=''){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
-  const full=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
-  if(full.includes(r)) return q;
-  if(r==='MY'||r==='FMY'||r==='USER'){
+// v1.2.14 (V30.77): applyRBAC artık SABİT ROL LİSTESİ kullanmıyor — kapsamı
+// DB'den gelen scope belirler (Rol & Yetki ekranından yönetilir).
+// Önceki hâlde TAKIM LİDERİ / ÇST için dal yoktu; kcm_id dalına düşüp
+// tüm KÇM kayıtlarını görüyorlardı (BAĞLI kapsamı yok sayılıyordu).
+function applyRBAC(q, prefix='', modul='temas'){
+  const scope = getScope(modul);
+  if(scope==='TÜM') return q;
+
+  if(scope==='PRT+'){
     const mid=currentUser.my_id;
-    return q.or(`my_id.eq.${mid},musteri_my_id.eq.${mid}`);
+    return q.or(`${prefix}my_id.eq.${mid},musteri_my_id.eq.${mid}`);
   }
-  // KÇM rolleri — kcm_id index üzerinden hızlı filtre
-  if(currentUser.kcm_id){
+
+  if(scope==='BAĞLI'){
+    const ids=(typeof bagliMyIds!=='undefined' && bagliMyIds.length) ? bagliMyIds : [currentUser.my_id];
+    const list=ids.join(',');
+    return q.or(`${prefix}my_id.in.(${list}),musteri_my_id.in.(${list})`);
+  }
+
+  if(scope==='KÇM' && currentUser.kcm_id){
     return q.eq('kcm_id', currentUser.kcm_id);
   }
+
+  // PRT: yalnızca kendi kayıtları
   return q.eq(`${prefix}my_id`, currentUser.my_id);
 }
 // v1.2.9: Impersonation — sayfa tam reload edilir, mevcut login akışı (init→initApp)
@@ -206,7 +223,7 @@ function getCustomerBaseQuery(forForm=false){
   // MY/FMY liste ekranında SADECE kendi portföyünü görmeli (my_id=ben); arama yapınca
   // tüm KÇM'yi bulabilmeli. Önceden ikisi de getScope('musteri')='KÇM' alıyordu; bu yüzden
   // MY müşteri ekranında kendi sayısı yerine tüm KÇM müşteri sayısını görüyordu.
-  const rol=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const rol=(currentUser.yetki_seviyesi||'').toUpperCase();
   if(!forForm && (rol==='MY'||rol==='FMY')){
     return q.eq('my_id', currentUser.my_id); // liste: kendi portföyü
   }

@@ -133,7 +133,7 @@ async function loadHedefGirisTable(){
   c.innerHTML='<div class="loader"><div class="spinner"></div></div>';
   try{
     const[{data:users},{data:targets},{data:existing}]=await Promise.all([
-      sb.from('users').select('my_id,ad_soyad,kcm_adi,role').eq('aktif',true).order('kcm_adi').order('ad_soyad'),
+      sb.from('users').select('my_id,ad_soyad,kcm_adi').eq('aktif',true).order('kcm_adi').order('ad_soyad'),
       sb.from('target_items').select('target_id,target_name,unit_type').eq('is_active',true).order('sira'),
       sb.from('user_targets').select('*').eq('ay',ay)
     ]);
@@ -341,7 +341,7 @@ async function initHedefTakip(){
 }
 
 async function buildHedefGorunumBar(){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const bar=document.getElementById('hedefGorunumBar');
   const btnlar=document.getElementById('hedefGorunumBtnlar');
   if(!bar||!btnlar)return;
@@ -401,7 +401,7 @@ async function loadHedefTakip(){
   c.innerHTML='<div class="loader"><div class="spinner"></div></div>';
   try{
     const uid=currentUser.my_id;
-    const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const r=(currentUser.yetki_seviyesi||'').toUpperCase();
     const myRoller=['MY','FMY','USER'];
     
     let hedefQ = sb.from('user_targets').select('*,target_items(target_name,unit_type)').eq('ay',ay);

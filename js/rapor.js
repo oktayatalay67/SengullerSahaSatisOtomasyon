@@ -190,7 +190,7 @@ let portfoyData = [];
 let mrData = [];
 
 async function initMusteriRapor(){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const fullRoller=['ADMIN','SATIŞ DİREKTÖRÜ'];
   const myRoller=['MY','FMY','USER'];
 
@@ -294,7 +294,7 @@ async function fetchMusteriRapor(){
   document.getElementById('mrOzetDiv').style.display='none';
   mrData=[];
 
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const fullRoller=['ADMIN','SATIŞ DİREKTÖRÜ'];
   const genisCap=['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TAKIM LİDERİ'];
 
@@ -480,7 +480,7 @@ function mrExcelIndir(){
 async function parsePortfoyFile(input){
   const file = input.files[0];
   if(!file) return;
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const yetkili=['ADMIN','SATIŞ DİREKTÖRÜ','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ'];
   if(!yetkili.includes(r)){toast('Bu işlem için yetkiniz yok','error');return;}
   toast('Dosya okunuyor...','info');
@@ -664,7 +664,7 @@ function doLogout(){localStorage.removeItem('cu');location.reload();}
 
 function openUserMenu(){
   document.getElementById('umAdSoyad').textContent=currentUser.ad_soyad||'—';
-  document.getElementById('umRol').textContent=currentUser.yetki_seviyesi||currentUser.role||'—';
+  document.getElementById('umRol').textContent=currentUser.yetki_seviyesi||'—';
   document.getElementById('umKcm').textContent=currentUser.kcm_adi||'';
   openModal('userMenuModal');
 }

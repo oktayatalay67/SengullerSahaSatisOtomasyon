@@ -1,7 +1,9 @@
 // ============================================================
-// temas.js — v2.10.37
+// temas.js — v2.10.38
 // Son güncelleme: 2026-07-09
 // Değişiklikler:
+//   v2.10.38 — (V30.77) loadTemasDashboard: BAGLI kapsam dali eklendi. TAKIM
+//             LIDERI / CST artik tum KCM yerine kendi ekibinin rakamlarini gorur.
 //   v2.10.37 — KRİTİK (V30.71): "Yeni Temas eski kayıt açıyor" regresyonu.
 //     Önceki bir akıştan (plan→gerçekleştir, +Temas, görev) sızan global state
 //     (pending müşteri/prefill, _gorevId, currentEditingVisitId) yeni teması
@@ -296,7 +298,7 @@ async function loadDefaultCustomers(containerId,actionFn){
   // 3. Visits yoksa veya eksikse KÇM müşterilerini göster
   const c=document.getElementById(containerId);
   c.innerHTML='<div class="loader"><div class="spinner"></div></div>';
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const isMYFMY=(r==='MY'||r==='FMY'||r==='USER');
   let html='';
   if(isMYFMY){
@@ -1027,7 +1029,7 @@ function openCustEditModal(c, source){
   // Müşteri listesi ekranı bu kontrolü yapıyordu; Temas/Fırsat formundan
   // "Müşteriyi Düzenle" ile açıldığında bu kontrol tamamen atlanıyordu —
   // MY/FMY başkasının müşterisini sınırsızca düzenleyebiliyordu.
-  const _rEdit=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const _rEdit=(currentUser.yetki_seviyesi||'').toUpperCase();
   const _myRoller=['MY','FMY','USER'];
   const isOwn = !c.my_id || c.my_id===currentUser.my_id; // my_id boşsa (atanmamış) düzenlemeye izin ver
   const readonly = _myRoller.includes(_rEdit) && !isOwn;
@@ -1081,7 +1083,7 @@ async function submitCustUpdate(){
   if(!hasPerm('musteri_duzenle')){toast('Müşteri düzenleme yetkiniz yok','error');closeModal('custEditModal');return;}
   // v2.10.26: KRİTİK — sahiplik kontrolü burada da yapılıyor (UI'da disable edilmiş
   // olması yetmez, biri DOM'u manipüle edip Kaydet'i tekrar görünür yapabilir).
-  const _rSubmit=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const _rSubmit=(currentUser.yetki_seviyesi||'').toUpperCase();
   if(['MY','FMY','USER'].includes(_rSubmit)){
     const{data:custCheck}=await sb.from('customers').select('my_id').eq('ncst',currentEditingCustNcst).single();
     if(custCheck?.my_id && custCheck.my_id!==currentUser.my_id){
@@ -1415,7 +1417,7 @@ async function loadTemasDashboard(){
     }
     if(!filterEd) filterEd=trEndOfDay(todayTR2);
 
-    const r2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const r2=(currentUser.yetki_seviyesi||'').toUpperCase();
     // v2.10.33 BUG-A: Rol listesi düzeltildi. Önceden 'SATIŞ KOORDİNATÖRÜ' (hiyerarşide
     // yok) vardı, 'ÇÖZÜM SATIŞ MÜDÜRÜ' yoktu → o rol yanlışlıkla KÇM dalına düşüp
     // kcm_id=null ile filtresiz kalıyordu. applyRBAC'taki tam-yetki setiyle hizalandı.
@@ -1476,6 +1478,16 @@ async function loadTemasDashboard(){
       custFilter  = (q) => q.eq('my_id', currentUser.my_id);
       custInScope = (c) => c.my_id===currentUser.my_id;
       showMYFMY   = false;
+    } else if(getScope('temas')==='BAĞLI'){
+      // v2.10.36 (V30.77): TAKIM LİDERİ / ÇÖZÜM SATIŞ TEMSİLCİSİ — kendi ekibi.
+      // Önceden bu roller için ayrı dal YOKTU; son 'else' dalına düşüp tüm KÇM
+      // rakamlarını gösteriyorlardı. Artık scope BAĞLI ise bagliMyIds kullanılır.
+      const _bIds = (typeof bagliMyIds!=='undefined' && bagliMyIds.length) ? bagliMyIds : [currentUser.my_id];
+      const _bSet = new Set(_bIds);
+      visitFilter = (q) => q.or(`my_id.in.(${_bIds.join(',')}),musteri_my_id.in.(${_bIds.join(',')})`);
+      custFilter  = (q) => q.in('my_id', _bIds);
+      custInScope = (c) => _bSet.has(c.my_id);
+      showMYFMY   = true;
     } else if(FULL_ROL.includes(r2)){
       // Admin/Direktör — filtre yok
       // v2.10.22: showMYFMY artık true — "Tüm KÇM'ler" seçiliyken de şirket-çapında
@@ -1690,7 +1702,7 @@ async function loadTemasDashboard(){
 // ============================================================
 
 async function initPersonelFiltre(cfg){
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const MY_ROL=['MY','FMY','USER'];
   const FULL_ROL=['ADMIN','SATIŞ DİREKTÖRÜ'];
   const TAKIM_ROL=['TAKIM LİDERİ'];
@@ -1878,7 +1890,7 @@ async function renderTemasList(){
 
     // v2.10.16: Müşteri seçiliyse MY kişisel scope kaldır — o müşteriye TÜM temaslar görünür
     if(fNcst){
-      const r2=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+      const r2=(currentUser.yetki_seviyesi||'').toUpperCase();
       const admins=['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ'];
       if(admins.includes(r2)) return q;
       if(currentUser.kcm_id) return q.eq('kcm_id', currentUser.kcm_id);
@@ -1984,7 +1996,7 @@ async function showEditVisitModalById(visitId){
   const{data:visit,error}=await sb.from('visits').select('*').eq('visit_id',visitId).single();
   if(error||!visit){toast('Kayıt bulunamadı','error');return;}
   // Yetki kontrolü - MY KÇM'sindeki tüm kayıtları açabilir
-  const _rVE=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const _rVE=(currentUser.yetki_seviyesi||'').toUpperCase();
   if(_rVE==='MY'||_rVE==='FMY'||_rVE==='USER'){
     if(currentUser.kcm_id && visit.kcm_id && visit.kcm_id!==currentUser.kcm_id){
       toast('Bu kaydı görmeye yetkiniz yok','error');return;
@@ -2002,7 +2014,7 @@ async function showEditVisitModalById(visitId){
 }
 async function canEditVisit(visit){
   if(!visit)return false;
-  const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
 
   // Admin/KÇM rolleri her zaman düzenleyebilir
   if(['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ'].includes(r)) return true;
@@ -2031,7 +2043,7 @@ async function showEditVisitModal(visit){
 
   if(!editable){
     // Salt okunur: yetki yok veya süre dolmuş
-    const r=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+    const r=(currentUser.yetki_seviyesi||'').toUpperCase();
     const benimKayit=visit.my_id===currentUser.my_id;
     const msg=!benimKayit
       ?'Bu kaydı düzenleyemezsiniz — başka bir kullanıcı tarafından girilmiş.'
@@ -2219,7 +2231,7 @@ function toggleEditArr(arrName,val,el){
 function editVisitSetYontem(el,val){document.querySelectorAll('#editYontemGrid .chip-btn').forEach(e=>e.classList.remove('selected'));el.classList.add('selected');window._editYontemStr=val;}
 async function updateVisit(){
   // Yetki kontrolü - MY sadece kendi girdiğini düzenleyebilir
-  const _rUV=(currentUser.yetki_seviyesi||currentUser.role||'').toUpperCase();
+  const _rUV=(currentUser.yetki_seviyesi||'').toUpperCase();
   if(_rUV==='MY'||_rUV==='FMY'||_rUV==='USER'){
     const{data:vCheck}=await sb.from('visits').select('my_id').eq('visit_id',window.currentEditingVisitId).single();
     if(vCheck&&vCheck.my_id!==currentUser.my_id){
