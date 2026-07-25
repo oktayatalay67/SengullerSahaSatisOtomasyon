@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.2.26
+// config.js — v1.2.27
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.27 — APP_VERSION → V30.78. temas.js loadTemasDashboard MY/FMY kirilimi:
+//             BAGLI kapsamli rol (TAKIM LIDERI/CST) icin kirilim artik kendi
+//             ekibinden (bagliMyIds) hesaplaniyor; tum KCM yerine.
 //   v1.2.26 — APP_VERSION → V30.77. Yeni scope kodu PRT+ (kendi kayitlari +
 //             kendi portfoyune baskasinin girdigi kayitlar). applyScope destegi.
 //   v1.2.25 — APP_VERSION → V30.76. YETKİ TEK NOKTA: users.role kolonu kaldırılıyor.
@@ -52,7 +55,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.77';
+const APP_VERSION = 'V30.78';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,5 +1,5 @@
 // ============================================================
-// temas.js — v2.10.38
+// temas.js — v2.10.39
 // Son güncelleme: 2026-07-09
 // Değişiklikler:
 //   v2.10.38 — (V30.77) loadTemasDashboard: BAGLI kapsam dali eklendi. TAKIM
@@ -1477,7 +1477,7 @@ async function loadTemasDashboard(){
       visitFilter = (q) => q.or(`my_id.eq.${mid},musteri_my_id.eq.${mid}`);
       custFilter  = (q) => q.eq('my_id', currentUser.my_id);
       custInScope = (c) => c.my_id===currentUser.my_id;
-      showMYFMY   = false;
+      showMYFMY   = true;  // v2.10.40 (V30.78): kendi rakamini kendi sutununda goster
     } else if(getScope('temas')==='BAĞLI'){
       // v2.10.36 (V30.77): TAKIM LİDERİ / ÇÖZÜM SATIŞ TEMSİLCİSİ — kendi ekibi.
       // Önceden bu roller için ayrı dal YOKTU; son 'else' dalına düşüp tüm KÇM
@@ -1605,7 +1605,22 @@ async function loadTemasDashboard(){
       // v2.10.22: 4 ayrı durum — takım filtresi, belirli KÇM, kendi KÇM'si (önbellek),
       // ve "Tüm KÇM'ler" (Admin/Direktör, hiç filtre yok — artık şirket çapında kırılım).
       let myIdList, fmyIdList;
-      if(fTTakimId && window._tmsTakimUyeleri){
+      // v2.10.40 (V30.78): KENDİ EKRANI (MY/FMY) — kişi kendi rakamını kendi rol
+      // sütununda görür; diğer sütun 0. Önceden showMYFMY=false → her iki sütun '—'.
+      const _scopeTemasKir = (typeof getScope==='function') ? getScope('temas') : '';
+      const _rSelf=(currentUser.yetki_seviyesi||'').toUpperCase();
+      if(!fTTakimId && !fTKcmId && (_rSelf==='MY'||_rSelf==='FMY'||_rSelf==='USER')){
+        if(_rSelf==='FMY'){ myIdList=[]; fmyIdList=[currentUser.my_id]; }
+        else              { myIdList=[currentUser.my_id]; fmyIdList=[]; }
+      } else if(!fTTakimId && !fTKcmId && _scopeTemasKir==='BAĞLI'){
+        // v2.10.39: BAĞLI kapsamlı rol (TAKIM LİDERİ / ÇST) — kendi ekibinden (bagliMyIds)
+        const _bIds = (typeof bagliMyIds!=='undefined' && bagliMyIds.length) ? bagliMyIds : [currentUser.my_id];
+        const {data:bUsers} = await sb.from('users')
+          .select('my_id,yetki_seviyesi')
+          .in('my_id', _bIds).eq('aktif', true).eq('is_sanal', false);
+        myIdList  = (bUsers||[]).filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='MY').map(u=>u.my_id);
+        fmyIdList = (bUsers||[]).filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='FMY').map(u=>u.my_id);
+      } else if(fTTakimId && window._tmsTakimUyeleri){
         // Takım filtresi seçili — az önce çekilen takım üyelerini role'e göre ayır
         myIdList  = window._tmsTakimUyeleri.filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='MY').map(u=>u.my_id);
         fmyIdList = window._tmsTakimUyeleri.filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='FMY').map(u=>u.my_id);

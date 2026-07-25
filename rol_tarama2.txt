@@ -1,0 +1,47 @@
+﻿
+Path                                                                                             LineNumber Line                                                                                                
+----                                                                                             ---------- ----                                                                                                
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\admin.js          641   return r==='ADMIN'||r==='SATIŞ DİREKTÖRÜ';                                                        
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\admin.js          748   if(r==='ADMIN'||r==='SATIŞ DİREKTÖRÜ'){                                                           
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\auth.js           147     myIds:  kcmMyIds.filter(id => myIdToRol[id] === 'MY'),                                          
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\auth.js           148     fmyIds: kcmMyIds.filter(id => myIdToRol[id] === 'FMY')                                          
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\auth.js           180   if(scope==='KÇM' && currentUser.kcm_id){                                                          
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\auth.js           227   if(!forForm && (rol==='MY'||rol==='FMY')){                                                        
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\auth.js           232   if(scope==='KÇM' && currentUser.kcm_id) return q.eq('kcm_id', currentUser.kcm_id);                
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\config.js         139   } else if(r === 'ÇÖZÜM SATIŞ UZMANI'){                                                            
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\config.js         162   if(scope==='KÇM' && currentUser.kcm_id){                                                          
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\firsat.js         231     if(_rOppEdit==='MY'||_rOppEdit==='FMY'||_rOppEdit==='USER'){                                    
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\gorev.js          391   const isAdmin = (currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';                         
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\gorev.js          798   if ((currentUser.yetki_seviyesi||'').toUpperCase()!=='ADMIN') {                                   
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\gorev.js          815   if (t.atayan_id !== currentUser.my_id && (currentUser.yetki_seviyesi||'').toUpperCase() !== 'ADMIN
+                                                                                                            ') {                                                                                                
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\hedef.js          231   const myIdIdx=headers.findIndex(h=>h.toLowerCase()==='my_id');                                    
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\hedef.js          353   if(r==='MY'||r==='FMY'||r==='USER'){                                                              
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\musteri.js          8 //            _scope==='KÇM' dalındaki rol kontrolü `MY||USER` idi; FMY else'e                      
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\musteri.js        602     } else if(_scope==='KÇM'){                                                                      
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\musteri.js        604       if(r2==='MY'||r2==='FMY'||r2==='USER'){                                                       
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\musteri.js        849   const isMYFMY=(r==='MY'||r==='FMY'||r==='USER');                                                  
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js          302   const isMYFMY=(r==='MY'||r==='FMY'||r==='USER');                                                  
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js          996   const adm = (currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';                             
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         1112   const isAdmin=(currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';                           
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         1610         myIdList  = window._tmsTakimUyeleri.filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='MY').m
+                                                                                                            ap(u=>u.my_id);                                                                                     
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         1611         fmyIdList = window._tmsTakimUyeleri.filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='FMY').
+                                                                                                            map(u=>u.my_id);                                                                                    
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         1617         myIdList  = (kcmUsers||[]).filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='MY').map(u=>u.m
+                                                                                                            y_id);                                                                                              
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         1618         fmyIdList = (kcmUsers||[]).filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='FMY').map(u=>u.
+                                                                                                            my_id);                                                                                             
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         1630         myIdList  = (tumUsers||[]).filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='MY').map(u=>u.m
+                                                                                                            y_id);                                                                                              
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         1631         fmyIdList = (tumUsers||[]).filter(u=>(u.yetki_seviyesi||'').toUpperCase()==='FMY').map(u=>u.
+                                                                                                            my_id);                                                                                             
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         2000   if(_rVE==='MY'||_rVE==='FMY'||_rVE==='USER'){                                                     
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         2235   if(_rUV==='MY'||_rUV==='FMY'||_rUV==='USER'){                                                     
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\temas.js         2306   if(f.kind==='my')  return q.eq('my_id', f.id);                                                    
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\yetki.js          217       const kilitli=(a==='yetki_yonet'&&_ySeciliRol==='ADMIN');                                     
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\yetki.js          274   if(action==='yetki_yonet'&&rol==='ADMIN'&&!yeni){ toast('Admin bu yetkiyi kaybedemez','error'); re
+                                                                                                            turn; }                                                                                             
+C:\Users\Oktay Atalay\Documents\Uygulama Gelistirme\Senguller-Saha Satis\repo\test\js\yetki.js          348   if(r.role_adi==='ADMIN'&&!yeni){ toast('ADMIN rolü pasife alınamaz','error'); return; }           
+
+
