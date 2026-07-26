@@ -511,7 +511,7 @@ async function adminTalepOkunmamisSayisi(){
 // ===== EVRAK ONAY AKIŞI =====
 async function evrakOnayla(oppId){
   const r=(currentUser.yetki_seviyesi||'').toUpperCase();
-  if(!['ADMIN','SATIŞ DESTEK','SATIŞ DİREKTÖRÜ'].includes(r)){
+  if(!hasPerm('evrak_onayla')){
     toast('Bu işlem için Satış Destek yetkisi gereklidir','error');return;
   }
   // Fırsat bilgilerini çek
@@ -576,8 +576,7 @@ async function hedefeOtomatikIsle(opp, myId){
 
 // Müdür/Takım Lideri - kimin hedefine sayılacağını seçer
 async function mudurOnayiVer(oppId, secilenMyId){
-  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
-  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
+  if(!hasPerm('mudur_onay')){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
   if(!confirm((myIdToName[secilenMyId]||secilenMyId)+' adlı kişinin hedefine sayılacak. Onayla?')) return;
@@ -607,8 +606,7 @@ async function iptalBaslat(oppId){
 
 // Müdür/Takım Lideri iptal onayı
 async function iptalOnayla(oppId){
-  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
-  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
+  if(!hasPerm('firsat_iptal_onay')){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
   if(!confirm('İptal onaylanacak. Devam?')) return;
@@ -624,8 +622,7 @@ async function iptalOnayla(oppId){
 
 // İptal reddet
 async function iptalReddet(oppId){
-  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
-  if(!['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(r)){
+  if(!hasPerm('firsat_iptal_onay')){
     toast('Bu işlem için Müdür yetkisi gereklidir','error');return;
   }
   if(!confirm('İptal talebi reddedilecek. Devam?')) return;
@@ -637,8 +634,7 @@ async function iptalReddet(oppId){
 }
 
 function isAdmin(){
-  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
-  return r==='ADMIN'||r==='SATIŞ DİREKTÖRÜ';
+  return hasPerm('yonetici_tam');
 }
 
 
@@ -745,7 +741,7 @@ async function deleteKontakFromForm(contactId, adSoyad){
   if(!confirm(adSoyad+' silinecek. Onaylıyor musunuz?')) return;
   const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   let error;
-  if(r==='ADMIN'||r==='SATIŞ DİREKTÖRÜ'){
+  if(hasPerm('yonetici_tam')){
     // Admin: tamamen sil
     ({error}=await sb.from('contacts').delete().eq('contact_id',contactId));
   } else {

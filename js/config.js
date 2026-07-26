@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.2.27
+// config.js — v1.2.28
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.28 — APP_VERSION → V30.79. 11 sabit yetki karari hasPerm()'e cevrildi
+//             (evrak_onayla, mudur_onay, firsat_iptal_onay, gorev_tumunu_gor,
+//             portfoy_yukle, temas_yonetici_duzenle, yonetici_tam). Artik DB'den.
 //   v1.2.27 — APP_VERSION → V30.78. temas.js loadTemasDashboard MY/FMY kirilimi:
 //             BAGLI kapsamli rol (TAKIM LIDERI/CST) icin kirilim artik kendi
 //             ekibinden (bagliMyIds) hesaplaniyor; tum KCM yerine.
@@ -55,7 +58,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.78';
+const APP_VERSION = 'V30.79';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,5 +1,5 @@
 // ============================================================
-// yetki.js — v1.1.0
+// yetki.js — v1.2.0
 // Son güncelleme: 2026-07-22
 // Değişiklikler:
 //   v1.1.0 — EKRAN YENİDEN TASARLANDI: yatay taşan dev matris kaldırıldı.
@@ -42,7 +42,10 @@ const YETKI_ACTION_GRUP = [
       yetki_yonet:'Rol ve yetkileri yönetir',
       urun_yonet:'Ürünleri yönetir',
       duyuru_yonet:'Duyuru yayınlar',
-      talep_yonet:'Talepleri yönetir' } },
+      talep_yonet:'Talepleri yönetir',
+      yonetici_tam:'Tam yönetici işlemleri (Admin/Direktör)',
+      gorev_tumunu_gor:'Tüm görevleri görür',
+      portfoy_yukle:'Portföy dosyası yükler' } },
   { grup:'Müşteri', items:{
       musteri_ekle:'Müşteri ekler',
       musteri_duzenle:'Müşteri düzenler',
@@ -54,6 +57,7 @@ const YETKI_ACTION_GRUP = [
       temas_ekle:'Temas ekler',
       temas_duzenle:'Kendi temasını düzenler',
       temas_baskasi_duzenle:'Başkasının temasını düzenler',
+      temas_yonetici_duzenle:'Yönetici olarak her teması düzenler',
       temas_sil:'Temas siler' } },
   { grup:'Fırsat', items:{
       firsat_ekle:'Fırsat ekler',
@@ -62,6 +66,9 @@ const YETKI_ACTION_GRUP = [
       firsat_gerceklesen:'Gerçekleşen adımına taşır',
       firsat_iptal_talep:'İptal talebi oluşturur',
       firsat_iptal_onayla:'İptal talebini onaylar',
+      firsat_iptal_onay:'Fırsat iptalini onaylar/reddeder (buton)',
+      evrak_onayla:'Evrak onaylar',
+      mudur_onay:'Müdür onayı verir (hedef ataması)',
       firsat_sil:'Fırsat siler',
       firsat_max_adim_evrak:'Evrak adımından ileri GİDEMEZ (kısıt)' } },
   { grup:'Hedef & Diğer', items:{

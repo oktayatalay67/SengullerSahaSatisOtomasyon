@@ -1291,12 +1291,12 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
   // v30.01: editingId'yi null'lamadan önce yerel değişkene al (log ID bug fix)
   let error,visitId=window.currentEditingVisitId;
   const wasEditing = !!visitId;
-  if(visitId){visitData.guncelleme_tarihi=new Date().toISOString();const res=await sb.from('visits').update(visitData).eq('visit_id',visitId).select();error=res.error;if(!error&&(!res.data||res.data.length===0)){error={message:'Kayıt güncellenemedi — bu ziyaret üzerinde düzenleme yetkiniz olmayabilir ya da kayıt bulunamadı.'};}window.currentEditingVisitId=null;}
+  if(visitId){visitData.guncelleme_tarihi=new Date().toISOString();if(visitMusteriMyId===null)delete visitData.musteri_my_id;/* v2.10.41: düzenlemede boş sahibi mevcut değeri ezmesin */const res=await sb.from('visits').update(visitData).eq('visit_id',visitId).select();error=res.error;if(!error&&(!res.data||res.data.length===0)){error={message:'Kayıt güncellenemedi — bu ziyaret üzerinde düzenleme yetkiniz olmayabilir ya da kayıt bulunamadı.'};}window.currentEditingVisitId=null;}
   else{
     const res=await sb.from('visits').insert(visitData).select();error=res.error;
     if(!error&&res.data&&res.data.length)visitId=res.data[0].visit_id;
     if(!error&&!isPlan&&!document.getElementById('yeniPlanlamaBox').classList.contains('hide')&&document.getElementById('takipTarihi').value){
-      await sb.from('visits').insert({ncst,my_id:currentUser.my_id,temas_turu:document.getElementById('takipYontem').value,ziyaret_amaci:document.getElementById('takipIslem').value,durum:'Planlandı',planlanan_tarih:document.getElementById('takipTarihi').value});
+      await sb.from('visits').insert({ncst,my_id:currentUser.my_id,musteri_my_id:visitMusteriMyId,temas_turu:document.getElementById('takipYontem').value,ziyaret_amaci:document.getElementById('takipIslem').value,durum:'Planlandı',planlanan_tarih:document.getElementById('takipTarihi').value});/* v2.10.41: musteri_my_id eklendi */
     }
     if(!error&&!isPlan&&isOpportunityConfirmed&&tmsEklenmisFirsatList.length>0){
       for(const f of tmsEklenmisFirsatList){
@@ -2032,7 +2032,7 @@ async function canEditVisit(visit){
   const r=(currentUser.yetki_seviyesi||'').toUpperCase();
 
   // Admin/KÇM rolleri her zaman düzenleyebilir
-  if(['ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ'].includes(r)) return true;
+  if(hasPerm('temas_yonetici_duzenle')) return true;
 
   // MY / FMY / USER
   // v30.25: Kendi girdiği kayıt (my_id eşleşiyor) → 24 saat içinde düzenleyebilir

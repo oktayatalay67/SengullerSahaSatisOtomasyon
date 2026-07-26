@@ -481,8 +481,7 @@ async function parsePortfoyFile(input){
   const file = input.files[0];
   if(!file) return;
   const r=(currentUser.yetki_seviyesi||'').toUpperCase();
-  const yetkili=['ADMIN','SATIŞ DİREKTÖRÜ','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','OPERASYON MÜDÜRÜ'];
-  if(!yetkili.includes(r)){toast('Bu işlem için yetkiniz yok','error');return;}
+  if(!hasPerm('portfoy_yukle')){toast('Bu işlem için yetkiniz yok','error');return;}
   toast('Dosya okunuyor...','info');
   portfoyData = [];
   const ext = file.name.split('.').pop().toLowerCase();

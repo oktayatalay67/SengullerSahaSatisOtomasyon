@@ -121,8 +121,7 @@ async function loadGorevler(silent) {
 
   // Yönetici tümünü görür, diğerleri sadece ilgili olanları
   const r = (currentUser.yetki_seviyesi || '').toUpperCase();
-  const YETKILI = ['ADMIN','SATIŞ DİREKTÖRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ','OPERASYON MÜDÜRÜ','SATIŞ DESTEK','TURKCELL BÖLGE YÖNETİCİSİ'];
-  if (!YETKILI.includes(r)) {
+  if (!hasPerm('gorev_tumunu_gor')) {
     // v1.2.8: ncst listesi önbelleğe alındı — her loadGorevler çağrısında (60sn'de bir
     // sessiz yenileme dahil) tekrar sorgulanmıyor, sadece bu oturumda bir kez çekiliyor.
     const ownNcstList = await _getOwnNcstCached(mid);

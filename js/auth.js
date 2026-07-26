@@ -1,5 +1,5 @@
 // ============================================================
-// auth.js — v1.2.14
+// auth.js — v1.2.15
 // Son güncelleme: 2026-07-12
 // Değişiklikler:
 //   v1.2.14 — (V30.77) applyRBAC sabit rol listesi yerine DB scope'u kullanir.
@@ -227,9 +227,11 @@ function getCustomerBaseQuery(forForm=false){
   if(!forForm && (rol==='MY'||rol==='FMY')){
     return q.eq('my_id', currentUser.my_id); // liste: kendi portföyü
   }
-  const scope = getScope(forForm ? 'temas' : 'musteri');
+  // v1.2.15 (V30.79): Müşteri erişimi DAİMA 'musteri' kapsamıyla belirlenir.
+  // temas PRT+'a çevrilince forForm=true arama my_id=ben'e kilitleniyordu.
+  const scope = getScope('musteri');
   if(scope==='TÜM') return q;
-  if(scope==='KÇM' && currentUser.kcm_id) return q.eq('kcm_id', currentUser.kcm_id);
+  if((scope==='KÇM' || scope==='PRT+') && currentUser.kcm_id) return q.eq('kcm_id', currentUser.kcm_id);
   if(scope==='BAĞLI') return q.in('my_id', bagliMyIds);
   return q.eq('my_id', currentUser.my_id); // PRT: kendi portföyü
 }

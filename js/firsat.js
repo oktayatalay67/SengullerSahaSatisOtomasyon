@@ -1,5 +1,5 @@
 // ============================================================
-// firsat.js — v1.2.2
+// firsat.js — v1.2.3
 // Son güncelleme: 2026-06-24
 // Değişiklikler:
 //   v1.2.2 — ÇOK KRİTİK: "Giren" (my_id) her düzenlemede güncel kullanıcıya
@@ -324,7 +324,7 @@ async function openEditOppModal(oppId){
 
     // Evrak onay butonu - Satış Destek/Admin için, adım Evrak ise
     if(evrakOnayDiv){
-      const showEvrak=['ADMIN','SATIŞ DESTEK','SATIŞ DİREKTÖRÜ'].includes(_rOpp) && o.adim==='Evrak';
+      const showEvrak=hasPerm('evrak_onayla') && o.adim==='Evrak';
       evrakOnayDiv.style.display=showEvrak?'':'none';
       const evrakBtn=document.getElementById('oppEvrakOnayBtn');
       if(evrakBtn) evrakBtn.onclick=()=>evrakOnayla(oppId);
@@ -332,7 +332,7 @@ async function openEditOppModal(oppId){
 
     // Müdür onay butonu - Müdür/Takım Lideri için, onay_durumu Müdür Onayı Bekleniyor ise
     if(mudurOnayDiv){
-      const showMudur=['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(_rOpp)
+      const showMudur=hasPerm('mudur_onay')
         && o.onay_durumu==='Müdür Onayı Bekleniyor';
       mudurOnayDiv.style.display=showMudur?'':'none';
       if(showMudur){
@@ -350,7 +350,7 @@ async function openEditOppModal(oppId){
 
     // İptal onay butonu - Müdür/Takım Lideri için
     if(iptalOnayDiv){
-      const showIptal=['ADMIN','KÇM MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DİREKTÖRÜ'].includes(_rOpp)
+      const showIptal=hasPerm('firsat_iptal_onay')
         && o.iptal_onay_durumu==='Bekliyor';
       iptalOnayDiv.style.display=showIptal?'':'none';
       const iptalOnayBtn=document.getElementById('oppIptalOnayBtn');
@@ -466,6 +466,14 @@ function selectOppCust(ncst,unvan){
   // Düzenleyenin kimliği zaten addLog ile timeline'a ayrıca yazılıyor (yeterli).
   if(!currentEditingOppId){
     payload.my_id = currentUser.my_id;
+  }
+  // v1.2.3 (V30.79): KRİTİK FIX — düzenlemede müşteri yeniden seçilmediği için
+  // oppMusteriMyId/oppKcmId null kalıp update ile mevcut değeri EZİYORDU
+  // (fırsatların %77'sinde musteri_my_id boştu → PRT+ çapraz görünürlük çalışmıyordu).
+  // Düzenlemede bu alanları yalnızca yeni bir değer hesaplandıysa yaz; yoksa dokunma.
+  if(currentEditingOppId){
+    if(oppMusteriMyId===null) delete payload.musteri_my_id;
+    if(!oppSelectedNcst)      delete payload.kcm_id;
   }
   // v1.2.1: KRİTİK FIX — düzenleme modunda Not alanı her zaman boş açılıyordu
   // (yeni not eklemek için). Eğer kullanıcı boş bıraktıysa, mevcut notu SİLMEYELİM —
