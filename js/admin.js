@@ -1476,6 +1476,77 @@ function showSifreUnuttum(){
 // ============================================================
 // v30.18: VERİ SAĞLIĞI — KÇM bilgisi eksik kayıtları tespit ve düzelt
 // ============================================================
+// v30.83: ÇİFT KAYIT TESPİTİ — 10 dk penceresi, gerçek zaman farkı
+// records içinde keyFn ile gruplar, her grupta anchor'dan <=windowMs olanları çift sayar.
+function _ciftGruplaBul(records, keyFn, timeFn, windowMs){
+  const groups={};
+  (records||[]).forEach(r=>{ const k=keyFn(r); if(k==null) return; (groups[k]=groups[k]||[]).push(r); });
+  const dup=[];
+  Object.values(groups).forEach(arr=>{
+    if(arr.length<2) return;
+    arr.sort((a,b)=> timeFn(a)-timeFn(b));
+    let chain=[arr[0]];
+    for(let i=1;i<arr.length;i++){
+      if(timeFn(arr[i]) - timeFn(chain[0]) <= windowMs){ chain.push(arr[i]); }
+      else { if(chain.length>1) dup.push(chain.slice()); chain=[arr[i]]; }
+    }
+    if(chain.length>1) dup.push(chain.slice());
+  });
+  return dup; // [[rec,rec,...], ...]
+}
+
+// Son 30 gün içinde temas/fırsat/görev çiftlerini bulur
+async function _vsCiftKayitBul(){
+  const since = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+  const WIN = 10*60*1000;
+  const {data:vis} = await sb.from('visits')
+    .select('visit_id,my_id,ncst,tarih_saat').eq('durum','Gerçekleşti')
+    .gte('tarih_saat',since).not('tarih_saat','is',null);
+  const visDup=_ciftGruplaBul(vis, r=>r.my_id+'|'+r.ncst, r=>new Date(r.tarih_saat).getTime(), WIN);
+  const {data:opp} = await sb.from('opportunities')
+    .select('opp_id,my_id,ncst,urun_adi,olusturma_tarihi')
+    .gte('olusturma_tarihi',since).not('olusturma_tarihi','is',null);
+  const oppDup=_ciftGruplaBul(opp, r=>r.my_id+'|'+r.ncst+'|'+(r.urun_adi||''), r=>new Date(r.olusturma_tarihi).getTime(), WIN);
+  const {data:tsk} = await sb.from('tasks')
+    .select('task_id,atayan_id,atanan_id,ncst,baslik,olusturma_tarihi')
+    .gte('olusturma_tarihi',since).not('olusturma_tarihi','is',null);
+  const tskDup=_ciftGruplaBul(tsk, r=>r.atayan_id+'|'+r.atanan_id+'|'+r.ncst+'|'+(r.baslik||''), r=>new Date(r.olusturma_tarihi).getTime(), WIN);
+  return {visDup, oppDup, tskDup};
+}
+
+// Çift grupları HTML tabloya çevirir + silinecek id'leri döndürür
+function _vsCiftRender(dupGroups, idKey, zamanKey, etiket){
+  if(!dupGroups.length) return {html:'', silId:[]};
+  const rowStyle='padding:7px;border-bottom:1px solid var(--border);font-size:12px;';
+  const thStyle='padding:7px;font-size:10px;color:var(--text3);text-transform:uppercase;';
+  let silId=[];
+  let rows='';
+  dupGroups.forEach(g=>{
+    const ids=g.map(r=>r[idKey]).sort((a,b)=>a-b);
+    const tut=ids[0]; const sil=ids.slice(1);
+    silId=silId.concat(sil);
+    const zaman=new Date(g[0][zamanKey]).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'});
+    rows+=`<tr>
+      <td style="${rowStyle}">${escapeHTML(String(g[0].ncst||'?'))}</td>
+      <td style="${rowStyle}">${escapeHTML(String(g[0].my_id||g[0].atanan_id||'?'))}</td>
+      <td style="${rowStyle}">${escapeHTML(zaman)}</td>
+      <td style="${rowStyle}">${g.length}</td>
+      <td style="${rowStyle};color:var(--green);">#${tut}</td>
+      <td style="${rowStyle};color:var(--red);">${sil.map(x=>'#'+x).join(', ')}</td>
+    </tr>`;
+  });
+  const html=`<div style="margin-bottom:16px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">${etiket} (${dupGroups.length} grup, ${silId.length} fazla)</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="background:var(--navy2);"><th style="${thStyle}">Müşteri</th><th style="${thStyle}">MY/Atanan</th><th style="${thStyle}">İlk Kayıt</th><th style="${thStyle}">Adet</th><th style="${thStyle}">Tutulacak</th><th style="${thStyle}">Silinecek</th></tr>
+        ${rows}
+      </table>
+    </div>
+  </div>`;
+  return {html, silId};
+}
+
 async function veriSagligiTara(){
   const sonucDiv=document.getElementById('veriSagligiSonuc');
   sonucDiv.innerHTML='<div class="loader"><div class="spinner"></div></div><div style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;">Taranıyor...</div>';
@@ -1595,6 +1666,22 @@ async function veriSagligiTara(){
     // Düzeltme verisini sakla
     window._vsDuzeltOpp=oppList.map(o=>({id:o.opp_id,kcm:custKcmMap[o.ncst]||userKcmMap[o.my_id]?.kcm_id,musteri_my_id:custMyMap[o.ncst]?.my_id||o.musteri_my_id})).filter(x=>x.kcm);
     window._vsDuzeltVis=visList.map(v=>({id:v.visit_id,kcm:custKcmMap[v.ncst]||userKcmMap[v.my_id]?.kcm_id,musteri_my_id:custMyMap[v.ncst]?.my_id||v.musteri_my_id})).filter(x=>x.kcm);
+
+    // v30.83: ÇİFT KAYIT bölümü
+    const _cift = await _vsCiftKayitBul();
+    const _cv=_vsCiftRender(_cift.visDup,'visit_id','tarih_saat','📝 Çift Temas');
+    const _co=_vsCiftRender(_cift.oppDup,'opp_id','olusturma_tarihi','💼 Çift Fırsat (aynı ürün, 10 dk)');
+    const _ct=_vsCiftRender(_cift.tskDup,'task_id','olusturma_tarihi','✅ Çift Görev (aynı başlık, 10 dk)');
+    window._vsCiftSil={ visits:_cv.silId, opportunities:_co.silId, tasks:_ct.silId };
+    const _toplamCift=_cv.silId.length+_co.silId.length+_ct.silId.length;
+    if(_toplamCift>0){
+      html+=`<div style="margin-top:20px;border-top:2px solid var(--border);padding-top:14px;">`;
+      html+=`<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;">🔁 Çift Kayıtlar — toplam ${_toplamCift} fazla</div>`;
+      html+=_cv.html+_co.html+_ct.html;
+      html+=`</div>`;
+    } else {
+      html+=`<div style="margin-top:20px;border-top:2px solid var(--border);padding-top:14px;color:var(--green);font-size:13px;">✅ Son 30 günde çift kayıt yok.</div>`;
+    }
 
     sonucDiv.innerHTML=html;
   }catch(err){

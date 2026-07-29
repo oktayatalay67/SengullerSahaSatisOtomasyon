@@ -1,0 +1,55 @@
+﻿async function saveNewContact(){
+  const name=document.getElementById('newContactName').value.trim();
+  const title=document.getElementById('newContactTitle').value.trim();
+  const phone=document.getElementById('newContactPhone').value.trim();
+  const email=document.getElementById('newContactEmail').value.trim();
+  if(!name){toast('Ad Soyad zorunlu','error');return;}
+  // v2.10.16: SayÄ±sal isim uyarÄ±sÄ± â€” NCST/telefon numarasÄ± girilmiÅŸ olabilir
+  if(/^\d+$/.test(name)){
+    toast('âš ï¸ Ad Soyad alanÄ± sadece rakam iÃ§eriyor. LÃ¼tfen kiÅŸinin adÄ±nÄ± girin.','error');
+    return;
+  }
+  const source = window._newKontakSource;
+  const editId = source==='edit' ? window._editingKontakId : null;
+  let ncst;
+  if(source==='musteri') ncst=selectedMusteri?.ncst;
+  else if(source==='firsat_form') ncst=firsatSelectedMusteri?.ncst;
+  else if(source==='firsat') ncst=oppSelectedNcst;
+  else if(source==='edit') ncst=null;
+  else ncst=selectedCustomer?.ncst;
+  if(editId){
+    // DÃ¼zenleme modu
+    const upd={ad_soyad:name,gorev_unvani:title,telefon:phone,email:email};
+    const{error}=await sb.from('contacts').update(upd).eq('contact_id',editId);
+    if(!error){
+      toast('Kontak gÃ¼ncellendi','success');
+      closeModal('newContactModal');
+      if(selectedMusteri) loadMusteriKontaklar(selectedMusteri.ncst);
+      else if(selectedCustomer) loadContacts(selectedCustomer.ncst);
+    } else { toast('Hata: '+error.message,'error'); }
+  } else {
+    if(!ncst){toast('MÃ¼ÅŸteri seÃ§ili deÄŸil','error');return;}
+    const{error}=await sb.from('contacts').insert({ncst,ad_soyad:name,gorev_unvani:title,telefon:phone,email:email});
+    if(!error){
+      toast('Kontak eklendi','success');
+      closeModal('newContactModal');
+      if(source==='firsat_form' && firsatSelectedMusteri) loadFirsatKontaklar(firsatSelectedMusteri.ncst);
+      else if(source==='firsat' && oppSelectedNcst) loadOppKontaklar(oppSelectedNcst);
+      else if(source==='musteri' && selectedMusteri) loadMusteriKontaklar(selectedMusteri.ncst);
+      else if(selectedCustomer) loadContacts(selectedCustomer.ncst);
+      window._newKontakSource=null;
+    } else { toast('Hata: '+error.message,'error'); }
+  }
+}
+
+/* ===== TEMAS KAYDET ===== */
+let _savingTemasLock = false;
+async function saveTemas(){
+  // v2.10.23: KRÄ°TÄ°K â€” Ã§ift kayÄ±t Ã¶nleme. DOM disabled Ã¶zelliÄŸi tek baÅŸÄ±na yeterli
+  // deÄŸildi (dokunmatik ekranda hÄ±zlÄ± Ã§ift dokunma bunu atlayabiliyordu). BaÄŸÄ±msÄ±z
+  // bir bayrak ile, fonksiyon Ã§alÄ±ÅŸÄ±rken ikinci Ã§aÄŸrÄ± en baÅŸta reddediliyor.
+  if(_savingTemasLock){ return; }
+  _savingTemasLock = true;
+  const _btn = document.getElementById('saveTemasBtn');
+  const _btnOrijinalText = _btn ? _btn.textContent : null;
+  if(_btn){ _btn.disabled=true; _btn.textContent='â³ Kaydediliyor...'; }

@@ -1,6 +1,6 @@
 <!--
 ============================================================
-  index.html — V30.79
+  index.html — V30.83
   Son güncelleme: 2026-07-12
 
   Bağımlılıklar:
@@ -21,6 +21,36 @@
     v30.67 — FIX: Rapor 'q.in is not a function' (async builder thenable
              tuzağı) giderildi; filtre önce çözülüp senkron uygulanıyor.
              ?v= cache-busting v30.67'ye alındı. temas.js v2.10.34.
+
+    V30.83 — VERİ SAĞLIĞI: ÇİFT KAYIT TESPİTİ (listeleme)
+             Veri Sağlığı taraması artık temas + fırsat + görev çift kayıtlarını
+             da buluyor (son 30 gün, 10 dk penceresi). Temas: aynı MY+müşteri+
+             dakika. Fırsat: aynı MY+müşteri+ürün. Görev: aynı atayan+atanan+
+             müşteri+başlık. Şimdilik sadece listeler (silme sonraki adımda).
+
+    V30.82 — ÇİFT KAYIT BUG FIX (kritik) + temas seçim-anı kontak kontrolü
+             • Hızlı çift-tıklama artık ikinci temas kaydı oluşturamaz. saveTemas
+               başarı yolunda kilit (buton) navigasyon bitene kadar açık kalıyor;
+               önceden addLog/görev await beklerken açılıp ikinci insert oluşuyordu.
+             • Temas formunda kontak İŞARETLENİNCE eksikse kart açılır (V30.81).
+
+    V30.81 — VERİ KALİTESİ ADIM 4 (TEMAS): SEÇİM ANINDA KONTAK KONTROLÜ
+             Temas formunda müşteri kontağı İŞARETLENDİĞİ anda doğrulanır.
+             Kontak dogrulandi=false veya bilgi eksik/hatalıysa hemen kontak
+             kartı açılır, kullanıcı tamamlayıp temasa döner. Kontrol seçim
+             anında (toggleContactSelect); kaydetmede kontrol yok. Bellekten
+             yapılır (ekstra sorgu yok), sadece seçilen kontak kontrol edilir.
+             (Fırsat ve görev sonraki adımlarda eklenecek.)
+
+    V30.80 — KONTAK VERİ KALİTESİ KAPISI (İş 1)
+             • Kontak kartı kaydında ad-soyad (unvan çıkar→≥2 kelime, virgül=red),
+               telefon (+90 5xx xxx xx xx maske, normalize, tekrar/ardışık=red),
+               e-posta (zorunlu, sahte domain=red), kontak tipi (çoklu, ≥1 zorunlu)
+               doğrulanır. Katı mod: yeni VE düzenlemede geçerli. Kurallar DB'den
+               (sistem_ayarlari); admin ekler/çıkarır.
+             • Müşteri unvanı kontak kartında donuk saklanır; customers.unvan
+               değişmişse onayla güncellenir.
+             • dogrulandi=true olan kontak ziyarette tekrar sorulmaz (Adım 4).
 
     V30.79 — SABİT YETKİ KARARLARI DB'YE TAŞINDI
              Koda gömülü 11 rol listesi kontrolü hasPerm()'e çevrildi ve 7 yeni
@@ -1972,6 +2002,12 @@
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title" id="newContactModalTitle">Yeni Kontak</div>
+    <!-- v30.80: Müşteri unvanı (donuk + değişim onayı) -->
+    <div class="field" style="margin-bottom:10px;">
+      <label>Müşteri Unvanı</label>
+      <input type="text" id="newContactMusteriUnvani" readonly style="width:100%;background:var(--navy2);border:1px solid var(--border);border-radius:8px;color:var(--text2);padding:10px;font-size:14px;">
+      <div id="newContactUnvanUyari" style="display:none;font-size:11px;color:var(--orange);margin-top:5px;"></div>
+    </div>
     <div class="field" style="margin-bottom:10px;">
       <label>Ad Soyad <span style="color:var(--red);">*</span></label>
       <input type="text" id="newContactName" placeholder="Ad Soyad..." autocomplete="off" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
@@ -1982,11 +2018,16 @@
     </div>
     <div class="field" style="margin-bottom:10px;">
       <label>Telefon</label>
-      <input type="tel" id="newContactPhone" placeholder="05xx xxx xx xx" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+      <input type="tel" id="newContactPhone" placeholder="+90 5xx xxx xx xx" maxlength="17" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
     </div>
     <div class="field" style="margin-bottom:16px;">
       <label>E-Posta</label>
       <input type="email" id="newContactEmail" placeholder="eposta@ornek.com" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+    </div>
+    <!-- v30.80: Kontak tipi (çoklu, en az 1 zorunlu) -->
+    <div class="field" style="margin-bottom:16px;">
+      <label>Kontak Tipi <span style="color:var(--red);">*</span></label>
+      <div id="newContactTipleri" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <button class="btn btn-ghost" onclick="closeModal('newContactModal')">İptal</button>
@@ -2292,18 +2333,19 @@
 </div>
 
 <!-- ===== JAVASCRIPT MODÜLLERİ ===== -->
-<script src="js/config.js?v=v30.79"></script>
-<script src="js/yetki.js?v=v30.79"></script>
-<script src="js/utils.js?v=v30.79"></script>
-<script src="js/auth.js?v=v30.79"></script>
-<script src="js/gorev.js?v=v30.79"></script>
-<script src="js/talep.js?v=v30.79"></script>
-<script src="js/temas.js?v=v30.79"></script>
-<script src="js/firsat.js?v=v30.79"></script>
-<script src="js/musteri.js?v=v30.79"></script>
-<script src="js/hedef.js?v=v30.79"></script>
-<script src="js/admin.js?v=v30.79"></script>
-<script src="js/rapor.js?v=v30.79"></script>
+<script src="js/config.js?v=v30.83"></script>
+<script src="js/yetki.js?v=v30.83"></script>
+<script src="js/veri_kalitesi.js?v=v30.83"></script>
+<script src="js/utils.js?v=v30.83"></script>
+<script src="js/auth.js?v=v30.83"></script>
+<script src="js/gorev.js?v=v30.83"></script>
+<script src="js/talep.js?v=v30.83"></script>
+<script src="js/temas.js?v=v30.83"></script>
+<script src="js/firsat.js?v=v30.83"></script>
+<script src="js/musteri.js?v=v30.83"></script>
+<script src="js/hedef.js?v=v30.83"></script>
+<script src="js/admin.js?v=v30.83"></script>
+<script src="js/rapor.js?v=v30.83"></script>
 
 </body>
 </html>

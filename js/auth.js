@@ -1,5 +1,5 @@
 // ============================================================
-// auth.js — v1.2.15
+// auth.js — v1.2.16
 // Son güncelleme: 2026-07-12
 // Değişiklikler:
 //   v1.2.14 — (V30.77) applyRBAC sabit rol listesi yerine DB scope'u kullanir.
@@ -115,6 +115,8 @@ async function initApp(){
   // v1.2.13 (V30.76): Yetki katmanı DB'den yüklenir — hasPerm/getScope'tan ÖNCE olmalı.
   const permOk = await loadPermFromDB();
   if(!permOk){ toast('Yetki bilgisi yüklenemedi — lütfen tekrar giriş yapın','error'); }
+  // v30.80: Veri kalitesi ayarlarını (kontak tipleri, yasaklı domain, unvan kelimeleri) yükle
+  if(typeof loadVeriKalitesiAyar==='function') await loadVeriKalitesiAyar();
   await loadProductsFromDB();
   await loadKcmMyIds();
   await loadBagliMyIds();

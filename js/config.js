@@ -1,7 +1,18 @@
 // ============================================================
-// config.js — v1.2.28
+// config.js — v1.2.32
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.32 — APP_VERSION → V30.83. Veri Sağlığı: çift kayıt TESPİTİ (temas +
+//             fırsat + görev, 10 dk penceresi, son 30 gün). Sadece listeleme.
+//   v1.2.31 — APP_VERSION → V30.82. ÇİFT KAYIT FIX: saveTemas başarı yolunda
+//             kilit navigasyona kadar açılmıyor (hızlı çift-tık ikinci insert'i
+//             oluşturamaz). + Temas seçim-anı kontak doğrulama (V30.81).
+//   v1.2.30 — APP_VERSION → V30.81. Adim 4: ziyaret VE firsat girisinde secili
+//             kontak dogrulama. dogrulandi=false ise kayit durur, kontak karti
+//             acilir, tamamlanir. Bellekten kontrol (ekstra sorgu yok).
+//   v1.2.29 — APP_VERSION → V30.80. Kontak veri kalitesi kapisi: kontak karti
+//             ad-soyad/telefon/email/kontak-tipi dogrulamasi (veri_kalitesi.js),
+//             musteri unvani donuk saklama, telefon maskesi, dogrulandi bayragi.
 //   v1.2.28 — APP_VERSION → V30.79. 11 sabit yetki karari hasPerm()'e cevrildi
 //             (evrak_onayla, mudur_onay, firsat_iptal_onay, gorev_tumunu_gor,
 //             portfoy_yukle, temas_yonetici_duzenle, yonetici_tam). Artik DB'den.
@@ -58,7 +69,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.79';
+const APP_VERSION = 'V30.83';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

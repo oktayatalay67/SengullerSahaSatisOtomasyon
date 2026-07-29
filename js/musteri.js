@@ -1,5 +1,5 @@
 // ============================================================
-// musteri.js — v1.1.9
+// musteri.js — v1.2.0
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
 //   v1.1.9 — (V30.77) loadMusteriOzetler: BAGLI kapsam dali eklendi. TAKIM
@@ -384,6 +384,15 @@ function toggleContactSelect(id,name){
     selectedContactsMap.set(id,name);
     el.classList.add('selected');
     el.querySelector('.c-check').classList.remove('hide');
+    // v30.81 (Adım 4): SEÇİM ANINDA veri kalitesi — seçilen kontak eksik/doğrulanmamışsa
+    // hemen kartı aç, kullanıcı tamamlasın. (Kaydetmede kontrol yok; kural burada işler.)
+    if(typeof seciliKontakEksik==='function'){
+      const _eksik = seciliKontakEksik([id]);
+      if(_eksik){
+        toast('Seçilen müşteri kontak bilgileri eksik. Lütfen tamamlayın','error');
+        if(typeof openEditKontakModal==='function') openEditKontakModal(id);
+      }
+    }
   }
   // v30.23: Kontak seçimine göre form alanlarını aç/kilitle
   _updateKontakFormState();
@@ -495,6 +504,9 @@ function openYeniKontakModal(source){
   ['newContactName','newContactTitle','newContactPhone','newContactEmail'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value='';
   });
+  if(typeof renderKontakTipleri==='function') renderKontakTipleri('newContactTipleri', []);
+  if(typeof telefonMaskeBagla==='function') telefonMaskeBagla('newContactPhone');
+  _kontakMusteriUnvaniDoldur(ncst);
   openModal('newContactModal');
 }
 
@@ -1052,16 +1064,40 @@ function onKontakSearch(val){
   kontakSearchTimer = setTimeout(()=>loadKontaklar(val), 350);
 }
 
+// v30.80: Kontak kartina musteri (sirket) unvanini doldurur; donuk saklanir.
+async function _kontakMusteriUnvaniDoldur(ncst, kayitliUnvan){
+  const inp = document.getElementById('newContactMusteriUnvani');
+  const uyari = document.getElementById('newContactUnvanUyari');
+  if(!inp) return;
+  if(uyari){ uyari.style.display='none'; uyari.textContent=''; }
+  if(!ncst){ inp.value = kayitliUnvan||''; return; }
+  let guncelUnvan='';
+  try{
+    const {data} = await sb.from('customers').select('unvan').eq('ncst', ncst).single();
+    guncelUnvan = (data && data.unvan) ? data.unvan : '';
+  }catch(e){}
+  if(!kayitliUnvan){ inp.value = guncelUnvan; return; }
+  inp.value = kayitliUnvan;
+  if(guncelUnvan && guncelUnvan!==kayitliUnvan && uyari){
+    uyari.style.display='';
+    uyari.innerHTML = 'Musteri unvani degismis: "'+escapeHTML(kayitliUnvan)+'" -> "'+escapeHTML(guncelUnvan)+'". '
+      + '<a href="#" onclick="document.getElementById(\'newContactMusteriUnvani\').value='+JSON.stringify(guncelUnvan)+';this.parentElement.style.display=\'none\';return false;" style="color:var(--blue);text-decoration:underline;">Guncelle</a>';
+  }
+}
+
 async function openEditKontakModal(contactId){
   const {data:k} = await sb.from('contacts').select('*').eq('contact_id',contactId).single();
   if(!k) return;
   window._newKontakNcst = k.ncst||'';
   document.getElementById('newContactName').value = k.ad_soyad||'';
   document.getElementById('newContactTitle').value = k.gorev_unvani||'';
-  document.getElementById('newContactPhone').value = k.telefon||'';
+  document.getElementById('newContactPhone').value = (typeof telefonMaskele==='function') ? telefonMaskele(k.telefon||'') : (k.telefon||'');
   document.getElementById('newContactEmail').value = k.email||'';
+  if(typeof renderKontakTipleri==='function') renderKontakTipleri('newContactTipleri', Array.isArray(k.kontak_tipi)?k.kontak_tipi:[]);
+  if(typeof telefonMaskeBagla==='function') telefonMaskeBagla('newContactPhone');
   window._editingKontakId = contactId;
   window._newKontakSource = 'edit';
+  await _kontakMusteriUnvaniDoldur(k.ncst, k.musteri_unvani);
   openModal('newContactModal');
 }
 

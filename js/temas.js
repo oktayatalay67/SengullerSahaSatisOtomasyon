@@ -1,5 +1,5 @@
 // ============================================================
-// temas.js — v2.10.39
+// temas.js — v2.10.44
 // Son güncelleme: 2026-07-09
 // Değişiklikler:
 //   v2.10.38 — (V30.77) loadTemasDashboard: BAGLI kapsam dali eklendi. TAKIM
@@ -446,6 +446,10 @@ function yeniTemasAc(){
 async function initTemasForm(){
   // v30.32: Edit modunda bu fonksiyon atlanır - openTemasFormForEdit kendi doldurur
   if(window._temasEditMode){ window._temasEditMode=false; window._pendingTemasCustomer=null; window._pendingTemasApply=null; return; }
+  // v2.10.43 (V30.80) BUG FIX: eski salt-görüntüleme temasından (Gerçekleşen +8sa)
+  // sonra saveTemasBtn display:none kalıp yeni temasta da gizli kalıyordu.
+  // Yeni form açılışında (edit değil) butonu tekrar görünür yap.
+  const _stbtn=document.getElementById('saveTemasBtn'); if(_stbtn) _stbtn.style.display='';
   // v2.10.3 (B): Yeni form açılışında durum buton kilitlerini sıfırla
   const btnPlan2=document.getElementById('btnDurumPlanlanan');
   const btnGerc2=document.getElementById('btnDurumGerceklesen');
@@ -1167,6 +1171,9 @@ async function loadContacts(ncst){
   container.innerHTML='<div class="loader"><div class="spinner"></div></div>';
   selectedContactsMap.clear();
   const{data}=await sb.from('contacts').select('*').eq('ncst',ncst).neq('aktif',false).order('ad_soyad');
+  // v30.80 (Adım 4): kontakları belleğe al — kaydetmede ekstra sorgu olmadan doğrulama
+  window._formKontakMap = {};
+  (data||[]).forEach(c=>{ window._formKontakMap[c.contact_id]=c; });
   if(data&&data.length>0){
     container.innerHTML=data.map(c=>renderKontakItemForForm(c,'toggleContactSelect','ccheck')).join('');
   } else {
@@ -1184,37 +1191,62 @@ async function loadContacts(ncst){
 
 
 async function saveNewContact(){
-  const name=document.getElementById('newContactName').value.trim();
-  const title=document.getElementById('newContactTitle').value.trim();
-  const phone=document.getElementById('newContactPhone').value.trim();
-  const email=document.getElementById('newContactEmail').value.trim();
-  if(!name){toast('Ad Soyad zorunlu','error');return;}
-  // v2.10.16: Sayısal isim uyarısı — NCST/telefon numarası girilmiş olabilir
-  if(/^\d+$/.test(name)){
-    toast('⚠️ Ad Soyad alanı sadece rakam içeriyor. Lütfen kişinin adını girin.','error');
-    return;
+  const name  = document.getElementById('newContactName').value.trim();
+  const title = document.getElementById('newContactTitle').value.trim();
+  const phone = document.getElementById('newContactPhone').value.trim();
+  const email = document.getElementById('newContactEmail').value.trim();
+  const musteriUnvani = document.getElementById('newContactMusteriUnvani').value.trim();
+  const kontakTipi = (typeof getSeciliKontakTipleri==='function') ? getSeciliKontakTipleri('newContactTipleri') : [];
+
+  // v30.80: VERİ KALİTESİ KAPISI — kaydetmeden önce doğrula (yeni + düzenleme, katı mod)
+  if(typeof kontakDogrula==='function'){
+    const kontrol = kontakDogrula({ ad_soyad:name, telefon:phone, email:email, kontak_tipi:kontakTipi, musteri_unvani:musteriUnvani });
+    if(!kontrol.gecerli){
+      const mesaj = 'Kontak bilgileri eksik veya hatalı:\n• ' + kontrol.hatalar.map(h=>h.sebep).join('\n• ');
+      toast('Kontak bilgileri eksik/hatalı — lütfen tamamlayın','error');
+      alert(mesaj);
+      // Hatalı alanları görsel işaretle
+      _kontakHataIsaretle(kontrol.hatalar);
+      return;
+    }
   }
+  // Telefonu normalize edilmiş biçimde sakla (5xxxxxxxxx)
+  const telefonKayit = (typeof telefonNormalize==='function') ? telefonNormalize(phone) : phone;
+
   const source = window._newKontakSource;
   const editId = source==='edit' ? window._editingKontakId : null;
   let ncst;
   if(source==='musteri') ncst=selectedMusteri?.ncst;
   else if(source==='firsat_form') ncst=firsatSelectedMusteri?.ncst;
   else if(source==='firsat') ncst=oppSelectedNcst;
-  else if(source==='edit') ncst=null;
+  else if(source==='edit') ncst=window._newKontakNcst||null;
   else ncst=selectedCustomer?.ncst;
+
+  const payload = {
+    ad_soyad:name, gorev_unvani:title, telefon:telefonKayit, email:email,
+    musteri_unvani:musteriUnvani, kontak_tipi:kontakTipi, dogrulandi:true
+  };
+
   if(editId){
-    // Düzenleme modu
-    const upd={ad_soyad:name,gorev_unvani:title,telefon:phone,email:email};
-    const{error}=await sb.from('contacts').update(upd).eq('contact_id',editId);
+    const{error}=await sb.from('contacts').update(payload).eq('contact_id',editId);
     if(!error){
       toast('Kontak güncellendi','success');
       closeModal('newContactModal');
+      // v30.80 (Adım 4): belleği güncelle + seçimi koru
+      if(window._formKontakMap && window._formKontakMap[editId]){
+        window._formKontakMap[editId] = Object.assign({}, window._formKontakMap[editId], payload, {contact_id:editId});
+      }
+      const _koru = (typeof selectedContactsMap!=='undefined') ? new Map(selectedContactsMap) : null;
       if(selectedMusteri) loadMusteriKontaklar(selectedMusteri.ncst);
-      else if(selectedCustomer) loadContacts(selectedCustomer.ncst);
+      else if(selectedCustomer){
+        await loadContacts(selectedCustomer.ncst);
+        if(_koru){ _koru.forEach((v,k)=>{ if(window._formKontakMap[k]){ selectedContactsMap.set(k,v); const chk=document.getElementById('ccheck_'+k); if(chk) chk.classList.remove('hide'); } }); }
+      }
     } else { toast('Hata: '+error.message,'error'); }
   } else {
     if(!ncst){toast('Müşteri seçili değil','error');return;}
-    const{error}=await sb.from('contacts').insert({ncst,ad_soyad:name,gorev_unvani:title,telefon:phone,email:email});
+    payload.ncst = ncst;
+    const{error}=await sb.from('contacts').insert(payload);
     if(!error){
       toast('Kontak eklendi','success');
       closeModal('newContactModal');
@@ -1225,6 +1257,14 @@ async function saveNewContact(){
       window._newKontakSource=null;
     } else { toast('Hata: '+error.message,'error'); }
   }
+}
+
+// v30.80: hatalı alanları kırmızı çerçeveyle işaretle
+function _kontakHataIsaretle(hatalar){
+  const map={ ad_soyad:'newContactName', telefon:'newContactPhone', email:'newContactEmail',
+              musteri_unvani:'newContactMusteriUnvani', kontak_tipi:'newContactTipleri' };
+  Object.values(map).forEach(id=>{ const el=document.getElementById(id); if(el) el.style.borderColor='var(--border)'; });
+  (hatalar||[]).forEach(h=>{ const el=document.getElementById(map[h.alan]); if(el) el.style.borderColor='var(--red)'; });
 }
 
 /* ===== TEMAS KAYDET ===== */
@@ -1325,10 +1365,14 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       renderTmsEklenmisFirsatlar();
     }
   }
-  _savingTemasLock=false;
-  document.getElementById('saveTemasBtn').disabled=false;
-  document.getElementById('saveTemasBtn').textContent=_btnOrijinalText;
-  if(error)toast('Hata (saveTemas): '+error.message,'error');
+  // v2.10.44: ÇİFT KAYIT FIX — başarı yolunda kilidi BURADA açma. Önceden burada
+  // açılıyordu; ardından gelen addLog/görev await'leri sırasında (ağ gecikmesi)
+  // ikinci hızlı tık ikinci insert'i oluşturabiliyordu. Kilit navigasyona kadar açık kalmalı.
+  if(error){
+    toast('Hata (saveTemas): '+error.message,'error');
+    _savingTemasLock=false;
+    if(_btn){_btn.disabled=false;_btn.textContent=_btnOrijinalText;}
+  }
   else{
     // v30.01: wasEditing değişkeni ile doğru log aksiyonu (window.currentEditingVisitId artık null)
     // v30.29 BUG-4: Timeline'a tam detay yaz
@@ -1362,6 +1406,9 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
     navHistory = [];
     showPage('pageMenuTemas');
     loadTemasDashboardDebounced();
+    // v2.10.44: kayıt + navigasyon tamamlandı — kilidi şimdi aç
+    _savingTemasLock=false;
+    if(_btn){_btn.disabled=false;_btn.textContent=_btnOrijinalText;}
   }
   }catch(e){
     console.error('[saveTemas HATA]', e.stack||e.message, e);
