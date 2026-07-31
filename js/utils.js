@@ -123,6 +123,7 @@ function navTo(pid,reset=false){
   if(pid==='pageGorevAdmin'){renderGorevTipleriAdmin();}
   if(pid==='pageAdmin'){ adminMenueGeri(); }
   if(pid==='pageMusteri')initMusteriPage();
+  if(pid==='pageMenuDonanim'){initDonanimPage();}
   if(pid==='pageMenuHedef')initHedefTakip();
   if(pid==='pageYonetici')initYoneticiPanel();
   if(pid==='pageHedefKalem'){loadYoneticiHedefKalemler();}

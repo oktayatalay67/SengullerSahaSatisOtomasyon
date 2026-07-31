@@ -1,5 +1,5 @@
 // ============================================================
-// yetki.js — v1.2.0
+// yetki.js — v1.2.1
 // Son güncelleme: 2026-07-22
 // Değişiklikler:
 //   v1.1.0 — EKRAN YENİDEN TASARLANDI: yatay taşan dev matris kaldırıldı.
@@ -31,10 +31,15 @@ const YETKI_SCOPE_TANIM = [
 
 const YETKI_MODUL_ADLARI = {
   musteri:'Müşteri', temas:'Temas / Ziyaret', firsat:'Fırsat',
-  gorev:'Görev', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu'
+  gorev:'Görev', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
+  donanim:'Donanım Takip'
 };
 
 const YETKI_ACTION_GRUP = [
+  { grup:'Donanım Takip', items:{
+      donanim_on_rezerve_et:'Ön rezervasyon oluşturur (MY/FMY)',
+      donanim_rezerve_et:'Rezervasyonu onaylar/kesinleştirir',
+      donanim_yonet:'Ürün ekler/düzenler (stok girişi)' } },
   { grup:'Yönetim', items:{
       admin_panel:'Admin paneline girebilir',
       yonetici_panel:'Yönetici paneline girebilir',

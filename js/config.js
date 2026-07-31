@@ -1,7 +1,22 @@
 // ============================================================
-// config.js — v1.2.32
+// config.js — v1.2.36
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.36 — APP_VERSION → V30.87. Donanım: Ön Rezervasyon sepet mekanizması
+//             (MY/FMY çoklu ürün seçip müşteri+satan MY ile tek talep oluşturur).
+//             Yeni izin: donanim_on_rezerve_et. on_rezerve_adet artar, stok
+//             görünürlüğü/musait_adet DEĞİŞMEZ (kesinleşme sonraki fazda).
+//   v1.2.35 — APP_VERSION → V30.86. KRİTİK FIX: Excel stok yüklemesi hiçbir
+//             kayıt yazmıyordu (kısmi unique index ON CONFLICT ile uyumsuzdu,
+//             hata sessizce yutuluyordu). Artık: (1) tam unique constraint,
+//             (2) rapor gerçek DB yazma sonucuna göre kuruluyor, hata varsa
+//             açıkça gösteriliyor, asla yanlış 'yüklendi' demiyor.
+//   v1.2.34 — APP_VERSION → V30.85. Donanım: ERP uyumlu Excel toplu stok
+//             yükleme (Seri No bazlı, malzeme_kodu ile eşleşme, kelime-bazlı
+//             arama). Kart görünümü artık aciklama bazlı (marka/model zorunlu değil).
+//   v1.2.33 — APP_VERSION → V30.84. Donanım Takip modülü (MVP) eklendi:
+//             stok listesi + KÇM/marka/model filtre görüntüleme (donanim.js).
+//             Ekleme/rezervasyon formları sonraki adımda.
 //   v1.2.32 — APP_VERSION → V30.83. Veri Sağlığı: çift kayıt TESPİTİ (temas +
 //             fırsat + görev, 10 dk penceresi, son 30 gün). Sadece listeleme.
 //   v1.2.31 — APP_VERSION → V30.82. ÇİFT KAYIT FIX: saveTemas başarı yolunda
@@ -69,7 +84,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.83';
+const APP_VERSION = 'V30.87';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

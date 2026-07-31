@@ -1,6 +1,6 @@
 <!--
 ============================================================
-  index.html — V30.83
+  index.html — V30.87
   Son güncelleme: 2026-07-12
 
   Bağımlılıklar:
@@ -21,6 +21,41 @@
     v30.67 — FIX: Rapor 'q.in is not a function' (async builder thenable
              tuzağı) giderildi; filtre önce çözülüp senkron uygulanıyor.
              ?v= cache-busting v30.67'ye alındı. temas.js v2.10.34.
+
+    V30.87 — DONANIM: ÖN REZERVASYON SEPET MEKANİZMASI
+             MY/FMY dahil yetkili roller, listede birden fazla ürünü işaretleyip
+             adet girerek TEK bir "Ön Rezervasyon Talebi" oluşturur (sepet_id ile
+             gruplu). Müşteri arama (KÇM scope'a uygun) + cihazı satacak MY/FMY
+             seçimi + not alanı. Onaylandığı üzere: ön rezervasyon STOKTA
+             GÖRÜNMEYE DEVAM EDER (on_rezerve_adet artar, musait_adet DEĞİŞMEZ).
+             Kesinleştirme (OLM onayı, stoktan düşme) SONRAKİ fazda eklenecek.
+             Yeni yetki: donanim_on_rezerve_et (Rol&Yetki'den yönetilir).
+
+    V30.86 — KRİTİK FIX: Excel stok yüklemesi hiçbir kayıt yazmıyordu
+             Kök neden: stok_urunleri üzerindeki kısmi (WHERE'li) unique index,
+             upsert()'in ON CONFLICT hedefiyle uyuşmuyordu — her ürün grubu
+             oluşturma denemesi sessizce hata veriyordu, hiçbir seri no kalıcı
+             olmuyordu, ama rapor yanlışlıkla "yüklendi" gösteriyordu (SQL_STOK_06
+             ile şema düzeltildi: tam unique constraint). Kod tarafında da rapor
+             artık GERÇEK yazma sonucuna göre kuruluyor — hata varsa "❌ HATA"
+             olarak açıkça gösterilir, asla sessizce yutulmaz.
+
+    V30.85 — DONANIM: ERP UYUMLU EXCEL STOK YÜKLEME
+             Gerçek ERP Seri No raporu marka/model ayrıştırması yapmadan
+             doğrudan işlenebiliyor: Malzeme Kodu ana anahtar, Malzeme Açıklaması
+             (ham metin) gösterim/arama için kullanılıyor, Seri No (IMEI değil —
+             telefon-dışı ürünler de kapsanıyor) tekillik kontrolü sağlıyor.
+             KÇM yükleme öncesi seçilir. Aynı seri no tekrar yüklenirse atlanır;
+             farklı ürüne aitse hata olarak raporlanır. Ekranda detaylı rapor +
+             otomatik Excel indirme. Timeline'a tek özet log (kim/ne zaman/sayılar).
+             Arama artık kelime-bazlı (sıra önemsiz).
+
+    V30.84 — DONANIM TAKİP MODÜLÜ (MVP — Adım 4a: görüntüleme)
+             Yeni menü: Donanım Takip (Temas altı, Fırsat sağı). Stok listesi
+             kart görünümünde: marka/model/renk/GB/fiyat/müsait adet. KÇM filtresi
+             (TL/Müdür/Muhasebe&Depo/Admin tüm depoları görür; MY/FMY sadece kendi
+             KÇM'si). Marka/model arama. Ekleme ve rezervasyon formları henüz yok
+             (placeholder — sonraki adımda eklenecek).
 
     V30.83 — VERİ SAĞLIĞI: ÇİFT KAYIT TESPİTİ (listeleme)
              Veri Sağlığı taraması artık temas + fırsat + görev çift kayıtlarını
@@ -308,6 +343,7 @@
       <div class="menu-box" onclick="navTo('pageMusteri')"><div class="menu-box-icon">👤</div><div class="menu-box-title">Müşteri</div></div>
       <div class="menu-box" onclick="navTo('pageMenuTemas')"><div class="menu-box-icon">📍</div><div class="menu-box-title">Temas</div></div>
       <div class="menu-box" onclick="navTo('pagePipeline')"><div class="menu-box-icon">💼</div><div class="menu-box-title">Fırsat</div></div>
+      <div class="menu-box" onclick="navTo('pageMenuDonanim')" id="menuDonanimBox"><div class="menu-box-icon">📦</div><div class="menu-box-title">Donanım Takip</div></div>
       <div class="menu-box" onclick="navTo('pageMenuHedef')"><div class="menu-box-icon">🎯</div><div class="menu-box-title">Hedef Takip</div></div>
       <div class="menu-box" onclick="navTo('pageMenuRapor')"><div class="menu-box-icon">📈</div><div class="menu-box-title">Raporlar</div></div>
       <div class="menu-box" onclick="navTo('pageGorev')" style="position:relative;"><div class="menu-box-icon">📋</div><div class="menu-box-title">Görevler</div><span id="gorevMenuBadge" style="display:none;position:absolute;top:6px;right:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:18px;text-align:center;"></span></div>
@@ -335,6 +371,109 @@
     <div class="version-info" id="appVersionInfo"><span class="app-ver">V30.62</span> | Yükleniyor...</div>
   </div>
   <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V30.62</span></div>
+</div>
+
+<!-- DONANIM TAKİP -->
+<div class="page" id="pageMenuDonanim">
+  <div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Donanım Takip</div></div>
+  <div class="scroll">
+    <button id="donanimYeniUrunBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="openDonanimYeniUrun()">+ Yeni Ürün Ekle</button>
+    <div id="donanimKcmFiltreWrap" style="display:none;margin-bottom:8px;">
+      <select id="donanimKcmFiltre" onchange="donanimFiltreDegisti()" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">
+        <option value="">Tüm KÇM'ler</option>
+      </select>
+    </div>
+    <input type="text" id="donanimMarkaFiltre" placeholder="Ara (marka, model, kod...)" oninput="donanimFiltreDegistiDebounce()" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;margin-bottom:10px;">
+    <button id="donanimExcelYukleBtn" class="btn btn-ghost" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimExcelYukle()">📤 Excel ile Stok Yükle</button>
+    <div id="donanimListesi"></div>
+  </div>
+  <!-- Yüzen sepet çubuğu (seçim modunda) -->
+  <div id="donanimSepetBar" class="hide" style="position:sticky;bottom:0;left:0;right:0;background:var(--navy2);border-top:1px solid var(--border);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+    <span id="donanimSepetSayac" style="font-size:13px;font-weight:700;">0 ürün seçili</span>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="donanimSecimModunuKapat()">İptal</button>
+      <button class="btn btn-sm" style="background:var(--blue);" onclick="donanimSepetiAc()">Devam Et →</button>
+    </div>
+  </div>
+</div>
+
+<!-- DONANIM: EXCEL STOK YÜKLEME MODALI -->
+<div class="modal-overlay" id="donanimExcelModal" onclick="if(event.target===this)closeModal('donanimExcelModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Excel ile Stok Yükle</div>
+    <div id="donanimExcelAdim1">
+      <div class="field" style="margin-bottom:10px;">
+        <label>KÇM (Depo) <span style="color:var(--red);">*</span></label>
+        <select id="donanimExcelKcm" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+          <option value="">Seçiniz...</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Depo Adı (opsiyonel)</label>
+        <input type="text" id="donanimExcelDepoAdi" placeholder="Örn: Merkez Depo" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+      </div>
+      <div class="field" style="margin-bottom:16px;">
+        <label>Excel Dosyası (ERP Seri No raporu) <span style="color:var(--red);">*</span></label>
+        <input type="file" id="donanimExcelDosya" accept=".xlsx,.xls" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn btn-ghost" onclick="closeModal('donanimExcelModal')">İptal</button>
+        <button class="btn" style="background:var(--blue);" onclick="donanimExcelIsle()">İşle</button>
+      </div>
+    </div>
+    <div id="donanimExcelAdim2" class="hide">
+      <div id="donanimExcelIlerleme" style="text-align:center;padding:20px;">
+        <div class="loader"><div class="spinner"></div></div>
+        <div style="font-size:12px;color:var(--text2);margin-top:8px;" id="donanimExcelIlerlemeMetin">İşleniyor...</div>
+      </div>
+      <div id="donanimExcelSonuc" class="hide">
+        <div id="donanimExcelOzet" style="font-size:13px;font-weight:700;margin-bottom:10px;"></div>
+        <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:12px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead><tr style="background:var(--navy2);position:sticky;top:0;">
+              <th style="padding:6px;text-align:left;">Seri No</th><th style="padding:6px;text-align:left;">Ürün</th>
+              <th style="padding:6px;text-align:left;">Durum</th><th style="padding:6px;text-align:left;">Açıklama</th>
+            </tr></thead>
+            <tbody id="donanimExcelRaporTablo"></tbody>
+          </table>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button class="btn btn-ghost" onclick="closeModal('donanimExcelModal')">Kapat</button>
+          <button class="btn" style="background:var(--green);" onclick="donanimExcelRaporIndir()">📥 Raporu İndir (Excel)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DONANIM: SEPET (ÇOKLU ÖN REZERVASYON) MODALI -->
+<div class="modal-overlay" id="donanimSepetModal" onclick="if(event.target===this)closeModal('donanimSepetModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Ön Rezervasyon Talebi</div>
+    <div id="donanimSepetListesi" style="max-height:180px;overflow:auto;margin-bottom:12px;"></div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Müşteri <span style="color:var(--red);">*</span></label>
+      <input type="text" id="donanimSepetMusteriArama" placeholder="Müşteri ara (ünvan/NCST)..." oninput="donanimMusteriAramaDebounce()" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+      <div id="donanimSepetMusteriSonuc" style="margin-top:4px;"></div>
+      <div id="donanimSepetMusteriSecili" class="hide" style="margin-top:6px;padding:8px;background:var(--navy3);border-radius:8px;font-size:13px;"></div>
+    </div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Cihazı Satacak MY/FMY <span style="color:var(--red);">*</span></label>
+      <select id="donanimSepetSatanMy" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+        <option value="">Seçiniz...</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:16px;">
+      <label>Not (opsiyonel)</label>
+      <textarea id="donanimSepetNot" rows="2" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn btn-ghost" onclick="closeModal('donanimSepetModal')">İptal</button>
+      <button class="btn" style="background:var(--blue);" onclick="donanimSepetGonder()">📌 Ön Rezervasyon Oluştur</button>
+    </div>
+  </div>
 </div>
 
 <!-- TEMAS YÖNETİMİ -->
@@ -2333,19 +2472,20 @@
 </div>
 
 <!-- ===== JAVASCRIPT MODÜLLERİ ===== -->
-<script src="js/config.js?v=v30.83"></script>
-<script src="js/yetki.js?v=v30.83"></script>
-<script src="js/veri_kalitesi.js?v=v30.83"></script>
-<script src="js/utils.js?v=v30.83"></script>
-<script src="js/auth.js?v=v30.83"></script>
-<script src="js/gorev.js?v=v30.83"></script>
-<script src="js/talep.js?v=v30.83"></script>
-<script src="js/temas.js?v=v30.83"></script>
-<script src="js/firsat.js?v=v30.83"></script>
-<script src="js/musteri.js?v=v30.83"></script>
-<script src="js/hedef.js?v=v30.83"></script>
-<script src="js/admin.js?v=v30.83"></script>
-<script src="js/rapor.js?v=v30.83"></script>
+<script src="js/config.js?v=v30.87"></script>
+<script src="js/yetki.js?v=v30.87"></script>
+<script src="js/veri_kalitesi.js?v=v30.87"></script>
+<script src="js/donanim.js?v=v30.87"></script>
+<script src="js/utils.js?v=v30.87"></script>
+<script src="js/auth.js?v=v30.87"></script>
+<script src="js/gorev.js?v=v30.87"></script>
+<script src="js/talep.js?v=v30.87"></script>
+<script src="js/temas.js?v=v30.87"></script>
+<script src="js/firsat.js?v=v30.87"></script>
+<script src="js/musteri.js?v=v30.87"></script>
+<script src="js/hedef.js?v=v30.87"></script>
+<script src="js/admin.js?v=v30.87"></script>
+<script src="js/rapor.js?v=v30.87"></script>
 
 </body>
 </html>
