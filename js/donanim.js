@@ -1,4 +1,12 @@
 // ============================================================
+// donanim.js — v1.0.3 (V30.92)
+//   v1.0.3 (V30.92): Rezervasyon kartına Müşteri/Müşterinin MY'si/Rezerve eden.
+// donanim.js — v1.0.2 (V30.91)
+//   v1.0.2 (V30.91): openDonanimRezDetay embedded join (400) -> 2 sorgu.
+// donanim.js — v1.0.1 (V30.90)
+//   v1.0.1 (V30.90): Rezervasyon onay yetkisine Takım Lideri eklendi
+//     (kendi ekibi = bagliMyIds). Yetki tek noktada: _donanimRezOnayYetkisi().
+//     donanimRezervasyonOnayla() başına savunmacı guard.
 // donanim.js — v1.0.0 (V30.84)
 // ------------------------------------------------------------
 // DONANIM TAKİP MODÜLÜ — MVP: liste + filtre + görüntüleme
@@ -21,6 +29,8 @@ async function initDonanimPage(){
   if(yonetBtn) yonetBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
   const excelBtn = document.getElementById('donanimExcelYukleBtn');
   if(excelBtn) excelBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
+  const rezBtn = document.getElementById('donanimRezervasyonBtn');
+  if(rezBtn) rezBtn.style.display = hasPerm('donanim_on_rezerve_et') ? '' : 'none';
   window._donanimSepet = {};
   window._donanimSecimModu = false;
   _donanimSepetBarGuncelle();
@@ -58,10 +68,11 @@ async function loadDonanimListesi(){
 
   const scope = getScope('donanim');
   if(scope === 'KÇM' && currentUser.kcm_id){
-    q = q.eq('kcm_id', currentUser.kcm_id);
+    // v30.89: tum_kcm=true ürünler KÇM'den bağımsız her yerde görünür
+    q = q.or(`kcm_id.eq.${currentUser.kcm_id},tum_kcm.eq.true`);
   } else if(scope === 'TÜM'){
     const kcmFiltre = document.getElementById('donanimKcmFiltre')?.value;
-    if(kcmFiltre) q = q.eq('kcm_id', parseInt(kcmFiltre));
+    if(kcmFiltre) q = q.or(`kcm_id.eq.${kcmFiltre},tum_kcm.eq.true`);
   }
 
   // v30.85: kelime-bazlı arama (sıra önemsiz) — aciklama + malzeme_kodu içinde
@@ -125,7 +136,6 @@ function _renderDonanimListesi(list){
       </div>` : ''}
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="openDonanimTimeline(${u.urun_id})">📜 Geçmiş</button>
-        ${!window._donanimSecimModu && canOnRezerve && musait>0 ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="donanimSecimModunuAc(${u.urun_id})">📌 Ön Rezerve Et</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -388,6 +398,7 @@ function donanimExcelRaporIndir(){
    ============================================================ */
 
 function donanimSecimModunuAc(ilkUrunId){
+  // v30.89: artık tek üst buton ile çağrılıyor (kartlarda tekil buton yok)
   window._donanimSecimModu = true;
   if(ilkUrunId){
     const u = (window._donanimList||[]).find(x=>x.urun_id===ilkUrunId);
@@ -451,19 +462,51 @@ async function donanimSepetiAc(){
   document.getElementById('donanimSepetMusteriSecili').classList.add('hide');
   window._donanimSepetSeciliMusteri = null;
 
-  const satanSel = document.getElementById('donanimSepetSatanMy');
-  if(satanSel.options.length<=1){
-    const {data} = await sb.from('users').select('my_id,ad_soyad,yetki_seviyesi')
-      .in('yetki_seviyesi',['MY','FMY']).eq('aktif',true).order('ad_soyad');
-    satanSel.innerHTML = '<option value="">Seçiniz...</option>' +
-      (data||[]).map(u=>`<option value="${u.my_id}">${escapeHTML(u.ad_soyad)} (${u.yetki_seviyesi})</option>`).join('');
-  }
-  // Kendisi MY/FMY ise varsayılan olarak kendini seçili getir
-  if(currentUser.yetki_seviyesi==='MY' || currentUser.yetki_seviyesi==='FMY'){
-    satanSel.value = String(currentUser.my_id);
+  // v30.88: MY/FMY kendisi giriyorsa hiçbir seçim göstermeden otomatik kendisi olur.
+  const kendiMY = (currentUser.yetki_seviyesi==='MY' || currentUser.yetki_seviyesi==='FMY');
+  document.getElementById('donanimSatanSecimBlok').classList.toggle('hide', kendiMY);
+  document.getElementById('donanimSatanKendisi').classList.toggle('hide', !kendiMY);
+  if(kendiMY){
+    document.getElementById('donanimSatanKendisi').innerHTML = `Satan: <b>${escapeHTML(currentUser.ad_soyad||'')} (Siz)</b>`;
+  } else {
+    // Kademeli seçim: KÇM listesi (bir kez yükle)
+    const kcmSel = document.getElementById('donanimSepetKcm');
+    if(kcmSel.options.length<=1){
+      const {data} = await sb.from('kcm_groups').select('kcm_id,kcm_adi').order('kcm_adi');
+      kcmSel.innerHTML = '<option value="">Seçiniz...</option>' +
+        (data||[]).map(k=>`<option value="${k.kcm_id}">${escapeHTML(k.kcm_adi)}</option>`).join('');
+    }
+    document.getElementById('donanimSepetTl').innerHTML = '<option value="">Önce KÇM seçin...</option>';
+    document.getElementById('donanimSepetSatanMy').innerHTML = '<option value="">Önce Takım Lideri seçin...</option>';
   }
 
   openModal('donanimSepetModal');
+}
+
+// Kademeli seçim: KÇM seçilince o KÇM'nin Takım Liderlerini yükler
+async function _donanimTLListesiYukle(){
+  const kcmId = document.getElementById('donanimSepetKcm').value;
+  const tlSel = document.getElementById('donanimSepetTl');
+  const mySel = document.getElementById('donanimSepetSatanMy');
+  tlSel.innerHTML = '<option value="">Yükleniyor...</option>';
+  mySel.innerHTML = '<option value="">Önce Takım Lideri seçin...</option>';
+  if(!kcmId){ tlSel.innerHTML='<option value="">Önce KÇM seçin...</option>'; return; }
+  const {data} = await sb.from('users').select('my_id,ad_soyad')
+    .eq('yetki_seviyesi','TAKIM LİDERİ').eq('kcm_id',kcmId).eq('aktif',true).order('ad_soyad');
+  tlSel.innerHTML = '<option value="">Seçiniz...</option>' +
+    (data||[]).map(u=>`<option value="${u.my_id}">${escapeHTML(u.ad_soyad)}</option>`).join('');
+}
+
+// Kademeli seçim: Takım Lideri seçilince o ekibin MY/FMY'lerini yükler
+async function _donanimMyListesiYukle(){
+  const tlId = document.getElementById('donanimSepetTl').value;
+  const mySel = document.getElementById('donanimSepetSatanMy');
+  mySel.innerHTML = '<option value="">Yükleniyor...</option>';
+  if(!tlId){ mySel.innerHTML='<option value="">Önce Takım Lideri seçin...</option>'; return; }
+  const {data} = await sb.from('users').select('my_id,ad_soyad,yetki_seviyesi')
+    .in('yetki_seviyesi',['MY','FMY']).eq('takim_lideri_id',tlId).eq('aktif',true).order('ad_soyad');
+  mySel.innerHTML = '<option value="">Seçiniz...</option>' +
+    (data||[]).map(u=>`<option value="${u.my_id}">${escapeHTML(u.ad_soyad)} (${u.yetki_seviyesi})</option>`).join('');
 }
 
 let _donanimMusteriAramaTimer=null;
@@ -500,7 +543,8 @@ function donanimMusteriTemizle(){
 // Sepeti gönderir: her ürün için ayrı rezervasyon satırı, ortak sepet_id, on_rezerve_adet artırılır
 async function donanimSepetGonder(){
   const musteri = window._donanimSepetSeciliMusteri;
-  const satanMyId = document.getElementById('donanimSepetSatanMy').value;
+  const kendiMY = (currentUser.yetki_seviyesi==='MY' || currentUser.yetki_seviyesi==='FMY');
+  const satanMyId = kendiMY ? currentUser.my_id : document.getElementById('donanimSepetSatanMy').value;
   const not = document.getElementById('donanimSepetNot').value.trim();
   if(!musteri){ toast('Müşteri seçin','error'); return; }
   if(!satanMyId){ toast('Cihazı satacak MY/FMY seçin','error'); return; }
@@ -556,4 +600,230 @@ function donanimSecimModunuKapat(){
   window._donanimSepet = {};
   _donanimSepetBarGuncelle();
   _renderDonanimListesi(window._donanimList);
+}
+
+/* ============================================================
+   SÜREÇ TAKİP EKRANI (v30.88)
+   ------------------------------------------------------------
+   Sekmeli yapı: "Stok" (mevcut liste) / "Rezervasyonlar" (süreç takibi)
+   Görünürlük: getScope('donanim_takip')
+     MY/FMY = PRT (sadece kendi sattığı) | TL/Müdür = KÇM | Admin/Depo/Direktör = TÜM
+   ============================================================ */
+
+// v30.90: Rezervasyon onay/red yetkisi — tek nokta.
+// Admin/Direktör/Depo => tüm KÇM | KÇM Müdürü => kendi KÇM | TL => kendi ekibi (bagliMyIds)
+function _donanimRezOnayYetkisi(satanMyId, kcmId){
+  if(!hasPerm('donanim_rezerve_et')) return false;
+  const rol = (currentUser.yetki_seviyesi||'').toUpperCase();
+  if(['ADMIN','SATIŞ DİREKTÖRÜ','MUHASEBE & DEPO UZMANI'].includes(rol)) return true;
+  if(rol==='KÇM MÜDÜRÜ')   return kcmId === currentUser.kcm_id;
+  if(rol==='TAKIM LİDERİ')  return (bagliMyIds||[]).includes(satanMyId);
+  return false;
+}
+
+const DONANIM_SUREC_ADIMLARI = {
+  'Ön Rezervasyon':          {no:1, renk:'#e74c3c'},
+  'Onaylandı':               {no:2, renk:'#e67e22'},
+  'Finans Onay Bekliyor':    {no:3, renk:'#f39c12'},
+  'Tahsilat Bekliyor':       {no:4, renk:'#f1c40f'},
+  'Sevkiyat':                {no:5, renk:'#a4c639'},
+  'Tamamlandı':              {no:6, renk:'#2ecc71'},
+  'İptal':                   {no:0, renk:'#7f8c8d'}
+};
+
+function donanimTabGeç(hangi){
+  const stokBtn = document.getElementById('donanimTabStokBtn');
+  const rezBtn = document.getElementById('donanimTabRezBtn');
+  const stokSekme = document.getElementById('donanimStokSekme');
+  const rezSekme = document.getElementById('donanimRezSekme');
+  const sepetBar = document.getElementById('donanimSepetBar');
+  if(hangi==='stok'){
+    stokBtn.style.background='var(--blue)'; stokBtn.classList.remove('btn-ghost');
+    rezBtn.style.background=''; rezBtn.classList.add('btn-ghost');
+    stokSekme.classList.remove('hide'); rezSekme.classList.add('hide');
+    if(sepetBar) _donanimSepetBarGuncelle();
+  } else {
+    rezBtn.style.background='var(--blue)'; rezBtn.classList.remove('btn-ghost');
+    stokBtn.style.background=''; stokBtn.classList.add('btn-ghost');
+    rezSekme.classList.remove('hide'); stokSekme.classList.add('hide');
+    if(sepetBar) sepetBar.classList.add('hide');
+    loadDonanimRezervasyonlar();
+  }
+}
+
+async function loadDonanimRezervasyonlar(){
+  const listEl = document.getElementById('donanimRezListesi');
+  if(!listEl) return;
+  listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+
+  const scope = getScope('donanim_takip');
+  let q = sb.from('stok_rezervasyon_ozet').select('*').order('created_at',{ascending:false});
+  if(scope==='PRT') q = q.eq('satan_my_id', currentUser.my_id);
+  else if(scope==='KÇM' && currentUser.kcm_id) q = q.eq('kcm_id', currentUser.kcm_id);
+  // TÜM: filtresiz
+
+  const {data, error} = await q;
+  if(error){ listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`; return; }
+  if(!data || !data.length){ listEl.innerHTML = '<div class="empty">Kayıtlı rezervasyon yok.</div>'; return; }
+
+  // MY/TL/KÇM adlarını toplu çek
+  // v30.92: satan + rezerve eden + müşterinin MY'si isimleri için id kümesi genişletildi
+  const myIds = [...new Set(data.flatMap(r=>[r.satan_my_id, r.rezerve_eden_id, r.musteri_my_id]).filter(Boolean))];
+  const kcmIds = [...new Set(data.map(r=>r.kcm_id).filter(Boolean))];
+  let myMap={}, kcmMap={};
+  if(myIds.length){
+    const {data:users} = await sb.from('users').select('my_id,ad_soyad,takim_lideri_id').in('my_id',myIds);
+    (users||[]).forEach(u=>{ myMap[u.my_id]=u; });
+    const tlIds=[...new Set((users||[]).map(u=>u.takim_lideri_id).filter(Boolean))];
+    if(tlIds.length){
+      const {data:tls} = await sb.from('users').select('my_id,ad_soyad').in('my_id',tlIds);
+      (tls||[]).forEach(t=>{ myMap['TL_'+t.my_id]=t; });
+    }
+  }
+  if(kcmIds.length){
+    const {data:kcms} = await sb.from('kcm_groups').select('kcm_id,kcm_adi').in('kcm_id',kcmIds);
+    (kcms||[]).forEach(k=>{ kcmMap[k.kcm_id]=k.kcm_adi; });
+  }
+
+  // v30.92: müşteri ünvanlarını ncst ile toplu çek
+  const ncstList = [...new Set(data.map(r=>r.ncst).filter(Boolean))];
+  const musteriMap = {};
+  if(ncstList.length){
+    const {data:musteriler} = await sb.from('customers').select('ncst,unvan').in('ncst', ncstList);
+    (musteriler||[]).forEach(m=>{ musteriMap[m.ncst]=m.unvan; });
+  }
+
+  // v30.89: onay yetkisi — KÇM Müdürü sadece kendi KÇM'si, Admin/Direktör/Depo hepsi
+  // v30.90: yetki kontrolü _donanimRezOnayYetkisi() tek noktasına taşındı
+
+  listEl.innerHTML = data.map(r=>{
+    const adim = DONANIM_SUREC_ADIMLARI[r.durum] || {no:'?', renk:'var(--text3)'};
+    const my = myMap[r.satan_my_id];
+    const tlAd = my && my.takim_lideri_id ? (myMap['TL_'+my.takim_lideri_id]?.ad_soyad||'—') : '—';
+    const buOnaylayabilir = r.durum==='Ön Rezervasyon' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
+    // v30.92: kartta gösterilecek yeni alanlar
+    const musteriAd   = musteriMap[r.ncst] || r.ncst || '—';
+    const musteriMyAd = myMap[r.musteri_my_id]?.ad_soyad || '—';
+    const rezEdenAd   = myMap[r.rezerve_eden_id]?.ad_soyad || '—';
+    return `<div class="visit-card" style="margin-bottom:8px;">
+      <div style="cursor:pointer;" onclick="openDonanimRezDetay('${r.sepet_id}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:12px;color:var(--text3);">${escapeHTML(kcmMap[r.kcm_id]||'KÇM#'+r.kcm_id)} · ${escapeHTML(tlAd)} · <b>${escapeHTML(my?.ad_soyad||'MY#'+r.satan_my_id)}</b></div>
+          <div style="width:26px;height:26px;border-radius:50%;background:${adim.renk};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">${adim.no}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+          <span style="font-size:11px;color:${adim.renk};font-weight:700;">${escapeHTML(r.durum)}</span>
+          <span style="font-size:14px;font-weight:800;">${Number(r.toplam_tutar||0).toLocaleString('tr-TR')} ₺</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">${r.kalem_sayisi} kalem · ${new Date(r.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'})}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px;border-top:1px solid var(--border);padding-top:4px;">
+          Müşteri: <b>${escapeHTML(musteriAd)}</b><br>
+          Müşterinin MY'si: ${escapeHTML(musteriMyAd)} · Rezerve eden: ${escapeHTML(rezEdenAd)}
+        </div>
+      </div>
+      ${buOnaylayabilir ? `<button class="btn btn-sm" style="width:100%;background:var(--green);margin-top:8px;" onclick="event.stopPropagation();donanimRezervasyonOnayla('${r.sepet_id}')">✅ Rezervasyona Çevir (Onayla)</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// v30.89: Ön Rezervasyon -> Rezervasyon (kesinleşme). SADECE bu adımda
+// stoktan gerçekten düşer: on_rezerve_adet azalır, rezerve_adet artar.
+async function donanimRezervasyonOnayla(sepetId){
+  if(!confirm('Bu rezervasyon talebini onaylayıp kesinleştirmek istediğinize emin misiniz?\n\nOnaylanınca cihazlar stoktan düşecek.')) return;
+
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
+  if(error || !kalemler?.length){ toast('Hata: kayıtlar bulunamadı','error'); return; }
+
+  // v30.90: savunmacı yetki kontrolü — buton görünmese de fonksiyon korunur
+  const ilkK = kalemler[0];
+  if(!_donanimRezOnayYetkisi(ilkK.satan_my_id, ilkK.kcm_id)){
+    toast('Bu rezervasyonu onaylama yetkiniz yok','error'); return;
+  }
+
+  for(const k of kalemler){
+    const {data:urun} = await sb.from('stok_urunleri').select('on_rezerve_adet,rezerve_adet').eq('urun_id', k.urun_id).single();
+    if(!urun) continue;
+    const yeniOnRez = Math.max(0, (urun.on_rezerve_adet||0) - k.adet);
+    const yeniRez = (urun.rezerve_adet||0) + k.adet;
+    await sb.from('stok_urunleri').update({on_rezerve_adet:yeniOnRez, rezerve_adet:yeniRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
+  }
+
+  await sb.from('stok_rezervasyonlari').update({durum:'Onaylandı', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
+
+  await sb.from('stok_hareketleri').insert({
+    aksiyon: 'Rezervasyon Onaylandı',
+    detay: `Sepet ${sepetId} onaylandı, ${kalemler.length} kalem stoktan düşürüldü.`,
+    user_id: currentUser.my_id,
+    user_ad: currentUser.ad_soyad || String(currentUser.my_id)
+  });
+
+  toast('Rezervasyon onaylandı, stoktan düşürüldü','success');
+  loadDonanimRezervasyonlar();
+}
+
+async function openDonanimRezDetay(sepetId){
+  const icerikEl = document.getElementById('donanimRezDetayIcerik');
+  icerikEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  openModal('donanimRezDetayModal');
+
+  // v30.91: embedded FK join (400) yerine 2 ayrı sorgu — iki tablo arası FK yok
+  const {data:kalemler, error:kErr} = await sb.from('stok_rezervasyonlari')
+    .select('*').eq('sepet_id', sepetId).order('created_at');
+  if(kErr || !kalemler || !kalemler.length){ icerikEl.innerHTML='<div class="empty">Bulunamadı.</div>'; return; }
+
+  // Ürün bilgisini ayrı çek ve eşle
+  const urunIds = [...new Set(kalemler.map(k=>k.urun_id).filter(Boolean))];
+  const urunMap = {};
+  if(urunIds.length){
+    const {data:urunler} = await sb.from('stok_urunleri').select('urun_id,aciklama,fiyat').in('urun_id', urunIds);
+    (urunler||[]).forEach(u=>{ urunMap[u.urun_id] = u; });
+  }
+
+  const ilk = kalemler[0];
+  const {data:myData} = await sb.from('users').select('ad_soyad,takim_lideri_id,kcm_id').eq('my_id',ilk.satan_my_id).single();
+  let tlAd='—', kcmAd='—';
+  if(myData?.takim_lideri_id){
+    const {data:tl} = await sb.from('users').select('ad_soyad').eq('my_id',myData.takim_lideri_id).single();
+    tlAd = tl?.ad_soyad||'—';
+  }
+  if(ilk.kcm_id){
+    const {data:kcm} = await sb.from('kcm_groups').select('kcm_adi').eq('kcm_id',ilk.kcm_id).single();
+    kcmAd = kcm?.kcm_adi||'—';
+  }
+
+  const adim = DONANIM_SUREC_ADIMLARI[ilk.durum] || {no:'?', renk:'var(--text3)'};
+  let toplam=0;
+  const satirlar = kalemler.map(k=>{
+    const fiyat = urunMap[k.urun_id]?.fiyat||0;
+    const satirToplam = fiyat * k.adet;
+    toplam += satirToplam;
+    return `<tr>
+      <td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;">${escapeHTML(urunMap[k.urun_id]?.aciklama||'—')}</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;text-align:center;">${k.adet}</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;">${Number(fiyat).toLocaleString('tr-TR')} ₺</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;font-weight:700;">${Number(satirToplam).toLocaleString('tr-TR')} ₺</td>
+    </tr>`;
+  }).join('');
+
+  icerikEl.innerHTML = `
+    <div style="margin-bottom:10px;font-size:13px;">
+      <div><b>KÇM:</b> ${escapeHTML(kcmAd)}</div>
+      <div><b>Takım Lideri:</b> ${escapeHTML(tlAd)}</div>
+      <div><b>MY/FMY:</b> ${escapeHTML(myData?.ad_soyad||'—')}</div>
+      <div style="margin-top:6px;"><span style="background:${adim.renk};color:#fff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">${adim.no}. ${escapeHTML(ilk.durum)}</span></div>
+    </div>
+    <div style="overflow:auto;border:1px solid var(--border);border-radius:8px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:var(--navy2);">
+          <th style="padding:6px;text-align:left;font-size:10px;color:var(--text3);">ÜRÜN</th>
+          <th style="padding:6px;font-size:10px;color:var(--text3);">ADET</th>
+          <th style="padding:6px;text-align:right;font-size:10px;color:var(--text3);">BİRİM</th>
+          <th style="padding:6px;text-align:right;font-size:10px;color:var(--text3);">TOPLAM</th>
+        </tr></thead>
+        <tbody>${satirlar}</tbody>
+      </table>
+    </div>
+    <div style="text-align:right;margin-top:10px;font-size:16px;font-weight:800;">Genel Toplam: ${Number(toplam).toLocaleString('tr-TR')} ₺</div>
+    ${ilk.aciklama ? `<div style="margin-top:8px;font-size:12px;color:var(--text2);">Not: ${escapeHTML(ilk.aciklama)}</div>` : ''}
+  `;
 }

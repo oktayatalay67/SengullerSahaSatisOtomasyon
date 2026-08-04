@@ -1,7 +1,24 @@
 // ============================================================
-// config.js — v1.2.36
+// config.js — v1.2.41
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.41 — APP_VERSION → V30.92. Donanım rezervasyon kartına 3 alan:
+//             Müşteri (ncst→unvan), Müşterinin MY'si, Rezerve eden.
+//   v1.2.40 — APP_VERSION → V30.91. Donanım rezervasyon DETAY modalı:
+//             embedded FK join (400) 2 ayrı sorguya bölündü.
+//   v1.2.39 — APP_VERSION → V30.90. Donanım rezervasyon onay yetkisi:
+//             Takım Lideri kendi ekibinin (bagliMyIds) sattığı Ön
+//             Rezervasyonları onaylayabilir. Yetki tek noktaya
+//             (_donanimRezOnayYetkisi) taşındı + savunmacı guard.
+//   v1.2.38 — APP_VERSION → V30.89. Donanım: tekil kart butonu kaldırıldı,
+//             KÇM filtresinin altına tek 'Rezervasyon' butonu kondu. Onay/
+//             kesinleştirme akışı eklendi (Ön Rezervasyon -> Rezervasyon,
+//             SADECE bu adımda stoktan düşer). tum_kcm ürün desteği
+//             (KÇM'den bağımsız her yerde görünür). TL scope KÇM'ye düşürüldü.
+//   v1.2.37 — APP_VERSION → V30.88. Donanım: Süreç Takip ekranı (Rezervasyonlar
+//             sekmesi) + kademeli KÇM→Takım Lideri→MY seçimi (MY kendisi girince
+//             gizlenir). Yeni scope: donanim_takip (MY=kendi, TL/Müdür=KÇM,
+//             Admin/Depo/Direktör=TÜM). marka NOT NULL bug'ı düzeltildi.
 //   v1.2.36 — APP_VERSION → V30.87. Donanım: Ön Rezervasyon sepet mekanizması
 //             (MY/FMY çoklu ürün seçip müşteri+satan MY ile tek talep oluşturur).
 //             Yeni izin: donanim_on_rezerve_et. on_rezerve_adet artar, stok
@@ -84,7 +101,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.87';
+const APP_VERSION = 'V30.92';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
