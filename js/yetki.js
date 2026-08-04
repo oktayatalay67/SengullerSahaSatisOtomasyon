@@ -1,7 +1,9 @@
 // ============================================================
-// yetki.js — v1.2.1
+// yetki.js — v1.2.2
 // Son güncelleme: 2026-07-22
 // Değişiklikler:
+//   v1.2.2 — (V30.93) Rol&Yetki: 'donanim_takip' (Süreç Takibi) modülü eklendi;
+//            'donanim' etiketi 'Stok Görünürlüğü' olarak ayrıştırıldı.
 //   v1.1.0 — EKRAN YENİDEN TASARLANDI: yatay taşan dev matris kaldırıldı.
 //            Artık "önce rol seç → o rolün ayarlarını dikey listede düzenle"
 //            akışı var; mobilde de okunur. Kapsam seçenekleri açıklamalı.
@@ -32,7 +34,7 @@ const YETKI_SCOPE_TANIM = [
 const YETKI_MODUL_ADLARI = {
   musteri:'Müşteri', temas:'Temas / Ziyaret', firsat:'Fırsat',
   gorev:'Görev', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
-  donanim:'Donanım Takip'
+  donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)'
 };
 
 const YETKI_ACTION_GRUP = [

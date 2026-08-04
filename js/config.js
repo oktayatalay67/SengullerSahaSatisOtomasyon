@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.2.41
+// config.js — v1.2.42
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.42 — APP_VERSION → V30.93. yetki.js: Rol&Yetki ekranına
+//             'donanim_takip' (Süreç Takibi) modül etiketi eklendi.
 //   v1.2.41 — APP_VERSION → V30.92. Donanım rezervasyon kartına 3 alan:
 //             Müşteri (ncst→unvan), Müşterinin MY'si, Rezerve eden.
 //   v1.2.40 — APP_VERSION → V30.91. Donanım rezervasyon DETAY modalı:
@@ -101,7 +103,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.92';
+const APP_VERSION = 'V30.93';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
