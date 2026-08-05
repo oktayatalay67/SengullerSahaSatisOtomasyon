@@ -1,4 +1,18 @@
 // ============================================================
+// donanim.js — v1.0.9 (V31.00)
+//   v1.0.9 (V31.00): Rezervasyon paket düzenleme (1.3) — ekle/çıkar/adet +
+//     durum-farkında stok diff + (sepet_id,urun_id) hedefli satır senkronu.
+// donanim.js — v1.0.8 (V30.99)
+//   v1.0.8 (V30.99): donanimRezervasyonRed (1.1) + donanimRezervasyonIptal (1.2).
+// donanim.js — v1.0.7 (V30.98)
+//   v1.0.7 (V30.98): Transfer onay akışı — onay1/onay2/red/iptal + stok taşıma
+//     (müsait yeniden kontrol, çift-onay guard, hedef hata->kaynak kompanzasyon).
+// donanim.js — v1.0.6 (V30.97)
+//   v1.0.6 (V30.97): Transfer sekme butonu yetkiyle gizlenir (initDonanimPage).
+// donanim.js — v1.0.5 (V30.96)
+//   v1.0.5 (V30.96): Transfer sekmesi + Yeni Talep modalı + talep listesi.
+// donanim.js — v1.0.4 (V30.94)
+//   v1.0.4 (V30.94): _donanimRezOnayYetkisi -> getScope('donanim_takip').
 // donanim.js — v1.0.3 (V30.92)
 //   v1.0.3 (V30.92): Rezervasyon kartına Müşteri/Müşterinin MY'si/Rezerve eden.
 // donanim.js — v1.0.2 (V30.91)
@@ -31,6 +45,12 @@ async function initDonanimPage(){
   if(excelBtn) excelBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
   const rezBtn = document.getElementById('donanimRezervasyonBtn');
   if(rezBtn) rezBtn.style.display = hasPerm('donanim_on_rezerve_et') ? '' : 'none';
+  // v30.97: Transfer sekmesi yalnız transfer yetkisi (talep VEYA onay) olanda görünür
+  const transferTabBtn = document.getElementById('donanimTabTransferBtn');
+  if(transferTabBtn){
+    const transferYetki = hasPerm('donanim_transfer_talep') || hasPerm('donanim_transfer_onay1') || hasPerm('donanim_transfer_onay2');
+    transferTabBtn.style.display = transferYetki ? '' : 'none';
+  }
   window._donanimSepet = {};
   window._donanimSecimModu = false;
   _donanimSepetBarGuncelle();
@@ -611,14 +631,15 @@ function donanimSecimModunuKapat(){
    ============================================================ */
 
 // v30.90: Rezervasyon onay/red yetkisi — tek nokta.
-// Admin/Direktör/Depo => tüm KÇM | KÇM Müdürü => kendi KÇM | TL => kendi ekibi (bagliMyIds)
+// v30.94: kapsam Rol&Yetki ekranından — getScope('donanim_takip') (liste ile tutarlı).
+//         Kodda sabit rol listesi YOK.
 function _donanimRezOnayYetkisi(satanMyId, kcmId){
   if(!hasPerm('donanim_rezerve_et')) return false;
-  const rol = (currentUser.yetki_seviyesi||'').toUpperCase();
-  if(['ADMIN','SATIŞ DİREKTÖRÜ','MUHASEBE & DEPO UZMANI'].includes(rol)) return true;
-  if(rol==='KÇM MÜDÜRÜ')   return kcmId === currentUser.kcm_id;
-  if(rol==='TAKIM LİDERİ')  return (bagliMyIds||[]).includes(satanMyId);
-  return false;
+  const scope = getScope('donanim_takip');
+  if(scope==='TÜM')   return true;
+  if(scope==='KÇM')   return kcmId === currentUser.kcm_id;
+  if(scope==='BAĞLI') return (bagliMyIds||[]).includes(satanMyId);
+  return satanMyId === currentUser.my_id;   // PRT / PRT+
 }
 
 const DONANIM_SUREC_ADIMLARI = {
@@ -631,24 +652,283 @@ const DONANIM_SUREC_ADIMLARI = {
   'İptal':                   {no:0, renk:'#7f8c8d'}
 };
 
+// v30.96: 3 sekme — Stok / Rezervasyonlar / Transfer
 function donanimTabGeç(hangi){
-  const stokBtn = document.getElementById('donanimTabStokBtn');
-  const rezBtn = document.getElementById('donanimTabRezBtn');
-  const stokSekme = document.getElementById('donanimStokSekme');
-  const rezSekme = document.getElementById('donanimRezSekme');
+  const tabs = {
+    stok:     {btn:'donanimTabStokBtn',     sekme:'donanimStokSekme'},
+    rez:      {btn:'donanimTabRezBtn',      sekme:'donanimRezSekme'},
+    transfer: {btn:'donanimTabTransferBtn', sekme:'donanimTransferSekme'}
+  };
   const sepetBar = document.getElementById('donanimSepetBar');
-  if(hangi==='stok'){
-    stokBtn.style.background='var(--blue)'; stokBtn.classList.remove('btn-ghost');
-    rezBtn.style.background=''; rezBtn.classList.add('btn-ghost');
-    stokSekme.classList.remove('hide'); rezSekme.classList.add('hide');
-    if(sepetBar) _donanimSepetBarGuncelle();
+  Object.keys(tabs).forEach(k=>{
+    const t = tabs[k], aktif = (k===hangi);
+    const btn = document.getElementById(t.btn), sekme = document.getElementById(t.sekme);
+    if(btn){ btn.style.background = aktif?'var(--blue)':''; btn.classList.toggle('btn-ghost', !aktif); }
+    if(sekme){ sekme.classList.toggle('hide', !aktif); }
+  });
+  if(hangi==='stok'){ if(sepetBar) _donanimSepetBarGuncelle(); }
+  else if(sepetBar){ sepetBar.classList.add('hide'); }
+  if(hangi==='rez') loadDonanimRezervasyonlar();
+  if(hangi==='transfer') loadDonanimTransferListesi();
+}
+
+// ============ TRANSFER (Adım 2: Talep) ============
+const DONANIM_TRANSFER_DURUM_RENK = {
+  'Aşama 1 Bekliyor':'#e67e22', 'Aşama 2 Bekliyor':'#f1c40f',
+  'Onaylandı':'#27ae60', 'Reddedildi':'#e74c3c', 'İptal':'var(--text3)'
+};
+
+async function loadDonanimTransferListesi(){
+  const listEl = document.getElementById('donanimTransferListesi');
+  if(!listEl) return;
+  const yeniBtn = document.getElementById('donanimTransferYeniBtn');
+  if(yeniBtn) yeniBtn.style.display = hasPerm('donanim_transfer_talep') ? 'block' : 'none';
+
+  listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+
+  // Görünürlük kapsamı — liste ile onay tutarlı olsun diye getScope('donanim_takip')
+  const scope = getScope('donanim_takip');
+  let q = sb.from('stok_transfer_talepleri').select('*').order('created_at',{ascending:false});
+  if(scope==='TÜM'){ /* filtresiz */ }
+  else if(scope==='KÇM' && currentUser.kcm_id){
+    q = q.or(`kaynak_kcm_id.eq.${currentUser.kcm_id},hedef_kcm_id.eq.${currentUser.kcm_id}`);
   } else {
-    rezBtn.style.background='var(--blue)'; rezBtn.classList.remove('btn-ghost');
-    stokBtn.style.background=''; stokBtn.classList.add('btn-ghost');
-    rezSekme.classList.remove('hide'); stokSekme.classList.add('hide');
-    if(sepetBar) sepetBar.classList.add('hide');
-    loadDonanimRezervasyonlar();
+    q = q.eq('talep_eden_id', currentUser.my_id);
   }
+  const {data, error} = await q;
+  if(error){ listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`; return; }
+  if(!data || !data.length){ listEl.innerHTML = '<div class="empty">Transfer talebi yok.</div>'; return; }
+
+  // Eşleme: KÇM adları, ürün açıklamaları, talep eden adı
+  const kcmIds  = [...new Set(data.flatMap(t=>[t.kaynak_kcm_id,t.hedef_kcm_id]).filter(Boolean))];
+  const urunIds = [...new Set(data.map(t=>t.kaynak_urun_id).filter(Boolean))];
+  const myIds   = [...new Set(data.map(t=>t.talep_eden_id).filter(Boolean))];
+  const kcmMap={}, urunMap={}, myMap={};
+  if(kcmIds.length){ const {data:k}=await sb.from('kcm_groups').select('kcm_id,kcm_adi').in('kcm_id',kcmIds); (k||[]).forEach(x=>kcmMap[x.kcm_id]=x.kcm_adi); }
+  if(urunIds.length){ const {data:u}=await sb.from('stok_urunleri').select('urun_id,aciklama').in('urun_id',urunIds); (u||[]).forEach(x=>urunMap[x.urun_id]=x.aciklama); }
+  if(myIds.length){ const {data:m}=await sb.from('users').select('my_id,ad_soyad').in('my_id',myIds); (m||[]).forEach(x=>myMap[x.my_id]=x.ad_soyad); }
+
+  listEl.innerHTML = data.map(t=>{
+    const renk = DONANIM_TRANSFER_DURUM_RENK[t.durum]||'var(--text3)';
+    // v30.98: duruma + yetkiye göre aksiyon butonları
+    const canOnay1  = t.durum==='Aşama 1 Bekliyor' && _donanimTransferOnay1Yetkisi(t.kaynak_kcm_id);
+    const canOnay2  = t.durum==='Aşama 2 Bekliyor' && hasPerm('donanim_transfer_onay2');
+    const canIptal  = ['Aşama 1 Bekliyor','Aşama 2 Bekliyor'].includes(t.durum) && t.talep_eden_id===currentUser.my_id;
+    let butonlar='';
+    if(canOnay1) butonlar += `<button class="btn btn-sm" style="flex:1;background:#27ae60;" onclick="donanimTransferOnay1(${t.id})">1. Onay</button>`;
+    if(canOnay2) butonlar += `<button class="btn btn-sm" style="flex:1;background:#27ae60;" onclick="donanimTransferOnay2(${t.id})">2. Onay (Taşı)</button>`;
+    if(canOnay1||canOnay2) butonlar += `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="donanimTransferReddet(${t.id})">Reddet</button>`;
+    if(canIptal) butonlar += `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="donanimTransferIptal(${t.id})">İptal</button>`;
+    const butonSatiri = butonlar ? `<div style="display:flex;gap:6px;margin-top:8px;">${butonlar}</div>` : '';
+    return `<div class="visit-card" style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-weight:600;font-size:13px;">${escapeHTML(urunMap[t.kaynak_urun_id]||'Cihaz #'+t.kaynak_urun_id)}</div>
+        <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${renk};color:#fff;white-space:nowrap;">${escapeHTML(t.durum)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px;">
+        ${escapeHTML(kcmMap[t.kaynak_kcm_id]||'KÇM#'+t.kaynak_kcm_id)} &rarr; ${escapeHTML(kcmMap[t.hedef_kcm_id]||'KÇM#'+t.hedef_kcm_id)} · <b>${t.adet} adet</b>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;">
+        Talep eden: ${escapeHTML(myMap[t.talep_eden_id]||'—')} · ${new Date(t.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'})}
+      </div>
+      ${t.aciklama?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">Not: ${escapeHTML(t.aciklama)}</div>`:''}
+      ${t.red_neden?`<div style="font-size:11px;color:var(--red);margin-top:2px;">Red: ${escapeHTML(t.red_neden)}</div>`:''}
+      ${butonSatiri}
+    </div>`;
+  }).join('');
+}
+
+// v30.98: 1. onay yetkisi — onay1 izni + kaynak KÇM kapsamı (getScope ile)
+function _donanimTransferOnay1Yetkisi(kaynakKcmId){
+  if(!hasPerm('donanim_transfer_onay1')) return false;
+  const scope = getScope('donanim_takip');
+  if(scope==='TÜM') return true;
+  if(scope==='KÇM') return kaynakKcmId === currentUser.kcm_id;
+  return false;
+}
+
+async function donanimTransferOnay1(id){
+  const {data:t, error} = await sb.from('stok_transfer_talepleri').select('*').eq('id',id).single();
+  if(error||!t){ toast('Talep bulunamadı','error'); return; }
+  if(t.durum!=='Aşama 1 Bekliyor'){ toast('Bu talep 1. onay aşamasında değil','info'); loadDonanimTransferListesi(); return; }
+  if(!_donanimTransferOnay1Yetkisi(t.kaynak_kcm_id)){ toast('1. onay yetkiniz yok','error'); return; }
+  const {error:uErr} = await sb.from('stok_transfer_talepleri').update({
+    durum:'Aşama 2 Bekliyor', asama1_onay_id:currentUser.my_id,
+    asama1_tarih:new Date().toISOString(), updated_at:new Date().toISOString()
+  }).eq('id',id).eq('durum','Aşama 1 Bekliyor');
+  if(uErr){ toast('Hata: '+uErr.message,'error'); return; }
+  await sb.from('stok_hareketleri').insert({ urun_id:t.kaynak_urun_id, aksiyon:'Transfer 1. Onay',
+    detay:`Talep #${id} 1. onay (KÇM#${t.kaynak_kcm_id} → KÇM#${t.hedef_kcm_id}, ${t.adet} adet)`,
+    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id) });
+  toast('1. onay verildi','success');
+  loadDonanimTransferListesi();
+}
+
+async function donanimTransferOnay2(id){
+  if(!hasPerm('donanim_transfer_onay2')){ toast('2. onay yetkiniz yok','error'); return; }
+  const {data:t, error} = await sb.from('stok_transfer_talepleri').select('*').eq('id',id).single();
+  if(error||!t){ toast('Talep bulunamadı','error'); return; }
+  if(t.durum!=='Aşama 2 Bekliyor'){ toast('Bu talep 2. onay aşamasında değil','info'); loadDonanimTransferListesi(); return; }
+
+  // Kaynak ürünü oku, müsait YENİDEN kontrol (talep sonrası stok değişmiş olabilir)
+  const {data:kaynak, error:kErr} = await sb.from('stok_urunleri').select('*').eq('urun_id',t.kaynak_urun_id).single();
+  if(kErr||!kaynak){ toast('Kaynak ürün bulunamadı','error'); return; }
+  const musait = (kaynak.toplam_adet||0) - (kaynak.rezerve_adet||0);
+  if(musait < t.adet){ toast(`Kaynak stok yetersiz (müsait: ${musait}, gerekli: ${t.adet}) — taşıma yapılmadı`,'error'); return; }
+
+  // 1) Kaynağı düş (gte guard: eşzamanlı düşüşte negatif olmaz)
+  const {data:kUpdData, error:kUpd} = await sb.from('stok_urunleri')
+    .update({ toplam_adet: kaynak.toplam_adet - t.adet, updated_at:new Date().toISOString() })
+    .eq('urun_id',kaynak.urun_id).gte('toplam_adet', t.adet).select('urun_id');
+  if(kUpd || !kUpdData || !kUpdData.length){ toast('Kaynak stok güncellenemedi (eşzamanlı değişim?) — taşıma yapılmadı','error'); loadDonanimTransferListesi(); return; }
+
+  // 2) Hedefe ekle (varsa +, yoksa yeni satır). Başarısız olursa kaynağı GERİ AL.
+  const {data:hedef} = await sb.from('stok_urunleri').select('*')
+    .eq('kcm_id',t.hedef_kcm_id).eq('malzeme_kodu',kaynak.malzeme_kodu).eq('depo_adi',kaynak.depo_adi).maybeSingle();
+  let hedefErr=null;
+  if(hedef){
+    const {error:hUpd} = await sb.from('stok_urunleri')
+      .update({ toplam_adet:(hedef.toplam_adet||0)+t.adet, updated_at:new Date().toISOString() }).eq('urun_id',hedef.urun_id);
+    hedefErr = hUpd;
+  } else {
+    const {error:hIns} = await sb.from('stok_urunleri').insert({
+      kcm_id:t.hedef_kcm_id, depo_adi:kaynak.depo_adi, malzeme_kodu:kaynak.malzeme_kodu,
+      marka:kaynak.marka, model:kaynak.model, renk:kaynak.renk, gb_hafiza:kaynak.gb_hafiza,
+      fiyat:kaynak.fiyat, aciklama:kaynak.aciklama, toplam_adet:t.adet, rezerve_adet:0, on_rezerve_adet:0, aktif:true
+    });
+    hedefErr = hIns;
+  }
+  if(hedefErr){
+    // KOMPANZASYON: kaynağı eski haline döndür
+    await sb.from('stok_urunleri').update({ toplam_adet: kaynak.toplam_adet, updated_at:new Date().toISOString() }).eq('urun_id',kaynak.urun_id);
+    toast('Hedefe eklenemedi, işlem geri alındı: '+hedefErr.message,'error');
+    loadDonanimTransferListesi();
+    return;
+  }
+
+  // 3) Talebi Onaylandı yap + timeline
+  await sb.from('stok_transfer_talepleri').update({ durum:'Onaylandı', asama2_onay_id:currentUser.my_id,
+    asama2_tarih:new Date().toISOString(), updated_at:new Date().toISOString() }).eq('id',id);
+  await sb.from('stok_hareketleri').insert({ urun_id:kaynak.urun_id, aksiyon:'Stok Transferi',
+    detay:`${t.adet} adet taşındı: KÇM#${t.kaynak_kcm_id} → KÇM#${t.hedef_kcm_id} (talep #${id})`,
+    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id) });
+
+  toast('Transfer onaylandı, stok taşındı','success');
+  loadDonanimTransferListesi();
+  if(typeof loadDonanimListesi==='function') loadDonanimListesi();
+}
+
+async function donanimTransferReddet(id){
+  const {data:t, error} = await sb.from('stok_transfer_talepleri').select('*').eq('id',id).single();
+  if(error||!t){ toast('Talep bulunamadı','error'); return; }
+  let yetkili=false;
+  if(t.durum==='Aşama 1 Bekliyor') yetkili=_donanimTransferOnay1Yetkisi(t.kaynak_kcm_id);
+  else if(t.durum==='Aşama 2 Bekliyor') yetkili=hasPerm('donanim_transfer_onay2');
+  if(!yetkili){ toast('Reddetme yetkiniz yok','error'); return; }
+  const neden = (prompt('Red nedeni (opsiyonel):','')||'').trim();
+  const {error:uErr} = await sb.from('stok_transfer_talepleri').update({ durum:'Reddedildi', red_neden:neden||null, updated_at:new Date().toISOString() }).eq('id',id);
+  if(uErr){ toast('Hata: '+uErr.message,'error'); return; }
+  await sb.from('stok_hareketleri').insert({ urun_id:t.kaynak_urun_id, aksiyon:'Transfer Reddedildi',
+    detay:`Talep #${id} reddedildi${neden?': '+neden:''}`, user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id) });
+  toast('Talep reddedildi','info');
+  loadDonanimTransferListesi();
+}
+
+async function donanimTransferIptal(id){
+  const {data:t, error} = await sb.from('stok_transfer_talepleri').select('*').eq('id',id).single();
+  if(error||!t){ toast('Talep bulunamadı','error'); return; }
+  if(t.talep_eden_id!==currentUser.my_id){ toast('Sadece talep eden iptal edebilir','error'); return; }
+  if(!['Aşama 1 Bekliyor','Aşama 2 Bekliyor'].includes(t.durum)){ toast('Bu talep iptal edilemez','info'); return; }
+  const {error:uErr} = await sb.from('stok_transfer_talepleri').update({ durum:'İptal', updated_at:new Date().toISOString() }).eq('id',id);
+  if(uErr){ toast('Hata: '+uErr.message,'error'); return; }
+  await sb.from('stok_hareketleri').insert({ urun_id:t.kaynak_urun_id, aksiyon:'Transfer İptal',
+    detay:`Talep #${id} talep eden tarafından iptal edildi`, user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id) });
+  toast('Talep iptal edildi','info');
+  loadDonanimTransferListesi();
+}
+
+async function donanimTransferModalAc(){
+  if(!hasPerm('donanim_transfer_talep')){ toast('Transfer talebi yetkiniz yok','error'); return; }
+  const {data:kcms} = await sb.from('kcm_groups').select('kcm_id,kcm_adi').order('kcm_adi');
+  const kaynakSel = document.getElementById('donanimTransferKaynakKcm');
+  const hedefSel  = document.getElementById('donanimTransferHedefKcm');
+  const hedefWrap = document.getElementById('donanimTransferHedefWrap');
+
+  // Kaynak: kendi KÇM'si hariç
+  kaynakSel.innerHTML = '<option value="">Seçiniz...</option>' +
+    (kcms||[]).filter(k=>k.kcm_id!==currentUser.kcm_id)
+      .map(k=>`<option value="${k.kcm_id}">${escapeHTML(k.kcm_adi)}</option>`).join('');
+
+  // Hedef: kcm_id varsa otomatik (gizli); global kullanıcı ise seçtir
+  if(currentUser.kcm_id){
+    hedefWrap.style.display='none';
+    window._transferHedefKcm = currentUser.kcm_id;
+  } else {
+    hedefWrap.style.display='block';
+    hedefSel.innerHTML = '<option value="">Seçiniz...</option>' +
+      (kcms||[]).map(k=>`<option value="${k.kcm_id}">${escapeHTML(k.kcm_adi)}</option>`).join('');
+    window._transferHedefKcm = null;
+  }
+
+  document.getElementById('donanimTransferCihaz').innerHTML = '<option value="">Önce kaynak KÇM seçin</option>';
+  document.getElementById('donanimTransferAdet').value = 1;
+  document.getElementById('donanimTransferAciklama').value = '';
+  window._transferMusaitMap = {};
+  openModal('donanimTransferModal');
+}
+
+async function donanimTransferKaynakSecildi(){
+  const kaynakKcm = document.getElementById('donanimTransferKaynakKcm').value;
+  const cihazSel  = document.getElementById('donanimTransferCihaz');
+  if(!kaynakKcm){ cihazSel.innerHTML='<option value="">Önce kaynak KÇM seçin</option>'; return; }
+  cihazSel.innerHTML='<option value="">Yükleniyor...</option>';
+  const {data, error} = await sb.from('stok_musait')
+    .select('urun_id,aciklama,musait_adet').eq('kcm_id',parseInt(kaynakKcm)).gt('musait_adet',0).order('aciklama');
+  if(error || !data || !data.length){ cihazSel.innerHTML='<option value="">Bu KÇM\'de müsait cihaz yok</option>'; return; }
+  window._transferMusaitMap = {};
+  data.forEach(u=>{ window._transferMusaitMap[u.urun_id]=u.musait_adet; });
+  cihazSel.innerHTML = '<option value="">Seçiniz...</option>' +
+    data.map(u=>`<option value="${u.urun_id}">${escapeHTML(u.aciklama||'Cihaz #'+u.urun_id)} (müsait: ${u.musait_adet})</option>`).join('');
+}
+
+async function donanimTransferKaydet(){
+  if(!hasPerm('donanim_transfer_talep')){ toast('Yetkiniz yok','error'); return; }
+  const kaynakKcm = document.getElementById('donanimTransferKaynakKcm').value;
+  const urunId    = document.getElementById('donanimTransferCihaz').value;
+  const adet      = parseInt(document.getElementById('donanimTransferAdet').value);
+  const aciklama  = document.getElementById('donanimTransferAciklama').value.trim();
+  const hedefKcm  = currentUser.kcm_id || document.getElementById('donanimTransferHedefKcm').value;
+
+  if(!kaynakKcm){ toast('Kaynak KÇM seçin','error'); return; }
+  if(!hedefKcm){ toast('Hedef KÇM seçin','error'); return; }
+  if(String(kaynakKcm)===String(hedefKcm)){ toast('Kaynak ve hedef KÇM aynı olamaz','error'); return; }
+  if(!urunId){ toast('Cihaz seçin','error'); return; }
+  if(!adet || adet<1){ toast('Geçerli adet girin','error'); return; }
+  const musait = (window._transferMusaitMap||{})[urunId] ?? 0;
+  if(adet>musait){ toast(`Müsait stok yetersiz (müsait: ${musait})`,'error'); return; }
+
+  const {error} = await sb.from('stok_transfer_talepleri').insert({
+    kaynak_urun_id: parseInt(urunId),
+    kaynak_kcm_id:  parseInt(kaynakKcm),
+    hedef_kcm_id:   parseInt(hedefKcm),
+    adet: adet,
+    durum: 'Aşama 1 Bekliyor',
+    talep_eden_id: currentUser.my_id,
+    aciklama: aciklama || null
+  });
+  if(error){ toast('Hata: '+error.message,'error'); return; }
+
+  await sb.from('stok_hareketleri').insert({
+    urun_id: parseInt(urunId),
+    aksiyon: 'Transfer Talebi',
+    detay: `${adet} adet — kaynak KÇM#${kaynakKcm} → hedef KÇM#${hedefKcm}`,
+    user_id: currentUser.my_id,
+    user_ad: currentUser.ad_soyad || String(currentUser.my_id)
+  });
+
+  toast('Transfer talebi oluşturuldu','success');
+  closeModal('donanimTransferModal');
+  loadDonanimTransferListesi();
 }
 
 async function loadDonanimRezervasyonlar(){
@@ -701,6 +981,10 @@ async function loadDonanimRezervasyonlar(){
     const my = myMap[r.satan_my_id];
     const tlAd = my && my.takim_lideri_id ? (myMap['TL_'+my.takim_lideri_id]?.ad_soyad||'—') : '—';
     const buOnaylayabilir = r.durum==='Ön Rezervasyon' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
+    // v30.99: onaycı; Ön Rezervasyon'u reddedebilir, Onaylandı'yı iptal edebilir
+    const buIptalEdebilir = r.durum==='Onaylandı' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
+    // v31.00 (1.3): Ön Rezervasyon veya Onaylandı iken onaycı paketi düzenleyebilir
+    const buDuzenleyebilir = ['Ön Rezervasyon','Onaylandı'].includes(r.durum) && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
     // v30.92: kartta gösterilecek yeni alanlar
     const musteriAd   = musteriMap[r.ncst] || r.ncst || '—';
     const musteriMyAd = myMap[r.musteri_my_id]?.ad_soyad || '—';
@@ -721,7 +1005,11 @@ async function loadDonanimRezervasyonlar(){
           Müşterinin MY'si: ${escapeHTML(musteriMyAd)} · Rezerve eden: ${escapeHTML(rezEdenAd)}
         </div>
       </div>
-      ${buOnaylayabilir ? `<button class="btn btn-sm" style="width:100%;background:var(--green);margin-top:8px;" onclick="event.stopPropagation();donanimRezervasyonOnayla('${r.sepet_id}')">✅ Rezervasyona Çevir (Onayla)</button>` : ''}
+      ${(buOnaylayabilir||buIptalEdebilir||buDuzenleyebilir) ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        ${buOnaylayabilir ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimRezervasyonOnayla('${r.sepet_id}')">✅ Onayla</button><button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">Reddet</button>` : ''}
+        ${buDuzenleyebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezDuzenleAc('${r.sepet_id}')">Düzenle</button>` : ''}
+        ${buIptalEdebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonIptal('${r.sepet_id}')">İptal Et</button>` : ''}
+      </div>` : ''}
     </div>`;
   }).join('');
 }
@@ -759,6 +1047,198 @@ async function donanimRezervasyonOnayla(sepetId){
 
   toast('Rezervasyon onaylandı, stoktan düşürüldü','success');
   loadDonanimRezervasyonlar();
+}
+
+// v30.99 (1.1): Ön rezervasyon RED — on_rezerve geri alınır, müsait değişmez
+async function donanimRezervasyonRed(sepetId){
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
+  if(error || !kalemler?.length){ toast('Hata: kayıtlar bulunamadı','error'); return; }
+  const ilkK = kalemler[0];
+  if(!_donanimRezOnayYetkisi(ilkK.satan_my_id, ilkK.kcm_id)){ toast('Bu talebi reddetme yetkiniz yok','error'); return; }
+  if(ilkK.durum!=='Ön Rezervasyon'){ toast('Sadece Ön Rezervasyon reddedilebilir','info'); loadDonanimRezervasyonlar(); return; }
+  if(!confirm('Bu ön rezervasyonu reddetmek istediğinize emin misiniz?\n\nStok değişmez, yalnız ön rezerve kaydı geri alınır.')) return;
+
+  for(const k of kalemler){
+    const {data:urun} = await sb.from('stok_urunleri').select('on_rezerve_adet').eq('urun_id', k.urun_id).single();
+    if(!urun) continue;
+    const yeniOnRez = Math.max(0, (urun.on_rezerve_adet||0) - k.adet);
+    await sb.from('stok_urunleri').update({on_rezerve_adet:yeniOnRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
+  }
+  await sb.from('stok_rezervasyonlari').update({durum:'Reddedildi', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
+  await sb.from('stok_hareketleri').insert({
+    aksiyon:'Rezervasyon Reddedildi',
+    detay:`Sepet ${sepetId} reddedildi (${kalemler.length} kalem, ön rezerve geri alındı).`,
+    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id)
+  });
+  toast('Ön rezervasyon reddedildi','info');
+  loadDonanimRezervasyonlar();
+}
+
+// v30.99 (1.2): Onaylı rezervasyon İPTAL — rezerve geri alınır, cihaz müsait stoğa döner
+async function donanimRezervasyonIptal(sepetId){
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
+  if(error || !kalemler?.length){ toast('Hata: kayıtlar bulunamadı','error'); return; }
+  const ilkK = kalemler[0];
+  if(!_donanimRezOnayYetkisi(ilkK.satan_my_id, ilkK.kcm_id)){ toast('Bu rezervasyonu iptal etme yetkiniz yok','error'); return; }
+  if(ilkK.durum!=='Onaylandı'){ toast('Sadece onaylı rezervasyon iptal edilebilir','info'); loadDonanimRezervasyonlar(); return; }
+  if(!confirm('Bu onaylı rezervasyonu iptal etmek istediğinize emin misiniz?\n\nCihazlar müsait stoğa geri dönecek.')) return;
+
+  for(const k of kalemler){
+    const {data:urun} = await sb.from('stok_urunleri').select('rezerve_adet').eq('urun_id', k.urun_id).single();
+    if(!urun) continue;
+    const yeniRez = Math.max(0, (urun.rezerve_adet||0) - k.adet);
+    await sb.from('stok_urunleri').update({rezerve_adet:yeniRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
+  }
+  await sb.from('stok_rezervasyonlari').update({durum:'İptal', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
+  await sb.from('stok_hareketleri').insert({
+    aksiyon:'Rezervasyon İptal',
+    detay:`Sepet ${sepetId} iptal edildi (${kalemler.length} kalem müsait stoğa iade).`,
+    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id)
+  });
+  toast('Rezervasyon iptal edildi, stok iade edildi','info');
+  loadDonanimRezervasyonlar();
+}
+
+// ============ 1.3: REZERVASYON PAKET DÜZENLEME ============
+async function donanimRezDuzenleAc(sepetId){
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
+  if(error || !kalemler?.length){ toast('Kayıt bulunamadı','error'); return; }
+  const ilk = kalemler[0];
+  if(!_donanimRezOnayYetkisi(ilk.satan_my_id, ilk.kcm_id)){ toast('Düzenleme yetkiniz yok','error'); return; }
+  if(!['Ön Rezervasyon','Onaylandı'].includes(ilk.durum)){ toast('Bu durumda düzenlenemez','info'); return; }
+
+  const urunIds = [...new Set(kalemler.map(k=>k.urun_id))];
+  const {data:urunler} = await sb.from('stok_urunleri').select('urun_id,aciklama').in('urun_id', urunIds);
+  const adMap={}; (urunler||[]).forEach(u=>adMap[u.urun_id]=u.aciklama);
+
+  window._rezDuzenle = {
+    sepetId, durum: ilk.durum, kcmId: ilk.kcm_id,
+    sablon: { kcm_id:ilk.kcm_id, ncst:ilk.ncst, musteri_my_id:ilk.musteri_my_id,
+              satan_my_id:ilk.satan_my_id, rezerve_eden_id:ilk.rezerve_eden_id, durum:ilk.durum },
+    kalemler: kalemler.map(k=>({ urun_id:k.urun_id, ad: adMap[k.urun_id]||('Cihaz #'+k.urun_id), adet:k.adet })),
+    musaitMap: {}
+  };
+
+  document.getElementById('donanimRezDuzenleDurum').textContent =
+    `Durum: ${ilk.durum}` + (ilk.durum==='Onaylandı' ? ' — adet artışı yalnız müsait stok varsa uygulanır' : ' — stok kilitlenmez');
+
+  const sel = document.getElementById('donanimRezDuzenleYeniCihaz');
+  sel.innerHTML='<option value="">Yükleniyor...</option>';
+  const {data:musait} = await sb.from('stok_musait').select('urun_id,aciklama,musait_adet').eq('kcm_id', ilk.kcm_id).order('aciklama');
+  (musait||[]).forEach(u=>window._rezDuzenle.musaitMap[u.urun_id]=u.musait_adet);
+  sel.innerHTML = '<option value="">Seçiniz...</option>' +
+    (musait||[]).map(u=>`<option value="${u.urun_id}" data-ad="${escapeHTML(u.aciklama||'Cihaz #'+u.urun_id)}">${escapeHTML(u.aciklama||'Cihaz #'+u.urun_id)} (müsait: ${u.musait_adet})</option>`).join('');
+
+  document.getElementById('donanimRezDuzenleYeniAdet').value=1;
+  _donanimRezDuzenleRender();
+  openModal('donanimRezDuzenleModal');
+}
+
+function _donanimRezDuzenleRender(){
+  const box = document.getElementById('donanimRezDuzenleKalemler');
+  const st = window._rezDuzenle;
+  if(!st.kalemler.length){ box.innerHTML='<div class="empty" style="font-size:12px;">Kalem yok — en az bir cihaz olmalı.</div>'; return; }
+  box.innerHTML = st.kalemler.map((k,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div style="flex:1;font-size:12px;">${escapeHTML(k.ad)}</div>
+      <input type="number" min="1" value="${k.adet}" onchange="donanimRezDuzenleAdet(${i}, this.value)" style="width:70px;background:var(--navy3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px;font-size:13px;">
+      <button class="btn btn-sm btn-ghost" onclick="donanimRezDuzenleSil(${i})">Sil</button>
+    </div>`).join('');
+}
+
+function donanimRezDuzenleAdet(i, val){
+  const a = parseInt(val);
+  if(!a || a<1){ toast('Adet en az 1 olmalı','error'); _donanimRezDuzenleRender(); return; }
+  window._rezDuzenle.kalemler[i].adet = a;
+}
+
+function donanimRezDuzenleSil(i){
+  window._rezDuzenle.kalemler.splice(i,1);
+  _donanimRezDuzenleRender();
+}
+
+function donanimRezDuzenleCihazEkle(){
+  const sel = document.getElementById('donanimRezDuzenleYeniCihaz');
+  const urunId = parseInt(sel.value);
+  const adet = parseInt(document.getElementById('donanimRezDuzenleYeniAdet').value);
+  if(!urunId){ toast('Cihaz seçin','error'); return; }
+  if(!adet || adet<1){ toast('Geçerli adet girin','error'); return; }
+  const ad = sel.options[sel.selectedIndex]?.getAttribute('data-ad') || ('Cihaz #'+urunId);
+  const st = window._rezDuzenle;
+  const mevcut = st.kalemler.find(k=>k.urun_id===urunId);
+  if(mevcut){ mevcut.adet += adet; } else { st.kalemler.push({ urun_id:urunId, ad, adet }); }
+  _donanimRezDuzenleRender();
+  document.getElementById('donanimRezDuzenleYeniAdet').value=1;
+  sel.value='';
+}
+
+async function donanimRezDuzenleKaydet(){
+  const st = window._rezDuzenle;
+  if(!st) return;
+  if(!st.kalemler.length){ toast('En az bir cihaz kalmalı (tümünü kaldırmak için İptal/Reddet kullanın)','error'); return; }
+
+  // Guard: orijinali tekrar oku, durum değişmemiş mi
+  const {data:orj, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', st.sepetId);
+  if(error||!orj?.length){ toast('Kayıt bulunamadı','error'); return; }
+  if(orj[0].durum!==st.durum){ toast('Durum değişmiş — düzenleme iptal, tekrar açın','error'); closeModal('donanimRezDuzenleModal'); loadDonanimRezervasyonlar(); return; }
+
+  // urun_id bazında net delta
+  const eskiMap={}; orj.forEach(k=>{ eskiMap[k.urun_id]=(eskiMap[k.urun_id]||0)+k.adet; });
+  const yeniMap={}; st.kalemler.forEach(k=>{ yeniMap[k.urun_id]=(yeniMap[k.urun_id]||0)+k.adet; });
+  const tumUrun = [...new Set([...Object.keys(eskiMap),...Object.keys(yeniMap)].map(Number))];
+  const delta={}; tumUrun.forEach(u=>{ delta[u]=(yeniMap[u]||0)-(eskiMap[u]||0); });
+
+  // Onaylandı: pozitif delta'lar için müsait ÖN-kontrol (kısmi uygulama olmasın)
+  if(st.durum==='Onaylandı'){
+    for(const u of tumUrun){
+      if(delta[u]>0){
+        const {data:urun} = await sb.from('stok_urunleri').select('toplam_adet,rezerve_adet').eq('urun_id',u).single();
+        const musait=(urun?.toplam_adet||0)-(urun?.rezerve_adet||0);
+        if(musait < delta[u]){ toast(`Müsait stok yetersiz (cihaz #${u}: müsait ${musait}, gerekli +${delta[u]}) — kaydedilmedi`,'error'); return; }
+      }
+    }
+  }
+
+  // Stok uygula (durum-farkında)
+  for(const u of tumUrun){
+    if(delta[u]===0) continue;
+    const {data:urun} = await sb.from('stok_urunleri').select('on_rezerve_adet,rezerve_adet').eq('urun_id',u).single();
+    if(!urun) continue;
+    if(st.durum==='Ön Rezervasyon'){
+      await sb.from('stok_urunleri').update({ on_rezerve_adet: Math.max(0,(urun.on_rezerve_adet||0)+delta[u]), updated_at:new Date().toISOString() }).eq('urun_id',u);
+    } else {
+      await sb.from('stok_urunleri').update({ rezerve_adet: Math.max(0,(urun.rezerve_adet||0)+delta[u]), updated_at:new Date().toISOString() }).eq('urun_id',u);
+    }
+  }
+
+  // Satır senkronu — (sepet_id, urun_id) hedefli (delete-all riski yok)
+  const yeniUrunSet = new Set(st.kalemler.map(k=>k.urun_id));
+  for(const k of st.kalemler){
+    const varMi = orj.find(o=>o.urun_id===k.urun_id);
+    if(varMi){
+      await sb.from('stok_rezervasyonlari').update({ adet:k.adet, updated_at:new Date().toISOString() }).eq('sepet_id',st.sepetId).eq('urun_id',k.urun_id);
+    } else {
+      const {error:iErr} = await sb.from('stok_rezervasyonlari').insert({
+        sepet_id:st.sepetId, urun_id:k.urun_id, adet:k.adet,
+        kcm_id:st.sablon.kcm_id, ncst:st.sablon.ncst, musteri_my_id:st.sablon.musteri_my_id,
+        satan_my_id:st.sablon.satan_my_id, rezerve_eden_id:st.sablon.rezerve_eden_id, durum:st.sablon.durum
+      });
+      if(iErr){ toast('Hata: kalem eklenemedi: '+iErr.message,'error'); return; }
+    }
+  }
+  const silUrun = orj.filter(o=>!yeniUrunSet.has(o.urun_id)).map(o=>o.urun_id);
+  if(silUrun.length){ await sb.from('stok_rezervasyonlari').delete().eq('sepet_id',st.sepetId).in('urun_id',silUrun); }
+
+  await sb.from('stok_hareketleri').insert({
+    aksiyon:'Rezervasyon Düzenlendi',
+    detay:`Sepet ${st.sepetId} düzenlendi (${st.durum}) — ${st.kalemler.length} kalem.`,
+    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id)
+  });
+
+  toast('Rezervasyon güncellendi','success');
+  closeModal('donanimRezDuzenleModal');
+  loadDonanimRezervasyonlar();
+  if(typeof loadDonanimListesi==='function') loadDonanimListesi();
 }
 
 async function openDonanimRezDetay(sepetId){

@@ -1,7 +1,22 @@
 // ============================================================
-// config.js — v1.2.42
+// config.js — v1.2.49
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.49 — APP_VERSION → V31.00. Rezervasyon paket düzenleme (1.3):
+//             cihaz ekle/çıkar/adet; durum-farkında stok (Ön Rez=on_rezerve,
+//             Onaylandı=rezerve, artış müsait ön-kontrol). Track A tamam.
+//   v1.2.48 — APP_VERSION → V30.99. Rezervasyon yaşam döngüsü (1.1/1.2):
+//             Ön rez. RED (on_rezerve geri) + onaylı rez. İPTAL (rezerve geri).
+//   v1.2.47 — APP_VERSION → V30.98. Stok transfer (Adım 3): 1./2. onay,
+//             red, iptal + stok taşıma (kaynak-, hedef+) + timeline + guard.
+//   v1.2.46 — APP_VERSION → V30.97. Transfer sekmesi görünürlüğü yetkiyle
+//             sınırlandı (talep/onay izni yoksa gizli — MY/FMY görmez).
+//   v1.2.45 — APP_VERSION → V30.96. Stok transfer (Adım 2): Transfer sekmesi,
+//             Yeni Talep modalı, talep listesi. Onay/taşıma Adım 3'te.
+//   v1.2.44 — APP_VERSION → V30.95. Stok transfer (Adım 1): yetki.js'e
+//             3 izin eklendi (transfer_talep/onay1/onay2). Tablo SQL ayrı.
+//   v1.2.43 — APP_VERSION → V30.94. Donanım rezervasyon onay yetkisi
+//             getScope('donanim_takip')'e bağlandı (sabit rol listesi kaldırıldı).
 //   v1.2.42 — APP_VERSION → V30.93. yetki.js: Rol&Yetki ekranına
 //             'donanim_takip' (Süreç Takibi) modül etiketi eklendi.
 //   v1.2.41 — APP_VERSION → V30.92. Donanım rezervasyon kartına 3 alan:
@@ -103,7 +118,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V30.93';
+const APP_VERSION = 'V31.00';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

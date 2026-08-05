@@ -1,7 +1,8 @@
 // ============================================================
-// yetki.js — v1.2.2
+// yetki.js — v1.2.3
 // Son güncelleme: 2026-07-22
 // Değişiklikler:
+//   v1.2.3 — (V30.95) Stok transfer izinleri: donanim_transfer_talep/onay1/onay2.
 //   v1.2.2 — (V30.93) Rol&Yetki: 'donanim_takip' (Süreç Takibi) modülü eklendi;
 //            'donanim' etiketi 'Stok Görünürlüğü' olarak ayrıştırıldı.
 //   v1.1.0 — EKRAN YENİDEN TASARLANDI: yatay taşan dev matris kaldırıldı.
@@ -41,7 +42,10 @@ const YETKI_ACTION_GRUP = [
   { grup:'Donanım Takip', items:{
       donanim_on_rezerve_et:'Ön rezervasyon oluşturur (MY/FMY)',
       donanim_rezerve_et:'Rezervasyonu onaylar/kesinleştirir',
-      donanim_yonet:'Ürün ekler/düzenler (stok girişi)' } },
+      donanim_yonet:'Ürün ekler/düzenler (stok girişi)',
+      donanim_transfer_talep:'Stok transfer talebi oluşturur',
+      donanim_transfer_onay1:'Stok transfer 1. onay (kaynak KÇM yetkilisi)',
+      donanim_transfer_onay2:'Stok transfer 2. onay (Depo & Muhasebe)' } },
   { grup:'Yönetim', items:{
       admin_panel:'Admin paneline girebilir',
       yonetici_panel:'Yönetici paneline girebilir',
