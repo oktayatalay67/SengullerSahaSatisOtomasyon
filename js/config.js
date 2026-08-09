@@ -1,7 +1,21 @@
 // ============================================================
-// config.js — v1.2.49
+// config.js — v1.2.56
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.56 — APP_VERSION → V31.07. UI: Ana menuye admin-only 'Profil Degistir'
+//             butonu + impersonation bandi yari-seffaf/click-through.
+//   v1.2.55 — APP_VERSION → V31.06. MY kendi rezervasyonunu HER aktif adımda
+//             iptal edebilir (stok/seri geri). Liste PRT filtresi rezerve_eden dahil.
+//   v1.2.54 — APP_VERSION → V31.05. Part 2 (2.2): süreç ilerletme motoru —
+//             Hazırla/Fatura Kesildi/Cihaz Gönderildi butonları + geçiş + log.
+//   v1.2.53 — APP_VERSION → V31.04. Part 2 (2.1): yetki.js'e 4 izin
+//             (surec_ilerlet/imei_eslestir/sevk/imei_gor). Seri sepet_id SQL ayri.
+//   v1.2.52 — APP_VERSION → V31.03. Rezervasyon olayları artık HER KALEM için
+//             urun_id + Müşteri + Satan ile loglanır (ürün geçmişi doldu).
+//   v1.2.51 — APP_VERSION → V31.02. Stok geçmişi modülü: openDonanimTimeline
+//             stok_hareketleri kayıtlarını ürün bazında modalda gösterir.
+//   v1.2.50 — APP_VERSION → V31.01. Stok listesi tazeleme fix: Stok sekmesine
+//             geçişte + onay/red/iptal sonrası loadDonanimListesi çağrılır.
 //   v1.2.49 — APP_VERSION → V31.00. Rezervasyon paket düzenleme (1.3):
 //             cihaz ekle/çıkar/adet; durum-farkında stok (Ön Rez=on_rezerve,
 //             Onaylandı=rezerve, artış müsait ön-kontrol). Track A tamam.
@@ -118,7 +132,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.00';
+const APP_VERSION = 'V31.07';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
