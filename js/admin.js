@@ -1309,7 +1309,6 @@ async function openAddKullaniciModal(){
   document.getElementById('kullEmail').value='';
   document.getElementById('kullTelefon').value='';
   document.getElementById('kullKcmId').value='';
-  await loadYetkiSelect('MY');
   document.getElementById('kullSifre').value='';
   document.getElementById('kullSifreTekrar').value='';
   document.getElementById('kullSifreInfo').classList.add('hide');
@@ -1339,7 +1338,6 @@ async function openEditKullaniciModal(userId){
   await loadTakimLiderleri(u.takim_lideri_id||null);
   fillKcmSelect('kullKcmId');
   document.getElementById('kullKcmId').value=u.kcm_id||'';
-  await loadYetkiSelect(u.yetki_seviyesi||'MY');
   kullAktifDurum=u.aktif!==false;
   updateKullAktifToggle();
   openModal('modalKullanici');
@@ -1394,13 +1392,13 @@ async function saveKullanici(){
   const email=document.getElementById('kullEmail').value.trim().toLowerCase();
   const telefon=document.getElementById('kullTelefon').value.trim();
   const kcmId=document.getElementById('kullKcmId').value||null;
-  const yetki=document.getElementById('kullYetki').value;
   const gorevTanimi=document.getElementById('kullGorevTanimi')?.value.trim()||null;
-  // Görev tanımı seçildiyse yetki_seviyesi ile senkronize et
-  const efektifYetki = gorevTanimi || yetki;
+  // v31.13: Tek rol kaynağı — 'Görev Tanımı' (fazla/bozuk 'Yetki Seviyesi' alanı kaldırıldı).
+  const efektifYetki = gorevTanimi;
   const sifre=document.getElementById('kullSifre').value;
   const sifreTekrar=document.getElementById('kullSifreTekrar').value;
   if(!adSoyad||!email){toast('Ad Soyad ve E-Posta zorunlu','error');return;}
+  if(!efektifYetki){toast('Rol (Görev Tanımı) seçin','error');return;}
   if(!id&&!sifre){toast('Yeni kullanıcı için şifre zorunlu','error');return;}
   if(sifre&&sifre!==sifreTekrar){toast('Şifreler eşleşmiyor','error');return;}
   if(sifre&&sifre.length<4){toast('Şifre en az 4 karakter olmalı','error');return;}

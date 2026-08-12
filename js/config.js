@@ -1,7 +1,13 @@
 // ============================================================
-// config.js — v1.2.56
+// config.js — v1.2.59
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
+//   v1.2.59 — APP_VERSION → V31.10. IMEI eslestirme: acilista bostaki seriler
+//             otomatik listelenir (arama sart degil).
+//   v1.2.58 — APP_VERSION → V31.09. Part 2 (2.3): IMEI eşleştirme modali —
+//             barcode + IMEI arama, KÇM kilitli (urun_id), kısmi eşleştirme.
+//   v1.2.57 — APP_VERSION → V31.08. Bant: hata toast'lari band ustune (z-index)
+//             + band daha seffaf (rgba .45).
 //   v1.2.56 — APP_VERSION → V31.07. UI: Ana menuye admin-only 'Profil Degistir'
 //             butonu + impersonation bandi yari-seffaf/click-through.
 //   v1.2.55 — APP_VERSION → V31.06. MY kendi rezervasyonunu HER aktif adımda
@@ -132,7 +138,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.07';
+const APP_VERSION = 'V31.13';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

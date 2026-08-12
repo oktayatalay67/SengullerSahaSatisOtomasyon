@@ -155,6 +155,10 @@ function loadDashboard(){
   document.getElementById('dashKcm').textContent=escapeHTML(currentUser.kcm_adi||'')+' — '+escapeHTML(currentUser.yetki_seviyesi);
   const ab=document.getElementById('adminMenuBox');
   if(ab) ab.classList.toggle('hide', !hasPerm('admin_panel'));
+  const pdBtn=document.getElementById('profilDegistirBtn');
+  if(pdBtn) pdBtn.style.display = hasPerm('admin_panel') ? '' : 'none';
+  const aramaBox=document.getElementById('menuAramaBox');
+  if(aramaBox) aramaBox.classList.toggle('hide', !hasPerm('arama_agent'));
   const ymBox=document.getElementById('yoneticiMenuBox');
   if(ymBox) ymBox.classList.toggle('hide', !hasPerm('yonetici_panel'));
 }

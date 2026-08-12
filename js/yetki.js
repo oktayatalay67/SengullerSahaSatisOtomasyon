@@ -1,7 +1,9 @@
 // ============================================================
-// yetki.js — v1.2.3
+// yetki.js — v1.2.4
 // Son güncelleme: 2026-07-22
 // Değişiklikler:
+//   v1.2.4 — (V31.04) Satis sureci/IMEI izinleri: donanim_surec_ilerlet,
+//            donanim_imei_eslestir, donanim_sevk, donanim_imei_gor.
 //   v1.2.3 — (V30.95) Stok transfer izinleri: donanim_transfer_talep/onay1/onay2.
 //   v1.2.2 — (V30.93) Rol&Yetki: 'donanim_takip' (Süreç Takibi) modülü eklendi;
 //            'donanim' etiketi 'Stok Görünürlüğü' olarak ayrıştırıldı.
@@ -45,7 +47,11 @@ const YETKI_ACTION_GRUP = [
       donanim_yonet:'Ürün ekler/düzenler (stok girişi)',
       donanim_transfer_talep:'Stok transfer talebi oluşturur',
       donanim_transfer_onay1:'Stok transfer 1. onay (kaynak KÇM yetkilisi)',
-      donanim_transfer_onay2:'Stok transfer 2. onay (Depo & Muhasebe)' } },
+      donanim_transfer_onay2:'Stok transfer 2. onay (Depo & Muhasebe)',
+      donanim_surec_ilerlet:'Satış sürecini ilerletir (Hazırla / süreç adımları)',
+      donanim_imei_eslestir:'IMEI eşleştirme yapar (barcode)',
+      donanim_sevk:'Fatura kesildi / Cihaz gönderildi adımları',
+      donanim_imei_gor:'IMEI numaralarını tam (maskesiz) görüntüler' } },
   { grup:'Yönetim', items:{
       admin_panel:'Admin paneline girebilir',
       yonetici_panel:'Yönetici paneline girebilir',
@@ -57,6 +63,8 @@ const YETKI_ACTION_GRUP = [
       yonetici_tam:'Tam yönetici işlemleri (Admin/Direktör)',
       gorev_tumunu_gor:'Tüm görevleri görür',
       portfoy_yukle:'Portföy dosyası yükler' } },
+  { grup:'Memnuniyet Arama', items:{
+      arama_agent:'Ziyaret teyit araması yapar (agent ekranı)' } },
   { grup:'Müşteri', items:{
       musteri_ekle:'Müşteri ekler',
       musteri_duzenle:'Müşteri düzenler',

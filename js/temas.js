@@ -1,4 +1,8 @@
 // ============================================================
+// temas.js — v2.10.45
+//   v2.10.45 — Memnuniyet Arama Adim 2: yuz yuze (Ziyaret) + Gerceklesti temasta
+//              otomatik 'Ziyaret Teyit Araması' gorevi (sonraki is gunu + N-gun
+//              cooldown + kontak override). Mevcut ziyaret akisi degismedi.
 // temas.js — v2.10.44
 // Son güncelleme: 2026-07-09
 // Değişiklikler:
@@ -1269,6 +1273,70 @@ function _kontakHataIsaretle(hatalar){
 
 /* ===== TEMAS KAYDET ===== */
 let _savingTemasLock = false;
+// ============================================================
+// MEMNUNİYET ARAMA — Adım 2: Ziyaret Teyit Araması görevi tetikleme
+//   Yüz yüze (temas_turu='Ziyaret') + Gerçekleşti temasta otomatik görev.
+//   Sonraki iş günü + N-gün cooldown + kontak override kuralları.
+// ============================================================
+async function _teyitAramaTypeId(){
+  if(window._teyitTypeId) return window._teyitTypeId;
+  const {data}=await sb.from('task_types').select('type_id').eq('tip_adi','Ziyaret Teyit Araması').maybeSingle();
+  window._teyitTypeId = data?.type_id || null;
+  return window._teyitTypeId;
+}
+async function _aramaCooldownGun(){
+  try{
+    const {data}=await sb.from('sistem_ayarlari').select('deger').eq('ayar_tipi','arama_cooldown_gun').eq('aktif',true).maybeSingle();
+    const n=parseInt(data?.deger); return (n&&n>0)?n:10;
+  }catch(e){ return 10; }
+}
+// Ertesi ilk iş günü (hafta sonu atlanır; tatiller v1'de yok)
+function _aramaSonrakiIsGunu(fromDate){
+  const d = fromDate ? new Date(fromDate) : new Date();
+  d.setDate(d.getDate()+1);
+  while(d.getDay()===0 || d.getDay()===6){ d.setDate(d.getDate()+1); } // 0=Paz, 6=Cts
+  return d.toISOString().slice(0,10);
+}
+async function _aramaTeyitGoreviOlustur(visitId, ncst, contactId, temasTuru, durum, visitDate){
+  try{
+    if(temasTuru!=='Ziyaret') return;        // yalnız yüz yüze ziyaret
+    if(durum!=='Gerçekleşti') return;        // yalnız gerçekleşen (planlıya görev yok)
+    if(!visitId || !ncst) return;
+    const typeId = await _teyitAramaTypeId();
+    if(!typeId) return;
+    // Aynı ziyaret için görev zaten varsa tekrar açma (düzenlemede çift olmasın)
+    const {data:varMi}=await sb.from('tasks').select('task_id').eq('visit_id',visitId).eq('type_id',typeId).limit(1);
+    if(varMi && varMi.length) return;
+    // N-gün cooldown + kontak override
+    const cd = await _aramaCooldownGun();
+    const sinir = new Date(); sinir.setDate(sinir.getDate()-cd);
+    const {data:son}=await sb.from('tasks').select('task_id,visit_id')
+      .eq('ncst',ncst).eq('type_id',typeId)
+      .gte('olusturma_tarihi',sinir.toISOString())
+      .order('olusturma_tarihi',{ascending:false}).limit(1);
+    if(son && son.length){
+      let sonContact=null;
+      if(son[0].visit_id){ const {data:sv}=await sb.from('visits').select('contact_id').eq('visit_id',son[0].visit_id).maybeSingle(); sonContact=sv?.contact_id??null; }
+      // Aynı kontak + cooldown içinde → yeni görev açma. Kontak değiştiyse override → devam.
+      if(sonContact === (contactId??null)) return;
+    }
+    const dlStr = _aramaSonrakiIsGunu(visitDate);
+    let unvan = ncst;
+    const {data:m}=await sb.from('customers').select('unvan').eq('ncst',ncst).maybeSingle();
+    if(m?.unvan) unvan=m.unvan;
+    await sb.from('tasks').insert({
+      type_id: typeId,
+      baslik: 'Ziyaret Teyit Araması — '+unvan,
+      ncst, visit_id: visitId,
+      atayan_id: currentUser.my_id, atanan_id: null,
+      durum: 'Aranacak',
+      baslama_tarihi: new Date().toISOString(),
+      deadline: dlStr,
+      olusturma_tarihi: new Date().toISOString()
+    });
+  }catch(e){ console.warn('Teyit araması görevi oluşturulamadı:', e); }
+}
+
 async function saveTemas(){
   // v2.10.23: KRİTİK — çift kayıt önleme. DOM disabled özelliği tek başına yeterli
   // değildi (dokunmatik ekranda hızlı çift dokunma bunu atlayabiliyordu). Bağımsız
@@ -1387,6 +1455,8 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
       wasEditing?'Güncellendi':'Oluşturuldu',
       logDetay
     );
+    // Adım 2: yüz yüze gerçekleşen temasta Ziyaret Teyit Araması görevi (fire-and-forget)
+    if(visitId){ _aramaTeyitGoreviOlustur(visitId, ncst, mainContactId, selectedTemasYontemiStr, selectedTemasDurumuStr, visitData.tarih_saat); }
     toast('Temas Kaydedildi!','success');
     // v2.10.31 BUG-1 FIX: gorevZiyaretKaydedildi() içeride window._gorevId'yi null'lıyor.
     // saveGorevSonuclari çağrısı bir sonraki blokta window._gorevId'yi kontrol ettiğinden

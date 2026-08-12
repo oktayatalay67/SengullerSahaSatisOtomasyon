@@ -164,7 +164,8 @@ async function loadGorevler(silent) {
   }
 
   // Task'lara ilişkili verileri ekle
-  GOREV.tasks = tasks.map(function(t) {
+  // v31.12: 'Ziyaret Teyit Araması' görevleri agent ekranına özeldir — normal listeden gizle
+  GOREV.tasks = tasks.filter(function(t){ const tt=tipMap[t.type_id]; return !tt || tt.tip_adi!=='Ziyaret Teyit Araması'; }).map(function(t) {
     return Object.assign({}, t, {
       task_types: tipMap[t.type_id] || null,
       atayan:  userMap[t.atayan_id]  || { my_id: t.atayan_id, ad_soyad: '#'+t.atayan_id },

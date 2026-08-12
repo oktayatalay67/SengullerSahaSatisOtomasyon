@@ -1,4 +1,23 @@
 // ============================================================
+// donanim.js — v1.0.16 (V31.10)
+//   v1.0.16 (V31.10): IMEI modal acilista bostaki serileri otomatik listeler.
+// donanim.js — v1.0.15 (V31.09)
+//   v1.0.15 (V31.09): IMEI eslestirme modali (2.3) — barcode+arama, urun_id
+//     (KÇM) kilidi, kismi eslestirme, seri durum Depoda->Ayrildi + kompanzasyon.
+// donanim.js — v1.0.14 (V31.06)
+//   v1.0.14 (V31.06): MY (rezerve eden) her aktif adimda kendi kaydini iptal
+//     eder; iptal stok/seri geri doner. Liste PRT filtresi rezerve_eden_id dahil.
+// donanim.js — v1.0.13 (V31.05)
+//   v1.0.13 (V31.05): Surec ilerletme motoru (2.2) — durum makinesi butonlari
+//     + donanimSurecIlerlet + _donanimSurecYetki (kapsam). IMEI modal placeholder.
+// donanim.js — v1.0.12 (V31.03)
+//   v1.0.12 (V31.03): _donanimRezHareketLog — rezervasyon olaylari urun_id +
+//     Musteri(unvan+ncst) + Satan ile per-kalem loglanir (urun gecmisi).
+// donanim.js — v1.0.11 (V31.02)
+//   v1.0.11 (V31.02): openDonanimTimeline gerçek görünüm (stok_hareketleri).
+// donanim.js — v1.0.10 (V31.01)
+//   v1.0.10 (V31.01): Stok listesi tazeleme — Stok sekmesine geçiste ve
+//     rezervasyon onay/red/iptal sonrasi loadDonanimListesi() cagrilir.
 // donanim.js — v1.0.9 (V31.00)
 //   v1.0.9 (V31.00): Rezervasyon paket düzenleme (1.3) — ekle/çıkar/adet +
 //     durum-farkında stok diff + (sepet_id,urun_id) hedefli satır senkronu.
@@ -173,7 +192,39 @@ function donanimFiltreDegisti(){
 // Placeholder'lar — sonraki adımlarda doldurulacak
 function openDonanimDuzenle(urunId){ toast('Ürün düzenleme — bir sonraki adımda eklenecek','info'); }
 function openDonanimRezervasyon(urunId){ toast('Rezervasyon formu — bir sonraki adımda eklenecek','info'); }
-function openDonanimTimeline(urunId){ toast('Geçmiş görünümü — bir sonraki adımda eklenecek','info'); }
+// v31.02: Stok geçmişi — stok_hareketleri kayıtlarını ürün bazında gösterir
+async function openDonanimTimeline(urunId){
+  const icerik = document.getElementById('donanimTimelineIcerik');
+  const baslik = document.getElementById('donanimTimelineBaslik');
+  icerik.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  baslik.textContent = '';
+  openModal('donanimTimelineModal');
+
+  const {data:urun} = await sb.from('stok_urunleri').select('aciklama,marka,model,renk,gb_hafiza,malzeme_kodu').eq('urun_id',urunId).single();
+  if(urun){ baslik.textContent = (urun.aciklama || [urun.marka,urun.model,urun.gb_hafiza,urun.renk].filter(Boolean).join(' ')) + (urun.malzeme_kodu?` · ${urun.malzeme_kodu}`:''); }
+
+  const {data, error} = await sb.from('stok_hareketleri').select('*').eq('urun_id',urunId).order('created_at',{ascending:false});
+  if(error){ icerik.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`; return; }
+  if(!data || !data.length){ icerik.innerHTML = '<div class="empty">Bu ürün için hareket kaydı yok.</div>'; return; }
+
+  const renk = {
+    'Stok Girişi':'#27ae60','Excel Yükleme':'#27ae60','Excel Stok Girişi':'#27ae60','Ön Rezervasyon':'#e67e22',
+    'Rezervasyon Onay':'#2980b9','Rezervasyon Onaylandı':'#2980b9','Rezervasyon Reddedildi':'#e74c3c',
+    'Rezervasyon İptal':'#e74c3c','Rezervasyon Düzenlendi':'#8e44ad','Stok Transferi':'#16a085',
+    'Transfer Talebi':'#e67e22','Transfer 1. Onay':'#2980b9','Transfer Reddedildi':'#e74c3c','Transfer İptal':'var(--text3)'
+  };
+  icerik.innerHTML = data.map(h=>{
+    const c = renk[h.aksiyon]||'var(--text3)';
+    return `<div style="border-left:3px solid ${c};padding:6px 10px;margin-bottom:6px;background:var(--navy3);border-radius:6px;">
+      <div style="display:flex;justify-content:space-between;gap:8px;">
+        <span style="font-weight:600;font-size:12px;color:${c};">${escapeHTML(h.aksiyon)}</span>
+        <span style="font-size:11px;color:var(--text3);white-space:nowrap;">${new Date(h.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'})}</span>
+      </div>
+      ${h.detay?`<div style="font-size:12px;color:var(--text2);margin-top:2px;">${escapeHTML(h.detay)}</div>`:''}
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;">${escapeHTML(h.user_ad||'—')}</div>
+    </div>`;
+  }).join('');
+}
 
 /* ============================================================
    EXCEL İLE STOK YÜKLEME (v30.85)
@@ -600,12 +651,7 @@ async function donanimSepetGonder(){
   }
 
   // Timeline özet log
-  await sb.from('stok_hareketleri').insert({
-    aksiyon: 'Ön Rezervasyon Talebi',
-    detay: `${sepetKeys.length} ürün, müşteri: ${musteri.unvan||musteri.ncst}, satan: MY#${satanMyId}`,
-    user_id: currentUser.my_id,
-    user_ad: currentUser.ad_soyad || String(currentUser.my_id)
-  });
+  await _donanimRezHareketLog('Ön Rezervasyon', kayitlar, {ncst:musteri.ncst, satan_my_id:satanMyId});
 
   toast('Ön rezervasyon talebi oluşturuldu','success');
   closeModal('donanimSepetModal');
@@ -642,14 +688,26 @@ function _donanimRezOnayYetkisi(satanMyId, kcmId){
   return satanMyId === currentUser.my_id;   // PRT / PRT+
 }
 
+// v31.05: süreç adımı yetkisi — verilen izin + kapsam (getScope('donanim_takip'))
+function _donanimSurecYetki(permKey, satanMyId, kcmId){
+  if(!hasPerm(permKey)) return false;
+  const scope = getScope('donanim_takip');
+  if(scope==='TÜM')   return true;
+  if(scope==='KÇM')   return kcmId === currentUser.kcm_id;
+  if(scope==='BAĞLI') return (bagliMyIds||[]).includes(satanMyId);
+  return satanMyId === currentUser.my_id;
+}
+
 const DONANIM_SUREC_ADIMLARI = {
-  'Ön Rezervasyon':          {no:1, renk:'#e74c3c'},
-  'Onaylandı':               {no:2, renk:'#e67e22'},
-  'Finans Onay Bekliyor':    {no:3, renk:'#f39c12'},
-  'Tahsilat Bekliyor':       {no:4, renk:'#f1c40f'},
-  'Sevkiyat':                {no:5, renk:'#a4c639'},
-  'Tamamlandı':              {no:6, renk:'#2ecc71'},
-  'İptal':                   {no:0, renk:'#7f8c8d'}
+  'Ön Rezervasyon':    {no:1, renk:'#e74c3c'},
+  'Onaylandı':         {no:2, renk:'#e67e22'},
+  'Hazırlanıyor':      {no:3, renk:'#f39c12'},
+  'Kısmen Eşleştirildi':{no:3, renk:'#e59866'},
+  'Eşleştirildi':      {no:4, renk:'#3498db'},
+  'Fatura Kesildi':    {no:5, renk:'#9b59b6'},
+  'Cihaz Gönderildi':  {no:6, renk:'#2ecc71'},
+  'Reddedildi':        {no:0, renk:'#c0392b'},
+  'İptal':             {no:0, renk:'#7f8c8d'}
 };
 
 // v30.96: 3 sekme — Stok / Rezervasyonlar / Transfer
@@ -666,7 +724,7 @@ function donanimTabGeç(hangi){
     if(btn){ btn.style.background = aktif?'var(--blue)':''; btn.classList.toggle('btn-ghost', !aktif); }
     if(sekme){ sekme.classList.toggle('hide', !aktif); }
   });
-  if(hangi==='stok'){ if(sepetBar) _donanimSepetBarGuncelle(); }
+  if(hangi==='stok'){ if(sepetBar) _donanimSepetBarGuncelle(); loadDonanimListesi(); }
   else if(sepetBar){ sepetBar.classList.add('hide'); }
   if(hangi==='rez') loadDonanimRezervasyonlar();
   if(hangi==='transfer') loadDonanimTransferListesi();
@@ -938,7 +996,7 @@ async function loadDonanimRezervasyonlar(){
 
   const scope = getScope('donanim_takip');
   let q = sb.from('stok_rezervasyon_ozet').select('*').order('created_at',{ascending:false});
-  if(scope==='PRT') q = q.eq('satan_my_id', currentUser.my_id);
+  if(scope==='PRT') q = q.or(`satan_my_id.eq.${currentUser.my_id},rezerve_eden_id.eq.${currentUser.my_id}`);
   else if(scope==='KÇM' && currentUser.kcm_id) q = q.eq('kcm_id', currentUser.kcm_id);
   // TÜM: filtresiz
 
@@ -982,9 +1040,17 @@ async function loadDonanimRezervasyonlar(){
     const tlAd = my && my.takim_lideri_id ? (myMap['TL_'+my.takim_lideri_id]?.ad_soyad||'—') : '—';
     const buOnaylayabilir = r.durum==='Ön Rezervasyon' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
     // v30.99: onaycı; Ön Rezervasyon'u reddedebilir, Onaylandı'yı iptal edebilir
-    const buIptalEdebilir = r.durum==='Onaylandı' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
+    // v31.06: sahip MY (rezerve eden) her aktif adımda kendi kaydını iptal edebilir
+    const _rezAktif = ['Ön Rezervasyon','Onaylandı','Hazırlanıyor','Eşleştirildi','Fatura Kesildi'].includes(r.durum);
+    const _rezSahip = r.rezerve_eden_id === currentUser.my_id;
+    const buIptalEdebilir = _rezAktif && (_rezSahip || (r.durum!=='Ön Rezervasyon' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id)));
     // v31.00 (1.3): Ön Rezervasyon veya Onaylandı iken onaycı paketi düzenleyebilir
     const buDuzenleyebilir = ['Ön Rezervasyon','Onaylandı'].includes(r.durum) && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
+    // v31.05: süreç ilerletme butonları (duruma + izne göre)
+    const buHazirla  = r.durum==='Onaylandı'      && _donanimSurecYetki('donanim_surec_ilerlet', r.satan_my_id, r.kcm_id);
+    const buEslestir = ['Hazırlanıyor','Kısmen Eşleştirildi'].includes(r.durum) && _donanimSurecYetki('donanim_imei_eslestir', r.satan_my_id, r.kcm_id);
+    const buFatura   = r.durum==='Eşleştirildi'   && _donanimSurecYetki('donanim_sevk', r.satan_my_id, r.kcm_id);
+    const buGonder   = r.durum==='Fatura Kesildi' && _donanimSurecYetki('donanim_sevk', r.satan_my_id, r.kcm_id);
     // v30.92: kartta gösterilecek yeni alanlar
     const musteriAd   = musteriMap[r.ncst] || r.ncst || '—';
     const musteriMyAd = myMap[r.musteri_my_id]?.ad_soyad || '—';
@@ -1005,10 +1071,14 @@ async function loadDonanimRezervasyonlar(){
           Müşterinin MY'si: ${escapeHTML(musteriMyAd)} · Rezerve eden: ${escapeHTML(rezEdenAd)}
         </div>
       </div>
-      ${(buOnaylayabilir||buIptalEdebilir||buDuzenleyebilir) ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+      ${(buOnaylayabilir||buIptalEdebilir||buDuzenleyebilir||buHazirla||buEslestir||buFatura||buGonder) ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
         ${buOnaylayabilir ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimRezervasyonOnayla('${r.sepet_id}')">✅ Onayla</button><button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">Reddet</button>` : ''}
         ${buDuzenleyebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezDuzenleAc('${r.sepet_id}')">Düzenle</button>` : ''}
         ${buIptalEdebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonIptal('${r.sepet_id}')">İptal Et</button>` : ''}
+        ${buHazirla ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Hazırlanıyor')">Hazırla</button>` : ''}
+        ${buEslestir ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimImeiEslestirAc('${r.sepet_id}')">IMEI Eşleştir</button>` : ''}
+        ${buFatura ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Fatura Kesildi')">Fatura Kesildi</button>` : ''}
+        ${buGonder ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Cihaz Gönderildi')">Cihaz Gönderildi</button>` : ''}
       </div>` : ''}
     </div>`;
   }).join('');
@@ -1038,15 +1108,27 @@ async function donanimRezervasyonOnayla(sepetId){
 
   await sb.from('stok_rezervasyonlari').update({durum:'Onaylandı', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
 
-  await sb.from('stok_hareketleri').insert({
-    aksiyon: 'Rezervasyon Onaylandı',
-    detay: `Sepet ${sepetId} onaylandı, ${kalemler.length} kalem stoktan düşürüldü.`,
-    user_id: currentUser.my_id,
-    user_ad: currentUser.ad_soyad || String(currentUser.my_id)
-  });
+  await _donanimRezHareketLog('Rezervasyon Onaylandı', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
 
   toast('Rezervasyon onaylandı, stoktan düşürüldü','success');
   loadDonanimRezervasyonlar();
+  if(typeof loadDonanimListesi==='function') loadDonanimListesi();
+}
+
+// v31.03: rezervasyon olayını HER KALEM için urun_id ile logla — ürün geçmişi + "kime verilmiş" izi
+async function _donanimRezHareketLog(aksiyon, kalemler, ctx){
+  let musteri = ctx.ncst || '—';
+  if(ctx.ncst){ const {data:m}=await sb.from('customers').select('unvan').eq('ncst',ctx.ncst).maybeSingle(); if(m?.unvan) musteri=m.unvan; }
+  let satan = ctx.satan_my_id ? ('MY#'+ctx.satan_my_id) : '—';
+  if(ctx.satan_my_id){ const {data:u}=await sb.from('users').select('ad_soyad').eq('my_id',ctx.satan_my_id).maybeSingle(); if(u?.ad_soyad) satan=u.ad_soyad; }
+  const satirlar = (kalemler||[]).filter(k=>k.urun_id).map(k=>({
+    urun_id: parseInt(k.urun_id),
+    aksiyon,
+    detay: `${k.adet} adet · Müşteri: ${musteri}${ctx.ncst?` (${ctx.ncst})`:''} · Satan: ${satan}`,
+    user_id: currentUser.my_id,
+    user_ad: currentUser.ad_soyad || String(currentUser.my_id)
+  }));
+  if(satirlar.length) await sb.from('stok_hareketleri').insert(satirlar);
 }
 
 // v30.99 (1.1): Ön rezervasyon RED — on_rezerve geri alınır, müsait değişmez
@@ -1065,13 +1147,10 @@ async function donanimRezervasyonRed(sepetId){
     await sb.from('stok_urunleri').update({on_rezerve_adet:yeniOnRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
   }
   await sb.from('stok_rezervasyonlari').update({durum:'Reddedildi', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
-  await sb.from('stok_hareketleri').insert({
-    aksiyon:'Rezervasyon Reddedildi',
-    detay:`Sepet ${sepetId} reddedildi (${kalemler.length} kalem, ön rezerve geri alındı).`,
-    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id)
-  });
+  await _donanimRezHareketLog('Rezervasyon Reddedildi', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
   toast('Ön rezervasyon reddedildi','info');
   loadDonanimRezervasyonlar();
+  if(typeof loadDonanimListesi==='function') loadDonanimListesi();
 }
 
 // v30.99 (1.2): Onaylı rezervasyon İPTAL — rezerve geri alınır, cihaz müsait stoğa döner
@@ -1079,23 +1158,194 @@ async function donanimRezervasyonIptal(sepetId){
   const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
   if(error || !kalemler?.length){ toast('Hata: kayıtlar bulunamadı','error'); return; }
   const ilkK = kalemler[0];
-  if(!_donanimRezOnayYetkisi(ilkK.satan_my_id, ilkK.kcm_id)){ toast('Bu rezervasyonu iptal etme yetkiniz yok','error'); return; }
-  if(ilkK.durum!=='Onaylandı'){ toast('Sadece onaylı rezervasyon iptal edilebilir','info'); loadDonanimRezervasyonlar(); return; }
-  if(!confirm('Bu onaylı rezervasyonu iptal etmek istediğinize emin misiniz?\n\nCihazlar müsait stoğa geri dönecek.')) return;
+  const sahipMy = ilkK.rezerve_eden_id === currentUser.my_id;
+  const onayci  = _donanimRezOnayYetkisi(ilkK.satan_my_id, ilkK.kcm_id);
+  if(!sahipMy && !onayci){ toast('Bu rezervasyonu iptal etme yetkiniz yok','error'); return; }
+
+  const aktif = ['Ön Rezervasyon','Onaylandı','Hazırlanıyor','Eşleştirildi','Fatura Kesildi'];
+  if(!aktif.includes(ilkK.durum)){ toast(`Bu kayıt iptal edilemez (${ilkK.durum})`,'info'); loadDonanimRezervasyonlar(); return; }
+  const onRezDurum = ilkK.durum==='Ön Rezervasyon';
+  if(!confirm(onRezDurum
+      ? 'Bu ön rezervasyonu iptal etmek istediğinize emin misiniz?'
+      : 'Bu rezervasyonu iptal etmek istediğinize emin misiniz?\n\nCihazlar müsait stoğa geri dönecek.')) return;
 
   for(const k of kalemler){
-    const {data:urun} = await sb.from('stok_urunleri').select('rezerve_adet').eq('urun_id', k.urun_id).single();
+    const {data:urun} = await sb.from('stok_urunleri').select('on_rezerve_adet,rezerve_adet').eq('urun_id', k.urun_id).single();
     if(!urun) continue;
-    const yeniRez = Math.max(0, (urun.rezerve_adet||0) - k.adet);
-    await sb.from('stok_urunleri').update({rezerve_adet:yeniRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
+    if(onRezDurum){
+      await sb.from('stok_urunleri').update({on_rezerve_adet:Math.max(0,(urun.on_rezerve_adet||0)-k.adet), updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
+    } else {
+      await sb.from('stok_urunleri').update({rezerve_adet:Math.max(0,(urun.rezerve_adet||0)-k.adet), updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
+    }
   }
+  // v31.06: bağlı IMEI/seri varsa havuza iade (eşleştirme yapılmış olabilir)
+  await sb.from('stok_seri_no').update({durum:'Depoda', sepet_id:null}).eq('sepet_id', sepetId);
+
   await sb.from('stok_rezervasyonlari').update({durum:'İptal', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
-  await sb.from('stok_hareketleri').insert({
-    aksiyon:'Rezervasyon İptal',
-    detay:`Sepet ${sepetId} iptal edildi (${kalemler.length} kalem müsait stoğa iade).`,
-    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id)
-  });
-  toast('Rezervasyon iptal edildi, stok iade edildi','info');
+  await _donanimRezHareketLog('Rezervasyon İptal', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
+  toast('Rezervasyon iptal edildi'+(onRezDurum?'':', stok iade edildi'),'info');
+  loadDonanimRezervasyonlar();
+  if(typeof loadDonanimListesi==='function') loadDonanimListesi();
+}
+
+// v31.05 (2.2): Satış sürecini bir sonraki adıma ilerletir
+const DONANIM_GECIS = { 'Onaylandı':'Hazırlanıyor', 'Eşleştirildi':'Fatura Kesildi', 'Fatura Kesildi':'Cihaz Gönderildi' };
+const DONANIM_GECIS_PERM = { 'Hazırlanıyor':'donanim_surec_ilerlet', 'Fatura Kesildi':'donanim_sevk', 'Cihaz Gönderildi':'donanim_sevk' };
+
+async function donanimSurecIlerlet(sepetId, yeniDurum){
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
+  if(error || !kalemler?.length){ toast('Kayıt bulunamadı','error'); return; }
+  const ilkK = kalemler[0];
+  const gerekli = DONANIM_GECIS_PERM[yeniDurum];
+  if(!gerekli || !_donanimSurecYetki(gerekli, ilkK.satan_my_id, ilkK.kcm_id)){ toast('Bu işlem için yetkiniz yok','error'); return; }
+  if(DONANIM_GECIS[ilkK.durum]!==yeniDurum){ toast(`Bu kayıt '${ilkK.durum}' durumunda; '${yeniDurum}' geçişi yapılamaz`,'info'); loadDonanimRezervasyonlar(); return; }
+
+  const {error:uErr} = await sb.from('stok_rezervasyonlari').update({durum:yeniDurum, updated_at:new Date().toISOString()}).eq('sepet_id',sepetId).eq('durum',ilkK.durum);
+  if(uErr){ toast('Hata: '+uErr.message,'error'); return; }
+  await _donanimRezHareketLog('Süreç: '+yeniDurum, kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
+  toast(`Durum güncellendi: ${yeniDurum}`,'success');
+  loadDonanimRezervasyonlar();
+}
+
+// ============ 2.3: IMEI EŞLEŞTİRME (kısmi, barcode + arama, KÇM kilitli) ============
+async function donanimImeiEslestirAc(sepetId){
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
+  if(error || !kalemler?.length){ toast('Kayıt bulunamadı','error'); return; }
+  const ilk = kalemler[0];
+  if(!_donanimSurecYetki('donanim_imei_eslestir', ilk.satan_my_id, ilk.kcm_id)){ toast('IMEI eşleştirme yetkiniz yok','error'); return; }
+  if(!['Hazırlanıyor','Kısmen Eşleştirildi'].includes(ilk.durum)){ toast('Bu durumda eşleştirme yapılamaz','info'); loadDonanimRezervasyonlar(); return; }
+
+  const urunIds=[...new Set(kalemler.map(k=>k.urun_id))];
+  const {data:urunler}=await sb.from('stok_urunleri').select('urun_id,aciklama').in('urun_id',urunIds);
+  const adMap={}; (urunler||[]).forEach(u=>adMap[u.urun_id]=u.aciklama);
+
+  // Bu siparişe zaten bağlı seriler
+  const {data:bagliSeri}=await sb.from('stok_seri_no').select('seri_no_id,seri_no,urun_id').eq('sepet_id',sepetId);
+  const bagliByUrun={}; (bagliSeri||[]).forEach(s=>{ (bagliByUrun[s.urun_id]=bagliByUrun[s.urun_id]||[]).push({seri_no_id:s.seri_no_id, seri_no:s.seri_no}); });
+
+  window._imeiEslestir = {
+    sepetId,
+    kalemler: kalemler.map((k,i)=>({
+      idx:i, urun_id:k.urun_id, ad:adMap[k.urun_id]||('Cihaz #'+k.urun_id), adet:k.adet,
+      bagli:(bagliByUrun[k.urun_id]||[]).slice(),
+      orijinal:(bagliByUrun[k.urun_id]||[]).map(s=>s.seri_no_id)
+    }))
+  };
+  _imeiRender();
+  openModal('donanimImeiModal');
+}
+
+function _imeiRender(){
+  const st=window._imeiEslestir;
+  const box=document.getElementById('donanimImeiIcerik');
+  box.innerHTML = st.kalemler.map(k=>{
+    const dolu=k.bagli.length, hedef=k.adet;
+    const seriRows = k.bagli.map(s=>`
+      <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+        <span style="flex:1;font-family:monospace;font-size:12px;">${escapeHTML(s.seri_no)}</span>
+        <button class="btn btn-sm btn-ghost" onclick="donanimImeiKaldir(${k.idx},${s.seri_no_id})">Kaldır</button>
+      </div>`).join('');
+    const arama = dolu<hedef ? `
+      <input type="text" id="imeiAra_${k.idx}" placeholder="IMEI okut veya ara (min 2 karakter)..." autocomplete="off"
+        oninput="donanimImeiAra(${k.idx}, this.value)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();donanimImeiEnter(${k.idx}, this.value);}"
+        style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;margin-top:6px;">
+      <div id="imeiSonuc_${k.idx}"></div>`
+      : `<div style="font-size:11px;color:#27ae60;margin-top:4px;">Bu ürün tamamlandı ✓</div>`;
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;">
+      <div style="font-weight:600;font-size:13px;">${escapeHTML(k.ad)} <span style="color:var(--text3);font-weight:400;">(${dolu}/${hedef})</span></div>
+      ${seriRows}${arama}
+    </div>`;
+  }).join('');
+  // v31.10: açılışta boş kalemler için boştaki serileri otomatik listele
+  st.kalemler.forEach(k=>{ if(k.bagli.length<k.adet) donanimImeiAra(k.idx,''); });
+}
+
+async function donanimImeiAra(idx, q){
+  const st=window._imeiEslestir; const k=st.kalemler[idx];
+  const sonuc=document.getElementById('imeiSonuc_'+idx);
+  if(!sonuc) return;
+  q=(q||'').trim();
+  // KÇM kilidi: yalnız bu ürünün (urun_id) Depoda serileri. Boş sorguda ilk N gösterilir.
+  let query = sb.from('stok_seri_no').select('seri_no_id,seri_no').eq('urun_id',k.urun_id).eq('durum','Depoda');
+  if(q.length>=1) query = query.ilike('seri_no','%'+q+'%');
+  const {data}=await query.order('seri_no').limit(15);
+  const bagliIds=new Set(k.bagli.map(s=>s.seri_no_id));
+  const list=(data||[]).filter(s=>!bagliIds.has(s.seri_no_id));
+  if(!list.length){ sonuc.innerHTML='<div style="font-size:11px;color:var(--text3);padding:4px;">'+(q?'Eşleşen boşta cihaz yok.':'Bu ürün için boşta (Depoda) IMEI bulunamadı.')+'</div>'; return; }
+  sonuc.innerHTML=list.map(s=>`<div onclick="donanimImeiSec(${idx},${s.seri_no_id},'${escapeHTML(s.seri_no)}')" style="cursor:pointer;padding:6px 8px;font-family:monospace;font-size:12px;border-bottom:1px solid var(--border);background:var(--navy3);border-radius:4px;margin-top:3px;">${escapeHTML(s.seri_no)}</div>`).join('');
+}
+
+async function donanimImeiEnter(idx, val){
+  val=(val||'').trim(); if(!val) return;
+  const st=window._imeiEslestir; const k=st.kalemler[idx];
+  if(k.bagli.length>=k.adet){ toast('Bu ürün için tüm slotlar dolu','info'); return; }
+  const {data}=await sb.from('stok_seri_no').select('seri_no_id,seri_no,urun_id,durum').eq('seri_no',val).maybeSingle();
+  if(!data){ toast('Seri bulunamadı: '+val,'error'); return; }
+  if(data.urun_id!==k.urun_id){ toast('Bu IMEI bu ürüne/KÇM\'ye ait değil','error'); return; }
+  if(data.durum!=='Depoda'){ toast(`Bu IMEI boşta değil (durum: ${data.durum})`,'error'); return; }
+  if(k.bagli.some(s=>s.seri_no_id===data.seri_no_id)){ toast('Zaten eklendi','info'); return; }
+  k.bagli.push({seri_no_id:data.seri_no_id, seri_no:data.seri_no});
+  _imeiRender();
+  const inp=document.getElementById('imeiAra_'+idx); if(inp) inp.focus();
+}
+
+function donanimImeiSec(idx, seriNoId, seriNo){
+  const st=window._imeiEslestir; const k=st.kalemler[idx];
+  if(k.bagli.length>=k.adet){ toast('Bu ürün için tüm slotlar dolu','info'); return; }
+  if(k.bagli.some(s=>s.seri_no_id===seriNoId)){ toast('Zaten eklendi','info'); return; }
+  k.bagli.push({seri_no_id:seriNoId, seri_no:String(seriNo)});
+  _imeiRender();
+}
+
+function donanimImeiKaldir(idx, seriNoId){
+  const st=window._imeiEslestir; const k=st.kalemler[idx];
+  k.bagli=k.bagli.filter(s=>s.seri_no_id!==seriNoId);
+  _imeiRender();
+}
+
+async function donanimImeiKaydet(){
+  const st=window._imeiEslestir; if(!st) return;
+  const sepetId=st.sepetId;
+  const eklenen=[], cikarilan=[]; let toplamSlot=0, toplamDolu=0;
+  for(const k of st.kalemler){
+    toplamSlot+=k.adet; toplamDolu+=k.bagli.length;
+    const su=new Set(k.bagli.map(s=>s.seri_no_id)); const orj=new Set(k.orijinal);
+    k.bagli.forEach(s=>{ if(!orj.has(s.seri_no_id)) eklenen.push({seri_no_id:s.seri_no_id, urun_id:k.urun_id}); });
+    k.orijinal.forEach(id=>{ if(!su.has(id)) cikarilan.push(id); });
+  }
+
+  // Eklenenleri bağla — savunmacı doğrulama + kompanzasyon
+  const basarili=[];
+  for(const s of eklenen){
+    const {data:m}=await sb.from('stok_seri_no').select('seri_no_id,urun_id,durum').eq('seri_no_id',s.seri_no_id).maybeSingle();
+    if(!m || m.urun_id!==s.urun_id || m.durum!=='Depoda'){
+      for(const b of basarili){ await sb.from('stok_seri_no').update({durum:'Depoda', sepet_id:null, updated_at:new Date().toISOString()}).eq('seri_no_id',b); }
+      toast('Bir IMEI artık uygun değil (başka işlem olmuş olabilir) — kayıt geri alındı','error'); return;
+    }
+    const {data:upd, error:uErr}=await sb.from('stok_seri_no')
+      .update({durum:'Ayrıldı', sepet_id:sepetId, updated_at:new Date().toISOString()})
+      .eq('seri_no_id',s.seri_no_id).eq('durum','Depoda').select('seri_no_id');
+    if(uErr || !upd?.length){
+      for(const b of basarili){ await sb.from('stok_seri_no').update({durum:'Depoda', sepet_id:null, updated_at:new Date().toISOString()}).eq('seri_no_id',b); }
+      toast('IMEI bağlanamadı (eşzamanlı değişim?) — kayıt geri alındı','error'); return;
+    }
+    basarili.push(s.seri_no_id);
+  }
+  // Çıkarılanları havuza iade
+  for(const id of cikarilan){
+    await sb.from('stok_seri_no').update({durum:'Depoda', sepet_id:null, updated_at:new Date().toISOString()}).eq('seri_no_id',id);
+  }
+
+  const yeniDurum = toplamDolu>=toplamSlot ? 'Eşleştirildi' : (toplamDolu>0 ? 'Kısmen Eşleştirildi' : 'Hazırlanıyor');
+  await sb.from('stok_rezervasyonlari').update({durum:yeniDurum, updated_at:new Date().toISOString()}).eq('sepet_id',sepetId);
+
+  const {data:kalemler}=await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id',sepetId);
+  const ilk=kalemler?.[0]||{};
+  await _donanimRezHareketLog(`IMEI Eşleştirme (${toplamDolu}/${toplamSlot})`, kalemler, {ncst:ilk.ncst, satan_my_id:ilk.satan_my_id});
+
+  toast(`Eşleştirme kaydedildi (${toplamDolu}/${toplamSlot})`,'success');
+  closeModal('donanimImeiModal');
   loadDonanimRezervasyonlar();
 }
 
@@ -1229,11 +1479,7 @@ async function donanimRezDuzenleKaydet(){
   const silUrun = orj.filter(o=>!yeniUrunSet.has(o.urun_id)).map(o=>o.urun_id);
   if(silUrun.length){ await sb.from('stok_rezervasyonlari').delete().eq('sepet_id',st.sepetId).in('urun_id',silUrun); }
 
-  await sb.from('stok_hareketleri').insert({
-    aksiyon:'Rezervasyon Düzenlendi',
-    detay:`Sepet ${st.sepetId} düzenlendi (${st.durum}) — ${st.kalemler.length} kalem.`,
-    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id)
-  });
+  await _donanimRezHareketLog('Rezervasyon Düzenlendi', st.kalemler, {ncst:st.sablon.ncst, satan_my_id:st.sablon.satan_my_id});
 
   toast('Rezervasyon güncellendi','success');
   closeModal('donanimRezDuzenleModal');

@@ -120,6 +120,7 @@ function navTo(pid,reset=false){
   if(pid==='pagePipeline'){loadPipeline();initPpPersonelFilter();}
   if(pid==='pageFirsatForm'){if(reset)initFirsatForm();else initFirsatForm();}
   if(pid==='pageGorev'){initGorevModulu();}
+  if(pid==='pageArama'){ if(typeof initAramaEkrani==='function') initAramaEkrani(); }
   if(pid==='pageGorevAdmin'){renderGorevTipleriAdmin();}
   if(pid==='pageAdmin'){ adminMenueGeri(); }
   if(pid==='pageMusteri')initMusteriPage();
