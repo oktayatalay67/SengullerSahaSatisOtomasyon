@@ -1,5 +1,7 @@
 // ============================================================
-// arama.js — v1.0.1
+// arama.js — v1.0.2
+//   v1.0.2 (V31.15): 3c — Bugün/Gelecek/Tamamlanan sekmeleri + ozet sayaclar
+//     + Gelecek tarihe gore gruplu + Tamamlananlarda tarih filtresi + Tekrar Ara.
 //   v1.0.1 (V31.14): 3b-1 Ara anket modali (asama asama) + arama_sonuclari kaydi
 //     + gorev durumu (Tamamlandi/Tekrar Aranacak/Ulasilamiyor) + telefon bazli deneme
 //     kurali + 'Musteri Bilgileri Guncelleme' gorevi (yanlis numara / tekrar ulasilamadi).
@@ -33,7 +35,127 @@ async function initAramaEkrani(){
   const typeId=await _aramaTeyitTypeId();
   if(!typeId){ if(listEl) listEl.innerHTML='<div class="empty">Arama görev tipi bulunamadı.</div>'; return; }
   await _aramaSlaOtomatikKapat(typeId);   // 7 gün SLA (anlık)
-  await loadAramaListesi(typeId);
+  ARAMA.aktifSekme = ARAMA.aktifSekme || 'bugun';
+  _aramaShellRender();
+  _aramaSayaclariYukle();
+  _aramaSekmeGoster(ARAMA.aktifSekme);
+}
+
+function _aramaShellRender(){
+  const el=document.getElementById('aramaListesi'); if(!el) return;
+  el.innerHTML=`
+    <div id="aramaSekmeler" style="display:flex;gap:6px;margin-bottom:8px;">
+      <div class="chip-btn" data-sekme="bugun" onclick="_aramaSekmeGoster('bugun')">Bugün</div>
+      <div class="chip-btn" data-sekme="gelecek" onclick="_aramaSekmeGoster('gelecek')">Gelecek Çağrılar</div>
+      <div class="chip-btn" data-sekme="tamamlanan" onclick="_aramaSekmeGoster('tamamlanan')">Tamamlananlar</div>
+    </div>
+    <div id="aramaSayaclar" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>
+    <div id="aramaFiltre"></div>
+    <div id="aramaListeGovde"><div class="loader"><div class="spinner"></div></div></div>`;
+}
+
+async function _aramaSayaclariYukle(){
+  const typeId=await _aramaTeyitTypeId();
+  const bugun=new Date().toISOString().slice(0,10);
+  const [bek,gel,tam]=await Promise.all([
+    sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).lte('deadline',bugun).then(r=>r.count||0),
+    sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).gt('deadline',bugun).then(r=>r.count||0),
+    sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).eq('durum','Tamamlandı').gte('tamamlanma_tarihi',bugun+'T00:00:00').then(r=>r.count||0)
+  ]);
+  const el=document.getElementById('aramaSayaclar');
+  if(el) el.innerHTML=`Bugün aranacak: <b>${bek}</b> · Gelecek: <b>${gel}</b> · Bugün tamamlanan: <b>${tam}</b>`;
+}
+
+function _aramaSekmeGoster(sekme){
+  ARAMA.aktifSekme=sekme;
+  document.querySelectorAll('#aramaSekmeler .chip-btn').forEach(c=>c.classList.toggle('selected', c.getAttribute('data-sekme')===sekme));
+  const f=document.getElementById('aramaFiltre'); if(f){ f.innerHTML=''; delete f.dataset.ready; }
+  if(sekme==='bugun') loadAramaBugun();
+  else if(sekme==='gelecek') loadAramaGelecek();
+  else loadAramaTamamlanan();
+}
+
+// Eski çağrı noktaları (kaydet/kapat sonrası): aktif sekmeyi + sayaçları yenile
+function loadAramaListesi(){ _aramaSayaclariYukle(); _aramaSekmeGoster(ARAMA.aktifSekme||'bugun'); }
+
+async function _aramaEnrich(tasks){
+  const ncstList=[...new Set(tasks.map(t=>t.ncst).filter(Boolean))];
+  const unvanMap={}; if(ncstList.length){ const {data}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList); (data||[]).forEach(c=>unvanMap[c.ncst]=c.unvan); }
+  const vIds=[...new Set(tasks.map(t=>t.visit_id).filter(Boolean))];
+  const vMap={}; if(vIds.length){ const {data}=await sb.from('visits').select('visit_id,my_id,tarih_saat').in('visit_id',vIds); (data||[]).forEach(v=>vMap[v.visit_id]=v); }
+  return {unvanMap,vMap};
+}
+function _aramaKart(t,unvanMap,vMap,mod){
+  const unvan=unvanMap[t.ncst]||t.ncst||'—';
+  const v=vMap[t.visit_id]||{};
+  const myAd=v.my_id?(myIdToName[v.my_id]||('MY#'+v.my_id)):'—';
+  const zt=v.tarih_saat?fmtDate(v.tarih_saat):'—';
+  let alt='';
+  if(mod==='aktif'){
+    alt=`<div style="display:flex;gap:6px;margin-top:8px;">
+      <button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="araModalAc(${t.task_id})">📞 Ara</button>
+      <button class="btn btn-sm btn-ghost" style="flex:1;" onclick="aramadanKapatAc(${t.task_id})">Aramadan Kapat</button></div>`;
+  } else if(mod==='gelecek'){
+    alt=`<div class="visit-my" style="color:var(--text3);">Aranacak: ${t.deadline||'—'}</div>`;
+  } else {
+    alt=`<div class="visit-my">Sonuç: ${escapeHTML(t.durum)}${t._sonuc?(' · '+escapeHTML(t._sonuc)):''}</div>
+      <div style="margin-top:6px;"><button class="btn btn-sm btn-ghost" onclick="araModalAc(${t.task_id})">Tekrar Ara</button></div>`;
+  }
+  const tekrar=(t.durum==='Tekrar Aranacak'&&mod==='aktif')?' · <span style="color:var(--amber);">Tekrar</span>':'';
+  return `<div class="visit-card"><div class="visit-firm">${escapeHTML(unvan)}</div>
+    <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${alt}</div>`;
+}
+
+async function loadAramaBugun(){
+  const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
+  const bugun=new Date().toISOString().slice(0,10);
+  const {data:tasks}=await sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).lte('deadline',bugun).order('deadline',{ascending:true}).limit(500);
+  ARAMA.tasks=tasks||[];
+  if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Bugün aranacak kayıt yok.</div>'; return; }
+  const {unvanMap,vMap}=await _aramaEnrich(tasks);
+  g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'aktif')).join('');
+}
+
+async function loadAramaGelecek(){
+  const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
+  const bugun=new Date().toISOString().slice(0,10);
+  const {data:tasks}=await sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).gt('deadline',bugun).order('deadline',{ascending:true}).limit(1000);
+  ARAMA.tasks=tasks||[];
+  if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Gelecek çağrı yok.</div>'; return; }
+  const {unvanMap,vMap}=await _aramaEnrich(tasks);
+  const gruplar={}; tasks.forEach(t=>{ (gruplar[t.deadline]=gruplar[t.deadline]||[]).push(t); });
+  let h='';
+  Object.keys(gruplar).sort().forEach(d=>{
+    h+=`<div style="font-weight:700;font-size:13px;margin:12px 0 6px;color:var(--text);">${d} <span style="color:var(--text3);font-weight:400;">(${gruplar[d].length})</span></div>`;
+    h+=gruplar[d].map(t=>_aramaKart(t,unvanMap,vMap,'gelecek')).join('');
+  });
+  g.innerHTML=h;
+}
+
+async function loadAramaTamamlanan(){
+  const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
+  const fEl=document.getElementById('aramaFiltre');
+  if(fEl && !fEl.dataset.ready){
+    fEl.innerHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      <input type="date" id="aramaTamBas" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <input type="date" id="aramaTamBit" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaTamamlanan()">Filtrele</button></div>`;
+    fEl.dataset.ready='1';
+  }
+  const bas=document.getElementById('aramaTamBas')?.value;
+  const bit=document.getElementById('aramaTamBit')?.value;
+  let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline,tamamlanma_tarihi').eq('type_id',typeId).in('durum',['Tamamlandı','Ulaşılamıyor','Aramadan Kapatıldı','Arama Yapılmadı']).order('tamamlanma_tarihi',{ascending:false}).limit(300);
+  if(bas) q=q.gte('tamamlanma_tarihi',bas+'T00:00:00');
+  if(bit) q=q.lte('tamamlanma_tarihi',bit+'T23:59:59');
+  const {data:tasks}=await q;
+  ARAMA.tasks=tasks||[];
+  if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Tamamlanan kayıt yok.</div>'; return; }
+  const ids=tasks.map(t=>t.task_id);
+  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,ulasilamama_neden,ziyaret_dogrulandi').in('task_id',ids);
+  const sMap={}; (sonuclar||[]).forEach(s=>{ sMap[s.task_id]=s; });
+  tasks.forEach(t=>{ const s=sMap[t.task_id]; if(s){ t._sonuc = s.ulasildi===false?('Ulaşılamadı'+(s.ulasilamama_neden?' ('+s.ulasilamama_neden+')':'')):(s.memnuniyet?('Memnuniyet '+s.memnuniyet+'/5'):(s.ziyaret_dogrulandi?('Ziyaret: '+s.ziyaret_dogrulandi):'')); } });
+  const {unvanMap,vMap}=await _aramaEnrich(tasks);
+  g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'tamamlanan')).join('');
 }
 
 // SLA: deadline'ı N (parametrik, vars. 7) günden fazla geçmiş ve hâlâ Aranacak/Tekrar
@@ -56,44 +178,6 @@ async function _aramaSlaOtomatikKapat(typeId){
     }
     toast(eskiler.length+' arama SLA ile kapatıldı','info');
   }catch(e){ console.warn('SLA kapama:', e); }
-}
-
-async function loadAramaListesi(typeId){
-  typeId = typeId || await _aramaTeyitTypeId();
-  const listEl=document.getElementById('aramaListesi');
-  if(!listEl) return;
-  const bugun=new Date().toISOString().slice(0,10);
-  const {data:tasks,error}=await sb.from('tasks')
-    .select('task_id,ncst,visit_id,durum,deadline,olusturma_tarihi')
-    .eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak'])
-    .lte('deadline',bugun).order('deadline',{ascending:true}).limit(200);
-  if(error){ listEl.innerHTML='<div class="empty" style="color:var(--red)">'+escapeHTML(error.message)+'</div>'; return; }
-  if(!tasks || !tasks.length){ listEl.innerHTML='<div class="empty">Aranacak kayıt yok.</div>'; ARAMA.tasks=[]; return; }
-  ARAMA.tasks=tasks;
-
-  const ncstList=[...new Set(tasks.map(t=>t.ncst).filter(Boolean))];
-  const unvanMap={};
-  if(ncstList.length){ const {data:cs}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList); (cs||[]).forEach(c=>unvanMap[c.ncst]=c.unvan); }
-  const visitIds=[...new Set(tasks.map(t=>t.visit_id).filter(Boolean))];
-  const visitMap={};
-  if(visitIds.length){ const {data:vs}=await sb.from('visits').select('visit_id,my_id,tarih_saat,contact_id').in('visit_id',visitIds); (vs||[]).forEach(v=>visitMap[v.visit_id]=v); }
-
-  listEl.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">'+tasks.length+' arama bekliyor</div>'+
-  tasks.map(t=>{
-    const unvan=unvanMap[t.ncst]||t.ncst||'—';
-    const v=visitMap[t.visit_id]||{};
-    const myAd = v.my_id ? (myIdToName[v.my_id]||('MY#'+v.my_id)) : '—';
-    const zTarih = v.tarih_saat ? fmtDate(v.tarih_saat) : '—';
-    const tekrar = t.durum==='Tekrar Aranacak' ? ' · <span style="color:var(--amber);">Tekrar</span>' : '';
-    return `<div class="visit-card">
-      <div class="visit-firm">${escapeHTML(unvan)}</div>
-      <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zTarih}${tekrar}</div>
-      <div style="display:flex;gap:6px;margin-top:8px;">
-        <button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="araModalAc(${t.task_id})">📞 Ara</button>
-        <button class="btn btn-sm btn-ghost" style="flex:1;" onclick="aramadanKapatAc(${t.task_id})">Aramadan Kapat</button>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 // ---- Aramadan Kapat (sebepli) ----
