@@ -64,7 +64,8 @@ const YETKI_ACTION_GRUP = [
       gorev_tumunu_gor:'Tüm görevleri görür',
       portfoy_yukle:'Portföy dosyası yükler' } },
   { grup:'Memnuniyet Arama', items:{
-      arama_agent:'Ziyaret teyit araması yapar (agent ekranı)' } },
+      arama_agent:'Ziyaret teyit araması yapar (agent ekranı)',
+      arama_rapor:'Çağrı analizi/raporunu görür (yönetici)' } },
   { grup:'Müşteri', items:{
       musteri_ekle:'Müşteri ekler',
       musteri_duzenle:'Müşteri düzenler',

@@ -158,7 +158,7 @@ function loadDashboard(){
   const pdBtn=document.getElementById('profilDegistirBtn');
   if(pdBtn) pdBtn.style.display = hasPerm('admin_panel') ? '' : 'none';
   const aramaBox=document.getElementById('menuAramaBox');
-  if(aramaBox) aramaBox.classList.toggle('hide', !hasPerm('arama_agent'));
+  if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')));
   const ymBox=document.getElementById('yoneticiMenuBox');
   if(ymBox) ymBox.classList.toggle('hide', !hasPerm('yonetici_panel'));
 }
