@@ -1,5 +1,9 @@
 // ============================================================
-// arama.js — v1.0.2
+// arama.js — v1.0.4
+//   v1.0.4 (V31.17): Liste ozetine ziyaret amaci+urun; arama modalinda tam ziyaret
+//     bilgisi paneli (amac/detay, urun_gruplari, ziyaret notu, firsat olustu mu).
+//   v1.0.3 (V31.16): 5a — Cagri Analizi sekmesi (arama_rapor), kategori+tarih
+//     filtreli liste, kapsam bazli (TUM/KCM). Operasyon sekmeleri arama_agent'a bagli.
 //   v1.0.2 (V31.15): 3c — Bugün/Gelecek/Tamamlanan sekmeleri + ozet sayaclar
 //     + Gelecek tarihe gore gruplu + Tamamlananlarda tarih filtresi + Tekrar Ara.
 //   v1.0.1 (V31.14): 3b-1 Ara anket modali (asama asama) + arama_sonuclari kaydi
@@ -34,21 +38,24 @@ async function initAramaEkrani(){
   if(listEl) listEl.innerHTML='<div class="loader"><div class="spinner"></div></div>';
   const typeId=await _aramaTeyitTypeId();
   if(!typeId){ if(listEl) listEl.innerHTML='<div class="empty">Arama görev tipi bulunamadı.</div>'; return; }
-  await _aramaSlaOtomatikKapat(typeId);   // 7 gün SLA (anlık)
-  ARAMA.aktifSekme = ARAMA.aktifSekme || 'bugun';
+  const agent=hasPerm('arama_agent');
+  if(agent) await _aramaSlaOtomatikKapat(typeId);   // SLA yalnız agent ekranında
+  ARAMA.aktifSekme = ARAMA.aktifSekme || (agent?'bugun':'analiz');
   _aramaShellRender();
-  _aramaSayaclariYukle();
+  if(agent) _aramaSayaclariYukle();
   _aramaSekmeGoster(ARAMA.aktifSekme);
 }
 
 function _aramaShellRender(){
   const el=document.getElementById('aramaListesi'); if(!el) return;
-  el.innerHTML=`
-    <div id="aramaSekmeler" style="display:flex;gap:6px;margin-bottom:8px;">
-      <div class="chip-btn" data-sekme="bugun" onclick="_aramaSekmeGoster('bugun')">Bugün</div>
+  const agent=hasPerm('arama_agent'), rapor=hasPerm('arama_rapor');
+  let tabs='';
+  if(agent) tabs+=`<div class="chip-btn" data-sekme="bugun" onclick="_aramaSekmeGoster('bugun')">Bugün</div>
       <div class="chip-btn" data-sekme="gelecek" onclick="_aramaSekmeGoster('gelecek')">Gelecek Çağrılar</div>
-      <div class="chip-btn" data-sekme="tamamlanan" onclick="_aramaSekmeGoster('tamamlanan')">Tamamlananlar</div>
-    </div>
+      <div class="chip-btn" data-sekme="tamamlanan" onclick="_aramaSekmeGoster('tamamlanan')">Tamamlananlar</div>`;
+  if(rapor) tabs+=`<div class="chip-btn" data-sekme="analiz" onclick="_aramaSekmeGoster('analiz')">Çağrı Analizi</div>`;
+  el.innerHTML=`
+    <div id="aramaSekmeler" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">${tabs}</div>
     <div id="aramaSayaclar" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>
     <div id="aramaFiltre"></div>
     <div id="aramaListeGovde"><div class="loader"><div class="spinner"></div></div></div>`;
@@ -72,6 +79,7 @@ function _aramaSekmeGoster(sekme){
   const f=document.getElementById('aramaFiltre'); if(f){ f.innerHTML=''; delete f.dataset.ready; }
   if(sekme==='bugun') loadAramaBugun();
   else if(sekme==='gelecek') loadAramaGelecek();
+  else if(sekme==='analiz') loadAramaAnaliz();
   else loadAramaTamamlanan();
 }
 
@@ -82,7 +90,7 @@ async function _aramaEnrich(tasks){
   const ncstList=[...new Set(tasks.map(t=>t.ncst).filter(Boolean))];
   const unvanMap={}; if(ncstList.length){ const {data}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList); (data||[]).forEach(c=>unvanMap[c.ncst]=c.unvan); }
   const vIds=[...new Set(tasks.map(t=>t.visit_id).filter(Boolean))];
-  const vMap={}; if(vIds.length){ const {data}=await sb.from('visits').select('visit_id,my_id,tarih_saat').in('visit_id',vIds); (data||[]).forEach(v=>vMap[v.visit_id]=v); }
+  const vMap={}; if(vIds.length){ const {data}=await sb.from('visits').select('visit_id,my_id,tarih_saat,ziyaret_amaci,urun_gruplari,ziyaret_sonucu').in('visit_id',vIds); (data||[]).forEach(v=>vMap[v.visit_id]=v); }
   return {unvanMap,vMap};
 }
 function _aramaKart(t,unvanMap,vMap,mod){
@@ -102,8 +110,11 @@ function _aramaKart(t,unvanMap,vMap,mod){
       <div style="margin-top:6px;"><button class="btn btn-sm btn-ghost" onclick="araModalAc(${t.task_id})">Tekrar Ara</button></div>`;
   }
   const tekrar=(t.durum==='Tekrar Aranacak'&&mod==='aktif')?' · <span style="color:var(--amber);">Tekrar</span>':'';
+  const kisalt=(s,n)=>{ s=(s||'').trim(); return s.length>n?s.slice(0,n)+'…':s; };
+  const ozetSatir = (v.ziyaret_amaci||v.urun_gruplari)
+    ? `<div class="visit-my" style="color:var(--text3);">Amaç: ${escapeHTML(v.ziyaret_amaci||'—')}${v.urun_gruplari?(' · Ürün: '+escapeHTML(kisalt(v.urun_gruplari,50))):''}</div>` : '';
   return `<div class="visit-card"><div class="visit-firm">${escapeHTML(unvan)}</div>
-    <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${alt}</div>`;
+    <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${ozetSatir}${alt}</div>`;
 }
 
 async function loadAramaBugun(){
@@ -221,10 +232,23 @@ async function araModalAc(taskId){
   if(!t){ toast('Kayıt bulunamadı','error'); return; }
   // ziyaret + kontak + müşteri bilgisi
   let v={}, unvan=t.ncst, contactAd='—', telefon='';
-  if(t.visit_id){ const {data:vd}=await sb.from('visits').select('visit_id,my_id,tarih_saat,contact_id').eq('visit_id',t.visit_id).maybeSingle(); v=vd||{}; }
+  if(t.visit_id){ const {data:vd}=await sb.from('visits').select('visit_id,my_id,tarih_saat,contact_id,ziyaret_amaci,ziyaret_amaci_detay,urun_gruplari,ziyaret_sonucu,gorusulen_yetkili').eq('visit_id',t.visit_id).maybeSingle(); v=vd||{}; }
   if(t.ncst){ const {data:c}=await sb.from('customers').select('unvan').eq('ncst',t.ncst).maybeSingle(); if(c?.unvan) unvan=c.unvan; }
   if(v.contact_id){ const {data:ct}=await sb.from('contacts').select('ad_soyad,telefon').eq('contact_id',v.contact_id).maybeSingle(); if(ct){ contactAd=ct.ad_soyad||'—'; telefon=ct.telefon||''; } }
   const myAd = v.my_id ? (myIdToName[v.my_id]||('MY#'+v.my_id)) : '—';
+
+  // Fırsat oluşmuş mu? (opportunities.visit_id)
+  let firsatText='Hayır';
+  if(t.visit_id){
+    const {data:opps}=await sb.from('opportunities').select('opp_id,durum').eq('visit_id',t.visit_id);
+    if(opps && opps.length){
+      let urunler='';
+      const oppIds=opps.map(o=>o.opp_id);
+      const {data:pr}=await sb.from('opportunity_products').select('urun_adi').in('opp_id',oppIds).limit(5);
+      if(pr && pr.length) urunler=' ('+pr.map(p=>p.urun_adi).filter(Boolean).join(', ')+')';
+      firsatText='Evet · '+opps.map(o=>o.durum).join(', ')+urunler;
+    }
+  }
 
   // deneme_no = bu görev için önceki arama_sonuclari + 1
   let deneme=1;
@@ -242,7 +266,13 @@ async function araModalAc(taskId){
                   telefon, unvan, contactAd, ziyaretTarih:v.tarih_saat, deneme, oncedenUlasilamadi, c:{} };
   document.getElementById('aramaAnketKunye').innerHTML =
     `<b>${escapeHTML(unvan)}</b> · ☎ ${escapeHTML(telefon||'telefon yok')}<br>Kontak: ${escapeHTML(contactAd)} · Ziyaret: ${escapeHTML(myAd)} · ${v.tarih_saat?fmtDate(v.tarih_saat):'—'} · ${deneme}. arama`+
-    (oncedenUlasilamadi?'<br><span style="color:var(--amber);">⚠ Bu numaraya daha önce ulaşılamamış.</span>':'');
+    (oncedenUlasilamadi?'<br><span style="color:var(--amber);">⚠ Bu numaraya daha önce ulaşılamamış.</span>':'')+
+    `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;color:var(--text2);">`+
+    `<div><b>Ziyaret amacı:</b> ${escapeHTML(v.ziyaret_amaci||'—')}${v.ziyaret_amaci_detay?(' — '+escapeHTML(v.ziyaret_amaci_detay)):''}</div>`+
+    `<div><b>Konuşulan ürün/servis:</b> ${escapeHTML(v.urun_gruplari||'—')}</div>`+
+    `<div><b>Ziyaret notu/sonucu:</b> ${escapeHTML(v.ziyaret_sonucu||'—')}</div>`+
+    `<div><b>Fırsat oluşmuş mu:</b> ${escapeHTML(firsatText)}</div>`+
+    `</div>`;
   _anketRender();
   openModal('aramaAnketModal');
 }
@@ -405,4 +435,101 @@ async function araAnketBilgiGuncelle(sebep){
     toast('Kapatıldı (bilgi güncelleme görevi açılamadı: MY/görev tipi yok)','info');
   }
   closeModal('aramaAnketModal'); loadAramaListesi();
+}
+
+// ============================================================
+// 5a: ÇAĞRI ANALİZİ (filtreli liste) — yetki: arama_rapor (kapsam bazlı)
+// ============================================================
+const ANALIZ_KAT = [
+  {k:'aranacak',     ad:'Henüz aranmamış', kaynak:'task'},
+  {k:'tekrar',       ad:'Tekrar aranacak', kaynak:'task'},
+  {k:'ulasilamayan', ad:'Ulaşılamayan',    kaynak:'sonuc'},
+  {k:'sahte',        ad:'Sahte ziyaret',   kaynak:'sonuc'},
+  {k:'supheli',      ad:'Şüpheli',         kaynak:'sonuc'},
+  {k:'memnuniyetsiz',ad:'Memnuniyetsiz',   kaynak:'sonuc'},
+  {k:'sikayet',      ad:'Şikayetli',       kaynak:'sonuc'},
+  {k:'yuzyuze',      ad:'Yüz yüze uyuşmazlık', kaynak:'sonuc'},
+  {k:'tamamlanan',   ad:'Tamamlanan',      kaynak:'task'},
+  {k:'aramadan',     ad:'Aramadan kapatılan', kaynak:'task'}
+];
+
+async function _analizIzinMyList(){
+  const scope=(typeof getScope==='function')?getScope('arama_rapor'):'TÜM';
+  if(scope==='TÜM') return null;               // tüm veri
+  const {data}=await sb.from('users').select('my_id').eq('kcm_id',currentUser.kcm_id);
+  return (data||[]).map(u=>u.my_id);
+}
+function _analizOzet(k,r){
+  if(k==='ulasilamayan') return 'Ulaşılamadı'+(r.ulasilamama_neden?(' ('+r.ulasilamama_neden+')'):'');
+  if(k==='sahte')        return 'Sahte ziyaret şüphesi';
+  if(k==='supheli')      return 'Ziyaret: Emin değil';
+  if(k==='memnuniyetsiz')return 'Memnuniyet '+(r.memnuniyet??'-')+'/5'+(r.guven==='Hayır'?' · güven yok':'');
+  if(k==='sikayet')      return 'Şikayet var';
+  if(k==='yuzyuze')      return 'Yüz yüze uyuşmazlık';
+  return '';
+}
+function _analizKat(k){
+  ARAMA.analiz.kat=k;
+  document.querySelectorAll('#aramaFiltre .chip-btn[data-kat]').forEach(c=>c.classList.toggle('selected',c.getAttribute('data-kat')===k));
+  loadAramaAnaliz();
+}
+
+async function loadAramaAnaliz(){
+  ARAMA.analiz = ARAMA.analiz || {kat:'sahte',bas:'',bit:''};
+  const g=document.getElementById('aramaListeGovde'); const fEl=document.getElementById('aramaFiltre');
+  if(!g) return;
+  const typeId=await _aramaTeyitTypeId();
+  if(fEl && !fEl.dataset.ready){
+    fEl.innerHTML=`
+      <div class="chip-grid-box" style="margin-bottom:8px;">${ANALIZ_KAT.map(c=>`<div class="chip-btn${ARAMA.analiz.kat===c.k?' selected':''}" data-kat="${c.k}" onclick="_analizKat('${c.k}')">${c.ad}</div>`).join('')}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <input type="date" id="analizBas" value="${ARAMA.analiz.bas}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+        <input type="date" id="analizBit" value="${ARAMA.analiz.bit}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+        <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaAnaliz()">Uygula</button></div>`;
+    fEl.dataset.ready='1';
+  }
+  ARAMA.analiz.bas=document.getElementById('analizBas')?.value||'';
+  ARAMA.analiz.bit=document.getElementById('analizBit')?.value||'';
+  const bas=ARAMA.analiz.bas, bit=ARAMA.analiz.bit;
+  const kat=ANALIZ_KAT.find(c=>c.k===ARAMA.analiz.kat)||ANALIZ_KAT[3];
+  g.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const izinMy=await _analizIzinMyList();
+  let rows=[];
+
+  if(kat.kaynak==='sonuc'){
+    let q=sb.from('arama_sonuclari').select('task_id,ncst,my_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,guven,sikayet_var,yuzyuze_uyusmazlik,created_at').order('created_at',{ascending:false}).limit(500);
+    if(kat.k==='ulasilamayan') q=q.eq('ulasildi',false);
+    else if(kat.k==='sahte')   q=q.eq('ziyaret_dogrulandi','Hayır');
+    else if(kat.k==='supheli') q=q.eq('ziyaret_dogrulandi','Emin değil');
+    else if(kat.k==='sikayet') q=q.eq('sikayet_var',true);
+    else if(kat.k==='yuzyuze') q=q.eq('yuzyuze_uyusmazlik',true);
+    else if(kat.k==='memnuniyetsiz') q=q.or('memnuniyet.lte.2,guven.eq.Hayır');
+    if(bas) q=q.gte('created_at',bas+'T00:00:00');
+    if(bit) q=q.lte('created_at',bit+'T23:59:59');
+    if(izinMy) q=q.in('my_id',izinMy);
+    const {data}=await q;
+    rows=(data||[]).map(r=>({ncst:r.ncst,my_id:r.my_id,tarih:r.created_at,ozet:_analizOzet(kat.k,r)}));
+  } else {
+    const durumlar = kat.k==='aranacak'?['Aranacak','Tekrar Aranacak']
+      :(kat.k==='tekrar'?['Tekrar Aranacak']
+      :(kat.k==='tamamlanan'?['Tamamlandı']:['Aramadan Kapatıldı']));
+    let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',durumlar).order('deadline',{ascending:false}).limit(500);
+    if(bas) q=q.gte('deadline',bas);
+    if(bit) q=q.lte('deadline',bit);
+    const {data}=await q;
+    let list=data||[];
+    const vIds=[...new Set(list.map(t=>t.visit_id).filter(Boolean))];
+    const vMap={}; if(vIds.length){ const {data:vs}=await sb.from('visits').select('visit_id,my_id').in('visit_id',vIds); (vs||[]).forEach(v=>vMap[v.visit_id]=v.my_id); }
+    list.forEach(t=>t._my=vMap[t.visit_id]||null);
+    if(izinMy) list=list.filter(t=>izinMy.includes(t._my));
+    rows=list.map(t=>({ncst:t.ncst,my_id:t._my,tarih:t.deadline,ozet:t.durum}));
+  }
+
+  const ncstList=[...new Set(rows.map(r=>r.ncst).filter(Boolean))];
+  const unvanMap={}; if(ncstList.length){ const {data}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList); (data||[]).forEach(c=>unvanMap[c.ncst]=c.unvan); }
+  if(!rows.length){ g.innerHTML='<div class="empty">Bu filtreye uyan kayıt yok.</div>'; return; }
+  g.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">${rows.length} kayıt · ${escapeHTML(kat.ad)}</div>`+
+    rows.map(r=>`<div class="visit-card"><div class="visit-firm">${escapeHTML(unvanMap[r.ncst]||r.ncst||'—')}</div>
+      <div class="visit-my">MY: ${escapeHTML(r.my_id?(myIdToName[r.my_id]||('#'+r.my_id)):'—')} · ${r.tarih?fmtDate(r.tarih):'—'}</div>
+      <div class="visit-my" style="color:var(--amber);">${escapeHTML(r.ozet||'')}</div></div>`).join('');
 }
