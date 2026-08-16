@@ -1,4 +1,18 @@
 // ============================================================
+// donanim.js — v1.0.19 (V31.26)
+//   v1.0.19 (V31.26): Tedarik akışı bildirimi — Ana menü 'Donanım Takip'
+//     ikonunda rozet: kullanıcının kendi (satan/rezerve eden) siparişlerinden
+//     'Onaylandı' durumunda olan varsa sayı görünür (_donanimBadgeGuncelle,
+//     initApp'te proaktif + Rezervasyonlar listesi her yüklendiğinde günceller).
+//     Rezervasyon kartında kullanıcının kendi yeni-onaylanan siparişi turuncu
+//     glow + '🔔 Onaylandı' rozetiyle öne çıkar.
+// donanim.js — v1.0.18 (V31.25)
+//   v1.0.18 (V31.25): Satış Tipi (Peşin/OLM/Turkcell Finansman) — ön rezervasyon
+//     olusturmada zorunlu secim, rezervasyon karti + detay + duzenleme
+//     modallarinda gosterilir/duzenlenebilir. Rezervasyon karti artik sepet_id
+//     bazinda sipariş adimina gore renkli kenarlik alir (DONANIM_SUREC_ADIMLARI).
+//     DB: stok_rezervasyonlari.satis_tipi (yeni kolon, kullanicinin calistirmasi
+//     gerekir — bkz devir notu).
 // donanim.js — v1.0.17 (V31.18)
 //   v1.0.17 (V31.18): IMEI maskeleme (2.4) — donanim_imei_gor yetkisi olmayan
 //     kullanicilar (MY/FMY vb.) atanmis IMEI'leri ilk4+son4 maskeli gorur.
@@ -537,6 +551,10 @@ async function donanimSepetiAc(){
   document.getElementById('donanimSepetMusteriSecili').classList.add('hide');
   window._donanimSepetSeciliMusteri = null;
 
+  // v31.25: Satış Tipi seçimini sıfırla (her yeni sepet açılışında zorunlu yeniden seçim)
+  document.querySelectorAll('#donanimSepetSatisTipiBox .chip-btn').forEach(c=>c.classList.remove('selected'));
+  window._donanimSepetSatisTipi = null;
+
   // v30.88: MY/FMY kendisi giriyorsa hiçbir seçim göstermeden otomatik kendisi olur.
   const kendiMY = (currentUser.yetki_seviyesi==='MY' || currentUser.yetki_seviyesi==='FMY');
   document.getElementById('donanimSatanSecimBlok').classList.toggle('hide', kendiMY);
@@ -615,6 +633,13 @@ function donanimMusteriTemizle(){
   document.getElementById('donanimSepetMusteriSecili').classList.add('hide');
 }
 
+// v31.25: Satış Tipi (Peşin/OLM/Turkcell Finansman) — sepet gönderiminde zorunlu
+function donanimSatisTipiSec(el, tip){
+  document.querySelectorAll('#donanimSepetSatisTipiBox .chip-btn').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  window._donanimSepetSatisTipi = tip;
+}
+
 // Sepeti gönderir: her ürün için ayrı rezervasyon satırı, ortak sepet_id, on_rezerve_adet artırılır
 async function donanimSepetGonder(){
   const musteri = window._donanimSepetSeciliMusteri;
@@ -623,6 +648,9 @@ async function donanimSepetGonder(){
   const not = document.getElementById('donanimSepetNot').value.trim();
   if(!musteri){ toast('Müşteri seçin','error'); return; }
   if(!satanMyId){ toast('Cihazı satacak MY/FMY seçin','error'); return; }
+  // v31.25: Satış Tipi zorunlu (Peşin/OLM/Turkcell Finansman)
+  const satisTipi = window._donanimSepetSatisTipi;
+  if(!satisTipi){ toast('Satış tipi seçin (Peşin / OLM / Turkcell Finansman)','error'); return; }
 
   const sepetKeys = Object.keys(window._donanimSepet||{});
   if(!sepetKeys.length){ toast('Sepet boş','error'); return; }
@@ -640,7 +668,8 @@ async function donanimSepetGonder(){
       rezerve_eden_id: currentUser.my_id,
       durum: 'Ön Rezervasyon',
       sepet_id: sepetId,
-      aciklama: not || null
+      aciklama: not || null,
+      satis_tipi: satisTipi
     };
   });
 
@@ -661,6 +690,7 @@ async function donanimSepetGonder(){
   closeModal('donanimSepetModal');
   window._donanimSepet = {};
   window._donanimSecimModu = false;
+  window._donanimSepetSatisTipi = null;
   _donanimSepetBarGuncelle();
   loadDonanimListesi();
 }
@@ -713,6 +743,31 @@ const DONANIM_SUREC_ADIMLARI = {
   'Reddedildi':        {no:0, renk:'#c0392b'},
   'İptal':             {no:0, renk:'#7f8c8d'}
 };
+
+// v31.25: Satış Tipi renkleri (Peşin/OLM/Turkcell Finansman) — rozet gösterimi için
+const DONANIM_SATIS_TIPI_RENK = { 'Peşin':'#2ecc71', 'OLM':'#3498db', 'Turkcell Finansman':'#9b59b6' };
+
+// ============================================================
+// v31.26: Tedarik akışı bildirimi — Ana menüdeki 'Donanım Takip' ikonu üzerinde
+// rozet. Kullanıcının kendi (satan veya rezerve eden olduğu) sipariş(ler)i
+// 'Onaylandı' adımına geçtiğinde rozette sayı görünür (görev rozetiyle aynı
+// desen: js/gorev.js updateGorevBadge/#gorevMenuBadge — okundu/okunmadı takibi
+// yok, adım değişince rozet kendiliğinden güncellenir/kaybolur).
+// ============================================================
+async function _donanimBadgeGuncelle(){
+  const badge = document.getElementById('donanimMenuBadge');
+  if(!badge) return;
+  const mid = currentUser?.my_id;
+  if(!mid){ badge.style.display='none'; return; }
+  const {data, error} = await sb.from('stok_rezervasyonlari')
+    .select('sepet_id')
+    .eq('durum','Onaylandı')
+    .or(`satan_my_id.eq.${mid},rezerve_eden_id.eq.${mid}`);
+  if(error){ console.warn('_donanimBadgeGuncelle:', error.message); return; }
+  const sayi = new Set((data||[]).map(r=>r.sepet_id)).size;
+  badge.textContent = sayi || '';
+  badge.style.display = sayi > 0 ? 'inline-flex' : 'none';
+}
 
 // v30.96: 3 sekme — Stok / Rezervasyonlar / Transfer
 function donanimTabGeç(hangi){
@@ -1008,6 +1063,15 @@ async function loadDonanimRezervasyonlar(){
   if(error){ listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`; return; }
   if(!data || !data.length){ listEl.innerHTML = '<div class="empty">Kayıtlı rezervasyon yok.</div>'; return; }
 
+  // v31.25: Satış Tipi — stok_rezervasyon_ozet view'ında yok, temel tablodan
+  // sepet_id başına tek satır yeterli (aynı sepetteki tüm kalemler aynı satış tipini paylaşır).
+  const sepetIds = [...new Set(data.map(r=>r.sepet_id).filter(Boolean))];
+  const satisTipiMap = {};
+  if(sepetIds.length){
+    const {data:stRows} = await sb.from('stok_rezervasyonlari').select('sepet_id,satis_tipi').in('sepet_id', sepetIds);
+    (stRows||[]).forEach(s=>{ if(s.satis_tipi && !satisTipiMap[s.sepet_id]) satisTipiMap[s.sepet_id]=s.satis_tipi; });
+  }
+
   // MY/TL/KÇM adlarını toplu çek
   // v30.92: satan + rezerve eden + müşterinin MY'si isimleri için id kümesi genişletildi
   const myIds = [...new Set(data.flatMap(r=>[r.satan_my_id, r.rezerve_eden_id, r.musteri_my_id]).filter(Boolean))];
@@ -1059,14 +1123,21 @@ async function loadDonanimRezervasyonlar(){
     const musteriAd   = musteriMap[r.ncst] || r.ncst || '—';
     const musteriMyAd = myMap[r.musteri_my_id]?.ad_soyad || '—';
     const rezEdenAd   = myMap[r.rezerve_eden_id]?.ad_soyad || '—';
-    return `<div class="visit-card" style="margin-bottom:8px;">
+    // v31.25: Satış Tipi rozeti + kart, sipariş adımına göre renkli kenarlık alır
+    const satisTipi = satisTipiMap[r.sepet_id];
+    const satisTipiRozet = satisTipi ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${DONANIM_SATIS_TIPI_RENK[satisTipi]||'var(--text3)'};color:#fff;margin-left:6px;white-space:nowrap;">${escapeHTML(satisTipi)}</span>` : '';
+    // v31.26: kullanıcının kendi (satan/rezerve eden olduğu) YENİ onaylanmış siparişi — dikkat çeksin
+    const buKendiYeniOnay = r.durum==='Onaylandı' && (r.satan_my_id===currentUser.my_id || r.rezerve_eden_id===currentUser.my_id);
+    const dikkatCek = buKendiYeniOnay ? 'background:rgba(230,126,34,0.10);box-shadow:0 0 0 1px rgba(230,126,34,0.5);' : '';
+    const yeniOnayRozet = buKendiYeniOnay ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--red);color:#fff;margin-left:6px;white-space:nowrap;">🔔 Onaylandı</span>` : '';
+    return `<div class="visit-card" style="margin-bottom:8px;border-left:3px solid ${adim.renk};${dikkatCek}">
       <div style="cursor:pointer;" onclick="openDonanimRezDetay('${r.sepet_id}')">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div style="font-size:12px;color:var(--text3);">${escapeHTML(kcmMap[r.kcm_id]||'KÇM#'+r.kcm_id)} · ${escapeHTML(tlAd)} · <b>${escapeHTML(my?.ad_soyad||'MY#'+r.satan_my_id)}</b></div>
           <div style="width:26px;height:26px;border-radius:50%;background:${adim.renk};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">${adim.no}</div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
-          <span style="font-size:11px;color:${adim.renk};font-weight:700;">${escapeHTML(r.durum)}</span>
+          <span style="font-size:11px;color:${adim.renk};font-weight:700;">${escapeHTML(r.durum)}${satisTipiRozet}${yeniOnayRozet}</span>
           <span style="font-size:14px;font-weight:800;">${Number(r.toplam_tutar||0).toLocaleString('tr-TR')} ₺</span>
         </div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;">${r.kalem_sayisi} kalem · ${new Date(r.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'})}</div>
@@ -1086,6 +1157,8 @@ async function loadDonanimRezervasyonlar(){
       </div>` : ''}
     </div>`;
   }).join('');
+
+  _donanimBadgeGuncelle(); // v31.26
 }
 
 // v30.89: Ön Rezervasyon -> Rezervasyon (kesinleşme). SADECE bu adımda
@@ -1380,13 +1453,19 @@ async function donanimRezDuzenleAc(sepetId){
   window._rezDuzenle = {
     sepetId, durum: ilk.durum, kcmId: ilk.kcm_id,
     sablon: { kcm_id:ilk.kcm_id, ncst:ilk.ncst, musteri_my_id:ilk.musteri_my_id,
-              satan_my_id:ilk.satan_my_id, rezerve_eden_id:ilk.rezerve_eden_id, durum:ilk.durum },
+              satan_my_id:ilk.satan_my_id, rezerve_eden_id:ilk.rezerve_eden_id, durum:ilk.durum,
+              satis_tipi: ilk.satis_tipi || null }, // v31.25
     kalemler: kalemler.map(k=>({ urun_id:k.urun_id, ad: adMap[k.urun_id]||('Cihaz #'+k.urun_id), adet:k.adet })),
     musaitMap: {}
   };
 
   document.getElementById('donanimRezDuzenleDurum').textContent =
     `Durum: ${ilk.durum}` + (ilk.durum==='Onaylandı' ? ' — adet artışı yalnız müsait stok varsa uygulanır' : ' — stok kilitlenmez');
+
+  // v31.25: Satış Tipi chip seçimini mevcut değere göre işaretle
+  document.querySelectorAll('#donanimRezDuzenleSatisTipiBox .chip-btn').forEach(c=>{
+    c.classList.toggle('selected', c.getAttribute('data-tip')===ilk.satis_tipi);
+  });
 
   const sel = document.getElementById('donanimRezDuzenleYeniCihaz');
   sel.innerHTML='<option value="">Yükleniyor...</option>';
@@ -1398,6 +1477,13 @@ async function donanimRezDuzenleAc(sepetId){
   document.getElementById('donanimRezDuzenleYeniAdet').value=1;
   _donanimRezDuzenleRender();
   openModal('donanimRezDuzenleModal');
+}
+
+// v31.25: Rezervasyon düzenleme — Satış Tipi seçimi (kaydet'te uygulanır)
+function donanimRezDuzenleSatisTipiSec(el, tip){
+  document.querySelectorAll('#donanimRezDuzenleSatisTipiBox .chip-btn').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  if(window._rezDuzenle) window._rezDuzenle.sablon.satis_tipi = tip;
 }
 
 function _donanimRezDuzenleRender(){
@@ -1487,13 +1573,19 @@ async function donanimRezDuzenleKaydet(){
       const {error:iErr} = await sb.from('stok_rezervasyonlari').insert({
         sepet_id:st.sepetId, urun_id:k.urun_id, adet:k.adet,
         kcm_id:st.sablon.kcm_id, ncst:st.sablon.ncst, musteri_my_id:st.sablon.musteri_my_id,
-        satan_my_id:st.sablon.satan_my_id, rezerve_eden_id:st.sablon.rezerve_eden_id, durum:st.sablon.durum
+        satan_my_id:st.sablon.satan_my_id, rezerve_eden_id:st.sablon.rezerve_eden_id, durum:st.sablon.durum,
+        satis_tipi:st.sablon.satis_tipi
       });
       if(iErr){ toast('Hata: kalem eklenemedi: '+iErr.message,'error'); return; }
     }
   }
   const silUrun = orj.filter(o=>!yeniUrunSet.has(o.urun_id)).map(o=>o.urun_id);
   if(silUrun.length){ await sb.from('stok_rezervasyonlari').delete().eq('sepet_id',st.sepetId).in('urun_id',silUrun); }
+
+  // v31.25: Satış Tipi değiştiyse sepetteki tüm satırlara uygula
+  if(st.sablon.satis_tipi && st.sablon.satis_tipi !== orj[0].satis_tipi){
+    await sb.from('stok_rezervasyonlari').update({ satis_tipi: st.sablon.satis_tipi, updated_at:new Date().toISOString() }).eq('sepet_id', st.sepetId);
+  }
 
   await _donanimRezHareketLog('Rezervasyon Düzenlendi', st.kalemler, {ncst:st.sablon.ncst, satan_my_id:st.sablon.satan_my_id});
 
@@ -1559,7 +1651,10 @@ async function openDonanimRezDetay(sepetId){
       <div><b>KÇM:</b> ${escapeHTML(kcmAd)}</div>
       <div><b>Takım Lideri:</b> ${escapeHTML(tlAd)}</div>
       <div><b>MY/FMY:</b> ${escapeHTML(myData?.ad_soyad||'—')}</div>
-      <div style="margin-top:6px;"><span style="background:${adim.renk};color:#fff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">${adim.no}. ${escapeHTML(ilk.durum)}</span></div>
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="background:${adim.renk};color:#fff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">${adim.no}. ${escapeHTML(ilk.durum)}</span>
+        ${ilk.satis_tipi ? `<span style="background:${DONANIM_SATIS_TIPI_RENK[ilk.satis_tipi]||'var(--text3)'};color:#fff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">${escapeHTML(ilk.satis_tipi)}</span>` : ''}
+      </div>
     </div>
     <div style="overflow:auto;border:1px solid var(--border);border-radius:8px;">
       <table style="width:100%;border-collapse:collapse;">

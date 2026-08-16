@@ -1,7 +1,9 @@
 // ============================================================
-// auth.js — v1.2.16
-// Son güncelleme: 2026-07-12
+// auth.js — v1.2.17
+// Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.17 — (V31.26) initApp'te girişte donanim.js:_donanimBadgeGuncelle()
+//             çağrılır — Donanım Takip rozeti kullanıcı ekranı hiç açmasa da görünür.
 //   v1.2.14 — (V30.77) applyRBAC sabit rol listesi yerine DB scope'u kullanir.
 //             TAKIM LIDERI / CST icin BAGLI dali eklendi; PRT+ destegi.
 //   v1.2.12 — (V30.74) getCustomerBaseQuery: müşteri LİSTESİ ile ARAMA kapsamı ayrıldı.
@@ -121,6 +123,9 @@ async function initApp(){
   await loadKcmMyIds();
   await loadBagliMyIds();
   loadDashboard();
+  // v31.26: Donanım Takip menü rozeti — kullanıcı ekranı hiç açmasa da girişte
+  // onaylanmış siparişleri varsa ana menüde görünsün (tedarik akışı bildirimi).
+  if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
 }
 
 let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)

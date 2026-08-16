@@ -1,7 +1,16 @@
 // ============================================================
-// config.js — v1.2.66
+// config.js — v1.2.68
 // Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.68 — APP_VERSION → V31.26. Donanim: Tedarik akışı bildirimi — Ana menu
+//             'Donanim Takip' ikonunda rozet (kendi siparişlerinden Onaylandı
+//             olanlar), rezervasyon kartinda kendi yeni-onayi turuncu glow +
+//             '🔔 Onaylandı' rozetiyle vurgulanir. donanim.js v1.0.19, auth.js v1.2.17.
+//   v1.2.67 — APP_VERSION → V31.25. Donanim: Satış Tipi (Pesin/OLM/Turkcell
+//             Finansman) — on rezervasyonda zorunlu secim, rezervasyon karti/
+//             detay/duzenleme ekranlarinda gosterilir/duzenlenebilir. Kart
+//             artik siparis adimina gore renkli kenarlik alir. DB migration
+//             gerekiyor (stok_rezervasyonlari.satis_tipi). donanim.js v1.0.18.
 //   v1.2.66 — APP_VERSION → V31.24. FIX: Arama Detay modali 'kayit bulunamadi'
 //             gosteriyordu — sabit kolon listesi select'i PostgREST tarafinda
 //             sessizce reddediliyordu (hata kontrol edilmiyordu). select('*') +
@@ -164,7 +173,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.24';
+const APP_VERSION = 'V31.26';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
