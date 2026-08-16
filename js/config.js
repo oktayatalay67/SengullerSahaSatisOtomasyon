@@ -1,7 +1,14 @@
 // ============================================================
-// config.js — v1.2.61
+// config.js — v1.2.63
 // Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.63 — APP_VERSION → V31.21. Arama: 'Bugun' -> 'Bekleyen Cagrilar'
+//             (+ tarih filtresi), kutu etiketleri Bekleyen/Gelecek/Tamamlanan,
+//             sayfa basligi 'Ziyaret Teyit Aramalari', kart cerceve
+//             renklendirme (kirmizi/sari/yesil/turuncu). arama.js v1.0.7.
+//   v1.2.62 — APP_VERSION → V31.20. Arama ekrani: Bugun/Gelecek/Tamamlanan
+//             sekmeleri 3'lu istatistik kutusuna donusturuldu (main.css:
+//             .summary-box.active/.summary-val.lg/.summary-label.lg eklendi).
 //   v1.2.61 — APP_VERSION → V31.19. Memnuniyet Arama: 'Ara' modaline firma
 //             gecmisi paneli (tum ziyaretler + onceki teyit aramalari) eklendi
 //             (arama.js: _aramaGecmisYukle/_aramaGecmisRender).
@@ -144,7 +151,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.19';
+const APP_VERSION = 'V31.21';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

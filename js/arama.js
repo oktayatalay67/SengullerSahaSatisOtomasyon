@@ -1,5 +1,13 @@
 // ============================================================
-// arama.js — v1.0.5
+// arama.js — v1.0.7
+//   v1.0.7 (V31.21): 'Bugun' sekmesi -> 'Bekleyen Cagrilar' (+ tarih filtresi,
+//     Tamamlananlar'daki gibi). Kutu etiketleri: Bekleyen/Gelecek/Tamamlanan.
+//     Kart cerceve renklendirme: kirmizi=yanlis numara/sikayet, sari=ulasildi+
+//     tekrar aranacak, yesil=tamamlandi+ziyaret teyit edildi, turuncu=ulasilamayan/
+//     kapanan. main.css: --orange degiskeni eklendi.
+//   v1.0.6 (V31.20): UI — Bugun/Gelecek/Tamamlanan sekmeleri alttaki liste
+//     kutusuyla ayni genislikte 3 istatistik kutusuna (.summary-box) donusturuldu;
+//     sayi kutu icinde buyuk+bold, etiket altinda, kutuya tiklamak sekmeyi acar.
 //   v1.0.5 (V31.19): Ara modalina 'Firma Gecmisi' paneli — bu ncst'ye yapilmis
 //     TUM ziyaretler (visits) + daha once yapilmis TUM teyit aramalari
 //     (arama_sonuclari) listelenir (acilir/kapanir). Agent aradigi firma
@@ -50,19 +58,33 @@ async function initAramaEkrani(){
   _aramaSekmeGoster(ARAMA.aktifSekme);
 }
 
+// v31.20: 3 sekme (Bugün/Gelecek/Tamamlanan) artık alttaki liste kutusuyla aynı
+// genişlikte 3 istatistik kutusu (.summary-box) olarak gösteriliyor — sayı kutu
+// içinde büyük+bold, etiket altında; kutuya tıklamak ilgili sekmeye geçer.
 function _aramaShellRender(){
   const el=document.getElementById('aramaListesi'); if(!el) return;
   const agent=hasPerm('arama_agent'), rapor=hasPerm('arama_rapor');
-  let tabs='';
-  if(agent) tabs+=`<div class="chip-btn" data-sekme="bugun" onclick="_aramaSekmeGoster('bugun')">Bugün</div>
-      <div class="chip-btn" data-sekme="gelecek" onclick="_aramaSekmeGoster('gelecek')">Gelecek Çağrılar</div>
-      <div class="chip-btn" data-sekme="tamamlanan" onclick="_aramaSekmeGoster('tamamlanan')">Tamamlananlar</div>`;
-  if(rapor) tabs+=`<div class="chip-btn" data-sekme="analiz" onclick="_aramaSekmeGoster('analiz')">Çağrı Analizi</div>`;
-  el.innerHTML=`
-    <div id="aramaSekmeler" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">${tabs}</div>
-    <div id="aramaSayaclar" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>
-    <div id="aramaFiltre"></div>
+  let h='';
+  if(agent){
+    h+=`<div id="aramaSekmeler" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+      <div class="summary-box" data-sekme="bugun" style="cursor:pointer;" onclick="_aramaSekmeGoster('bugun')">
+        <div class="summary-val lg" id="aramaStatBugun" style="color:var(--amber);">—</div>
+        <div class="summary-label lg">Bekleyen</div>
+      </div>
+      <div class="summary-box" data-sekme="gelecek" style="cursor:pointer;" onclick="_aramaSekmeGoster('gelecek')">
+        <div class="summary-val lg" id="aramaStatGelecek" style="color:var(--blue);">—</div>
+        <div class="summary-label lg">Gelecek</div>
+      </div>
+      <div class="summary-box" data-sekme="tamamlanan" style="cursor:pointer;" onclick="_aramaSekmeGoster('tamamlanan')">
+        <div class="summary-val lg" id="aramaStatTamamlanan" style="color:var(--green);">—</div>
+        <div class="summary-label lg">Tamamlanan</div>
+      </div>
+    </div>`;
+  }
+  if(rapor) h+=`<div style="display:flex;gap:6px;margin-bottom:10px;"><div class="chip-btn" data-sekme="analiz" onclick="_aramaSekmeGoster('analiz')">📊 Çağrı Analizi</div></div>`;
+  h+=`<div id="aramaFiltre"></div>
     <div id="aramaListeGovde"><div class="loader"><div class="spinner"></div></div></div>`;
+  el.innerHTML=h;
 }
 
 async function _aramaSayaclariYukle(){
@@ -73,13 +95,14 @@ async function _aramaSayaclariYukle(){
     sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).gt('deadline',bugun).then(r=>r.count||0),
     sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).eq('durum','Tamamlandı').gte('tamamlanma_tarihi',bugun+'T00:00:00').then(r=>r.count||0)
   ]);
-  const el=document.getElementById('aramaSayaclar');
-  if(el) el.innerHTML=`Bugün aranacak: <b>${bek}</b> · Gelecek: <b>${gel}</b> · Bugün tamamlanan: <b>${tam}</b>`;
+  const b=document.getElementById('aramaStatBugun'); if(b) b.textContent=bek;
+  const g=document.getElementById('aramaStatGelecek'); if(g) g.textContent=gel;
+  const t=document.getElementById('aramaStatTamamlanan'); if(t) t.textContent=tam;
 }
 
 function _aramaSekmeGoster(sekme){
   ARAMA.aktifSekme=sekme;
-  document.querySelectorAll('#aramaSekmeler .chip-btn').forEach(c=>c.classList.toggle('selected', c.getAttribute('data-sekme')===sekme));
+  document.querySelectorAll('#aramaListesi [data-sekme]').forEach(c=>c.classList.toggle('active', c.getAttribute('data-sekme')===sekme));
   const f=document.getElementById('aramaFiltre'); if(f){ f.innerHTML=''; delete f.dataset.ready; }
   if(sekme==='bugun') loadAramaBugun();
   else if(sekme==='gelecek') loadAramaGelecek();
@@ -97,6 +120,30 @@ async function _aramaEnrich(tasks){
   const vMap={}; if(vIds.length){ const {data}=await sb.from('visits').select('visit_id,my_id,tarih_saat,ziyaret_amaci,urun_gruplari,ziyaret_sonucu').in('visit_id',vIds); (data||[]).forEach(v=>vMap[v.visit_id]=v); }
   return {unvanMap,vMap};
 }
+// v31.21: kart çerçeve rengi — durum + son arama sonucuna göre görsel önceliklendirme.
+//   Kırmızı: yanlış numara veya şikayet kaydı var (en yüksek öncelik)
+//   Sarı (amber): ulaşıldı ama tekrar aranacak
+//   Yeşil: görüşüldü ve ziyaret teyit alındı (Tamamlandı + ziyaret_dogrulandi=Evet)
+//   Turuncu: ulaşılamayan / aramadan kapatılan / SLA ile kapanan
+function _aramaKartRenk(t){
+  const s=t._sonucRaw||{};
+  if(s.sikayet_var===true || s.ulasilamama_neden==='Yanlış numara') return 'var(--red)';
+  if(t.durum==='Tekrar Aranacak' && s.ulasildi===true) return 'var(--amber)';
+  if(t.durum==='Tamamlandı' && s.ziyaret_dogrulandi==='Evet') return 'var(--green)';
+  if(['Ulaşılamıyor','Aramadan Kapatıldı','Arama Yapılmadı'].includes(t.durum)) return 'var(--orange)';
+  return null;
+}
+// Bekleyen/Gelecek listelerindeki 'Tekrar Aranacak' kayıtlar için son arama
+// sonucunu (ulasildi/sikayet_var/yanlış numara) çeker — çerçeve rengi için gerekli.
+async function _aramaKartRenkYukle(tasks){
+  const ids=tasks.filter(t=>t.durum==='Tekrar Aranacak').map(t=>t.task_id);
+  if(!ids.length) return;
+  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,sikayet_var,ulasilamama_neden,created_at').in('task_id',ids).order('created_at',{ascending:false});
+  const sonMap={};
+  (sonuclar||[]).forEach(s=>{ if(!sonMap[s.task_id]) sonMap[s.task_id]=s; }); // desc sıralı: ilk gelen = en yeni
+  tasks.forEach(t=>{ if(sonMap[t.task_id]) t._sonucRaw=sonMap[t.task_id]; });
+}
+
 function _aramaKart(t,unvanMap,vMap,mod){
   const unvan=unvanMap[t.ncst]||t.ncst||'—';
   const v=vMap[t.visit_id]||{};
@@ -117,16 +164,33 @@ function _aramaKart(t,unvanMap,vMap,mod){
   const kisalt=(s,n)=>{ s=(s||'').trim(); return s.length>n?s.slice(0,n)+'…':s; };
   const ozetSatir = (v.ziyaret_amaci||v.urun_gruplari)
     ? `<div class="visit-my" style="color:var(--text3);">Amaç: ${escapeHTML(v.ziyaret_amaci||'—')}${v.urun_gruplari?(' · Ürün: '+escapeHTML(kisalt(v.urun_gruplari,50))):''}</div>` : '';
-  return `<div class="visit-card"><div class="visit-firm">${escapeHTML(unvan)}</div>
+  const renk=_aramaKartRenk(t);
+  const cerceve=renk?` style="border:1.5px solid ${renk};"`:'';
+  return `<div class="visit-card"${cerceve}><div class="visit-firm">${escapeHTML(unvan)}</div>
     <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${ozetSatir}${alt}</div>`;
 }
 
 async function loadAramaBugun(){
   const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
   const bugun=new Date().toISOString().slice(0,10);
-  const {data:tasks}=await sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).lte('deadline',bugun).order('deadline',{ascending:true}).limit(500);
+  // v31.21: Tamamlananlar'daki gibi tarih filtresi (deadline aralığı) — sekme adı 'Bekleyen Çağrılar'
+  const fEl=document.getElementById('aramaFiltre');
+  if(fEl && !fEl.dataset.ready){
+    fEl.innerHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      <input type="date" id="aramaBekBas" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <input type="date" id="aramaBekBit" max="${bugun}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaBugun()">Filtrele</button></div>`;
+    fEl.dataset.ready='1';
+  }
+  const bas=document.getElementById('aramaBekBas')?.value;
+  const bit=document.getElementById('aramaBekBit')?.value;
+  let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).lte('deadline',bugun).order('deadline',{ascending:true}).limit(500);
+  if(bas) q=q.gte('deadline',bas);
+  if(bit) q=q.lte('deadline',bit);
+  const {data:tasks}=await q;
   ARAMA.tasks=tasks||[];
-  if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Bugün aranacak kayıt yok.</div>'; return; }
+  if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Bekleyen çağrı yok.</div>'; return; }
+  await _aramaKartRenkYukle(tasks);
   const {unvanMap,vMap}=await _aramaEnrich(tasks);
   g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'aktif')).join('');
 }
@@ -137,6 +201,7 @@ async function loadAramaGelecek(){
   const {data:tasks}=await sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).gt('deadline',bugun).order('deadline',{ascending:true}).limit(1000);
   ARAMA.tasks=tasks||[];
   if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Gelecek çağrı yok.</div>'; return; }
+  await _aramaKartRenkYukle(tasks);
   const {unvanMap,vMap}=await _aramaEnrich(tasks);
   const gruplar={}; tasks.forEach(t=>{ (gruplar[t.deadline]=gruplar[t.deadline]||[]).push(t); });
   let h='';
@@ -166,9 +231,15 @@ async function loadAramaTamamlanan(){
   ARAMA.tasks=tasks||[];
   if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Tamamlanan kayıt yok.</div>'; return; }
   const ids=tasks.map(t=>t.task_id);
-  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,ulasilamama_neden,ziyaret_dogrulandi').in('task_id',ids);
+  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,ulasilamama_neden,ziyaret_dogrulandi,sikayet_var').in('task_id',ids);
   const sMap={}; (sonuclar||[]).forEach(s=>{ sMap[s.task_id]=s; });
-  tasks.forEach(t=>{ const s=sMap[t.task_id]; if(s){ t._sonuc = s.ulasildi===false?('Ulaşılamadı'+(s.ulasilamama_neden?' ('+s.ulasilamama_neden+')':'')):(s.memnuniyet?('Memnuniyet '+s.memnuniyet+'/5'):(s.ziyaret_dogrulandi?('Ziyaret: '+s.ziyaret_dogrulandi):'')); } });
+  tasks.forEach(t=>{
+    const s=sMap[t.task_id];
+    if(s){
+      t._sonucRaw=s;
+      t._sonuc = s.ulasildi===false?('Ulaşılamadı'+(s.ulasilamama_neden?' ('+s.ulasilamama_neden+')':'')):(s.memnuniyet?('Memnuniyet '+s.memnuniyet+'/5'):(s.ziyaret_dogrulandi?('Ziyaret: '+s.ziyaret_dogrulandi):''));
+    }
+  });
   const {unvanMap,vMap}=await _aramaEnrich(tasks);
   g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'tamamlanan')).join('');
 }
