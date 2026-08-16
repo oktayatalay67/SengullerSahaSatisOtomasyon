@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.2.60
+// config.js — v1.2.61
 // Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.61 — APP_VERSION → V31.19. Memnuniyet Arama: 'Ara' modaline firma
+//             gecmisi paneli (tum ziyaretler + onceki teyit aramalari) eklendi
+//             (arama.js: _aramaGecmisYukle/_aramaGecmisRender).
 //   v1.2.60 — APP_VERSION → V31.18. IMEI maskeleme (2.4): donanim_imei_gor
 //             yetkisi olmayan kullanicilar atanmis IMEI'leri ilk4+son4
 //             maskeli gorur (donanim.js: _imeiMaskele).
@@ -141,7 +144,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.18';
+const APP_VERSION = 'V31.19';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

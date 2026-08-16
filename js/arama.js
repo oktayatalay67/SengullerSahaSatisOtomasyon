@@ -1,5 +1,9 @@
 // ============================================================
-// arama.js — v1.0.4
+// arama.js — v1.0.5
+//   v1.0.5 (V31.19): Ara modalina 'Firma Gecmisi' paneli — bu ncst'ye yapilmis
+//     TUM ziyaretler (visits) + daha once yapilmis TUM teyit aramalari
+//     (arama_sonuclari) listelenir (acilir/kapanir). Agent aradigi firma
+//     hakkinda aramadan once istihbarat toplayabilir.
 //   v1.0.4 (V31.17): Liste ozetine ziyaret amaci+urun; arama modalinda tam ziyaret
 //     bilgisi paneli (amac/detay, urun_gruplari, ziyaret notu, firsat olustu mu).
 //   v1.0.3 (V31.16): 5a — Cagri Analizi sekmesi (arama_rapor), kategori+tarih
@@ -273,8 +277,95 @@ async function araModalAc(taskId){
     `<div><b>Ziyaret notu/sonucu:</b> ${escapeHTML(v.ziyaret_sonucu||'—')}</div>`+
     `<div><b>Fırsat oluşmuş mu:</b> ${escapeHTML(firsatText)}</div>`+
     `</div>`;
+
+  // v31.19: Firma geçmişi — tüm ziyaretler + daha önceki teyit aramaları (istihbarat)
+  _aramaGecmisYukle(t.ncst, t.visit_id);
+
   _anketRender();
   openModal('aramaAnketModal');
+}
+
+// v31.19: bu ncst'ye ait TÜM ziyaretleri (visits) + TÜM önceki teyit aramalarını
+// (arama_sonuclari) çeker ve açılır/kapanır bir panelde gösterir. Agent aramadan
+// önce firma hakkında geçmiş bilgiyi görebilsin diye eklendi.
+async function _aramaGecmisYukle(ncst, guncelVisitId){
+  const box=document.getElementById('aramaAnketGecmis');
+  if(!box) return;
+  box.innerHTML='<div style="font-size:11px;color:var(--text3);">Firma geçmişi yükleniyor…</div>';
+  if(!ncst){ box.innerHTML=''; return; }
+
+  const [{data:ziyaretler}, {data:aramalar}] = await Promise.all([
+    sb.from('visits').select('visit_id,tarih_saat,my_id,temas_turu,durum,ziyaret_amaci,ziyaret_sonucu')
+      .eq('ncst',ncst).order('tarih_saat',{ascending:false}).limit(20),
+    sb.from('arama_sonuclari').select('created_at,agent_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,guven,sikayet_var,agent_notu')
+      .eq('ncst',ncst).order('created_at',{ascending:false}).limit(20)
+  ]);
+  // SLA'nın otomatik kapattığı "aranmadı" kayıtları gürültü — istihbaratta gösterilmez
+  const aramaTemiz=(aramalar||[]).filter(s=>!(s.ulasilamama_neden||'').startsWith('Arama Yapılmadı (SLA'));
+
+  _aramaGecmisRender(ziyaretler||[], aramaTemiz, guncelVisitId);
+}
+
+function _aramaGecmisRender(ziyaretler, aramalar, guncelVisitId){
+  const box=document.getElementById('aramaAnketGecmis');
+  if(!box) return;
+  const vSayi=ziyaretler.length, aSayi=aramalar.length;
+
+  const vList = ziyaretler.length ? ziyaretler.map(v=>{
+    const myAd = v.my_id?(myIdToName[v.my_id]||('MY#'+v.my_id)):'—';
+    const guncel = (v.visit_id===guncelVisitId) ? ' <span style="color:var(--blue);">(bu görev)</span>' : '';
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;gap:6px;">
+        <span style="font-weight:600;">${escapeHTML(v.temas_turu||'Temas')}${guncel}</span>
+        <span style="color:var(--text3);white-space:nowrap;">${v.tarih_saat?fmtDate(v.tarih_saat):'—'}</span>
+      </div>
+      <div style="color:var(--text2);">${escapeHTML(myAd)}${v.ziyaret_amaci?(' · '+escapeHTML(v.ziyaret_amaci)):''}</div>
+      ${v.ziyaret_sonucu?`<div style="color:var(--text3);">${escapeHTML(v.ziyaret_sonucu)}</div>`:''}
+    </div>`;
+  }).join('') : '<div style="color:var(--text3);padding:6px 0;">Bu firmaya kayıtlı başka ziyaret yok.</div>';
+
+  const aList = aramalar.length ? aramalar.map(s=>{
+    const agentAd = s.agent_id?(myIdToName[s.agent_id]||('#'+s.agent_id)):'—';
+    let ozet, renk='var(--text2)';
+    if(s.ulasildi===false){ ozet='Ulaşılamadı'+(s.ulasilamama_neden?(' ('+s.ulasilamama_neden+')'):''); }
+    else if(s.ulasildi===true){
+      const p=[];
+      if(s.ziyaret_dogrulandi) p.push('Ziyaret: '+s.ziyaret_dogrulandi);
+      if(s.memnuniyet!=null) p.push('Memnuniyet '+s.memnuniyet+'/5');
+      if(s.guven==='Hayır') p.push('Güven yok');
+      if(s.sikayet_var) p.push('Şikayet var');
+      ozet=p.join(' · ')||'Ulaşıldı';
+      if(s.ziyaret_dogrulandi==='Hayır'||s.sikayet_var) renk='var(--red)';
+      else if(s.ziyaret_dogrulandi==='Emin değil') renk='var(--amber)';
+    } else { ozet='Aramadan kapatıldı'+(s.ulasilamama_neden?(' ('+s.ulasilamama_neden.replace('Aramadan Kapatıldı: ','')+')'):''); }
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;gap:6px;">
+        <span style="font-weight:600;">☎ ${escapeHTML(agentAd)}</span>
+        <span style="color:var(--text3);white-space:nowrap;">${s.created_at?fmtDate(s.created_at):'—'}</span>
+      </div>
+      <div style="color:${renk};">${escapeHTML(ozet)}</div>
+      ${s.agent_notu?`<div style="color:var(--text3);">${escapeHTML(s.agent_notu)}</div>`:''}
+    </div>`;
+  }).join('') : '<div style="color:var(--text3);padding:6px 0;">Bu firmaya daha önce teyit araması yapılmamış.</div>';
+
+  box.innerHTML = `
+    <div class="chip-btn" style="width:100%;text-align:center;" onclick="_aramaGecmisToggle()">
+      📋 Firma geçmişi — ${vSayi} ziyaret · ${aSayi} arama <span id="aramaGecmisOkSpan">▾</span>
+    </div>
+    <div id="aramaGecmisIcerik" class="hide" style="max-height:32vh;overflow-y:auto;background:var(--navy3);border-radius:8px;padding:8px 10px;margin-top:6px;font-size:12px;">
+      <div style="font-weight:700;margin-bottom:2px;">Ziyaretler (${vSayi})</div>
+      ${vList}
+      <div style="font-weight:700;margin:10px 0 2px;">Önceki Teyit Aramaları (${aSayi})</div>
+      ${aList}
+    </div>`;
+}
+
+function _aramaGecmisToggle(){
+  const el=document.getElementById('aramaGecmisIcerik');
+  const ok=document.getElementById('aramaGecmisOkSpan');
+  if(!el) return;
+  el.classList.toggle('hide');
+  if(ok) ok.textContent = el.classList.contains('hide') ? '▾' : '▴';
 }
 
 function _anketSec(key,val){ window._anket.c[key]=val; _anketRender(); }
