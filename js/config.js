@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.2.59
-// Son güncelleme: 2026-07-17
+// config.js — v1.2.60
+// Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.60 — APP_VERSION → V31.18. IMEI maskeleme (2.4): donanim_imei_gor
+//             yetkisi olmayan kullanicilar atanmis IMEI'leri ilk4+son4
+//             maskeli gorur (donanim.js: _imeiMaskele).
 //   v1.2.59 — APP_VERSION → V31.10. IMEI eslestirme: acilista bostaki seriler
 //             otomatik listelenir (arama sart degil).
 //   v1.2.58 — APP_VERSION → V31.09. Part 2 (2.3): IMEI eşleştirme modali —
@@ -138,7 +141,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.17';
+const APP_VERSION = 'V31.18';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

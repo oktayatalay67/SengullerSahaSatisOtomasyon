@@ -1,4 +1,8 @@
 // ============================================================
+// donanim.js — v1.0.17 (V31.18)
+//   v1.0.17 (V31.18): IMEI maskeleme (2.4) — donanim_imei_gor yetkisi olmayan
+//     kullanicilar (MY/FMY vb.) atanmis IMEI'leri ilk4+son4 maskeli gorur.
+//     Rezervasyon detayina atanan cihaz (IMEI) listesi eklendi (maskeli/tam).
 // donanim.js — v1.0.16 (V31.10)
 //   v1.0.16 (V31.10): IMEI modal acilista bostaki serileri otomatik listeler.
 // donanim.js — v1.0.15 (V31.09)
@@ -1208,6 +1212,18 @@ async function donanimSurecIlerlet(sepetId, yeniDurum){
 }
 
 // ============ 2.3: IMEI EŞLEŞTİRME (kısmi, barcode + arama, KÇM kilitli) ============
+// v31.18 (2.4): IMEI maskeleme — donanim_imei_gor yetkisi yoksa ilk4+son4
+// dışında kalan kısım '*' ile maskelenir. Yetkisi olan (Depo/Muhasebe vb.)
+// numarayı tam görür. Aktif eşleştirme (arama/seçim/scan) alanları etkilenmez —
+// sadece zaten atanmış/görüntülenen IMEI'ler maskelenir.
+function _imeiMaskele(seriNo){
+  const s = String(seriNo||'').trim();
+  if(!s) return '';
+  if(hasPerm('donanim_imei_gor')) return s;
+  if(s.length<=8) return '*'.repeat(s.length);
+  return s.slice(0,4) + '*'.repeat(s.length-8) + s.slice(-4);
+}
+
 async function donanimImeiEslestirAc(sepetId){
   const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
   if(error || !kalemler?.length){ toast('Kayıt bulunamadı','error'); return; }
@@ -1242,7 +1258,7 @@ function _imeiRender(){
     const dolu=k.bagli.length, hedef=k.adet;
     const seriRows = k.bagli.map(s=>`
       <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="flex:1;font-family:monospace;font-size:12px;">${escapeHTML(s.seri_no)}</span>
+        <span style="flex:1;font-family:monospace;font-size:12px;">${escapeHTML(_imeiMaskele(s.seri_no))}</span>
         <button class="btn btn-sm btn-ghost" onclick="donanimImeiKaldir(${k.idx},${s.seri_no_id})">Kaldır</button>
       </div>`).join('');
     const arama = dolu<hedef ? `
@@ -1505,6 +1521,11 @@ async function openDonanimRezDetay(sepetId){
     (urunler||[]).forEach(u=>{ urunMap[u.urun_id] = u; });
   }
 
+  // v31.18 (2.4): bu sepete atanmış IMEI/seri no'lar — donanim_imei_gor yoksa maskeli gösterilir
+  const {data:seriler} = await sb.from('stok_seri_no').select('seri_no,urun_id').eq('sepet_id', sepetId);
+  const seriByUrun = {};
+  (seriler||[]).forEach(s=>{ (seriByUrun[s.urun_id]=seriByUrun[s.urun_id]||[]).push(s.seri_no); });
+
   const ilk = kalemler[0];
   const {data:myData} = await sb.from('users').select('ad_soyad,takim_lideri_id,kcm_id').eq('my_id',ilk.satan_my_id).single();
   let tlAd='—', kcmAd='—';
@@ -1523,11 +1544,13 @@ async function openDonanimRezDetay(sepetId){
     const fiyat = urunMap[k.urun_id]?.fiyat||0;
     const satirToplam = fiyat * k.adet;
     toplam += satirToplam;
+    const seriListesi = (seriByUrun[k.urun_id]||[]).map(sn=>escapeHTML(_imeiMaskele(sn))).join('<br>');
     return `<tr>
       <td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;">${escapeHTML(urunMap[k.urun_id]?.aciklama||'—')}</td>
       <td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;text-align:center;">${k.adet}</td>
       <td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;">${Number(fiyat).toLocaleString('tr-TR')} ₺</td>
       <td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;font-weight:700;">${Number(satirToplam).toLocaleString('tr-TR')} ₺</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);font-size:11px;font-family:monospace;color:var(--text2);">${seriListesi||'—'}</td>
     </tr>`;
   }).join('');
 
@@ -1545,10 +1568,12 @@ async function openDonanimRezDetay(sepetId){
           <th style="padding:6px;font-size:10px;color:var(--text3);">ADET</th>
           <th style="padding:6px;text-align:right;font-size:10px;color:var(--text3);">BİRİM</th>
           <th style="padding:6px;text-align:right;font-size:10px;color:var(--text3);">TOPLAM</th>
+          <th style="padding:6px;text-align:left;font-size:10px;color:var(--text3);">IMEI</th>
         </tr></thead>
         <tbody>${satirlar}</tbody>
       </table>
     </div>
+    ${(!hasPerm('donanim_imei_gor') && Object.keys(seriByUrun).length) ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;">IMEI numaraları güvenlik nedeniyle kısmi (ilk4+son4) gösterilir.</div>` : ''}
     <div style="text-align:right;margin-top:10px;font-size:16px;font-weight:800;">Genel Toplam: ${Number(toplam).toLocaleString('tr-TR')} ₺</div>
     ${ilk.aciklama ? `<div style="margin-top:8px;font-size:12px;color:var(--text2);">Not: ${escapeHTML(ilk.aciklama)}</div>` : ''}
   `;
