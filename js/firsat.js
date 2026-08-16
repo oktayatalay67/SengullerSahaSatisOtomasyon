@@ -1,7 +1,14 @@
 // ============================================================
-// firsat.js — v1.2.3
-// Son güncelleme: 2026-06-24
+// firsat.js — v1.2.4
+// Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.4 (V31.28) — YENİ: WhatsApp paylaşım özelliği. Fırsat herhangi bir
+//            aşamadan Beyan/Evrak'a çekildiğinde (veya yeni kayıt doğrudan bu
+//            aşamalardan biriyle girildiğinde), fırsat başına SADECE 1 defa
+//            "Paylaş/Geç" penceresi açılır (oppWaShareModal). İçerik: MY,
+//            Müşteri, NCST, ürün(ler) + adet/varsa tutar, Not (mevcut Not
+//            alanından). Paylaşım wa.me linkiyle yapılır (MY alıcıyı kendi
+//            seçer). DB migration gerekiyor: opportunities.wa_paylasim_yapildi.
 //   v1.2.2 — ÇOK KRİTİK: "Giren" (my_id) her düzenlemede güncel kullanıcıya
 //            değişiyordu — fırsatı kim girmişse adı kayboluyor, son düzenleyenin
 //            adıyla değişiyordu. Artık my_id SADECE ilk oluşturmada yazılıyor,
@@ -487,7 +494,7 @@ function selectOppCust(ncst,unvan){
   let error, oppId=currentEditingOppId;
   let eskiOppRow=null;
   if(currentEditingOppId){
-    const{data:oldRow}=await sb.from('opportunities').select('adim,durum,my_id,tahmini_kapanis_tarihi,urun_adi').eq('opp_id',currentEditingOppId).maybeSingle();
+    const{data:oldRow}=await sb.from('opportunities').select('adim,durum,my_id,tahmini_kapanis_tarihi,urun_adi,wa_paylasim_yapildi').eq('opp_id',currentEditingOppId).maybeSingle();
     eskiOppRow=oldRow;
     const res=await sb.from('opportunities').update(payload).eq('opp_id',currentEditingOppId);
     error=res.error;
@@ -506,8 +513,10 @@ function selectOppCust(ncst,unvan){
   }
 
   // === Adım değişim tetikleyicisi (güncellemeden ÖNCE okunan eski adım) ===
+  let eskiAdimGenel=null; // yeni kayıtta null (hiçbir aşamadan gelmiyor)
   if(currentEditingOppId&&eskiOppRow){
     const eskiAdim=eskiOppRow.adim||eskiOppRow.durum||'F\u0131rsat';
+    eskiAdimGenel=eskiAdim;
     if(eskiAdim!==adim){
       const devamEt=await processOppAdimChange(
         currentEditingOppId,adim,
@@ -519,6 +528,11 @@ function selectOppCust(ncst,unvan){
       if(!devamEt){closeModal('oppModal');return;}
     }
   }
+  // v1.2.4 (V31.28): WhatsApp paylaşım tetikleyicisi — herhangi bir aşamadan
+  // (veya doğrudan yeni kayıtta) Beyan/Evrak'a geçildiğinde, fırsat başına
+  // SADECE 1 defa "Paylaş/Geç" penceresi gösterilir (wa_paylasim_yapildi bayrağı).
+  const oppZatenPaylasilmis=!!(eskiOppRow&&eskiOppRow.wa_paylasim_yapildi);
+  const oppWaTetikle=(adim==='Beyan'||adim==='Evrak')&&(eskiAdimGenel!==adim)&&!oppZatenPaylasilmis;
 
   // === Log ===
   const logAksiyon=currentEditingOppId?'G\u00fcncellendi':'Olu\u015fturuldu';
@@ -541,6 +555,19 @@ function selectOppCust(ncst,unvan){
     closeModal('oppModal');
     if(document.getElementById('pagePipeline')?.classList.contains('active')) loadPipeline();
     if(selectedMusteri&&document.getElementById('pageMusteri')?.classList.contains('active')) loadMusteriFirsatlar(selectedMusteri.ncst);
+  }
+
+  // === WhatsApp paylaşım penceresi (V31.28) — fırsat başına SADECE 1 defa ===
+  if(oppWaTetikle&&oppId){
+    _oppWaShareAc({
+      oppId, adim,
+      myAdi: currentUser.ad_soyad||'—',
+      musteri: oppSelectedUnvan||'—',
+      ncst: oppSelectedNcst||'—',
+      urunler: urunData,
+      toplamTutar,
+      not: aciklama||''
+    });
   }
 }
 
@@ -571,6 +598,71 @@ async function saveFirsatForm(){
   if(kapanisEl) kapanisEl.value=document.getElementById('firsatKapanis')?.value||'';
   // saveOpp'u form context'i ile çağır
   await saveOpp('form');
+}
+
+/* ===== WHATSAPP PAYLAŞIM (V31.28) =====
+   Fırsat herhangi bir aşamadan Beyan/Evrak'a çekildiğinde (veya yeni kayıt
+   doğrudan bu aşamalardan biriyle girildiğinde), fırsat başına SADECE 1 defa
+   "Paylaş/Geç" penceresi gösterilir. Paylaşım wa.me linkiyle yapılır — MY
+   alıcıyı (kişi/grup) kendi seçer, sabit numara/API gerekmez. */
+function _oppWaMesajOlustur(d){
+  let m = `📢 *Fırsat Güncellemesi — ${d.adim}*\n\n`;
+  m += `👤 MY: ${d.myAdi}\n`;
+  m += `🏢 Müşteri: ${d.musteri}\n`;
+  m += `🔢 NCST: ${d.ncst}\n\n`;
+  m += `📦 Ürün(ler):\n`;
+  (d.urunler||[]).forEach(u=>{
+    let satir = `• ${u.urun||'—'} — ${u.adet||1} adet`;
+    if(u.tutar) satir += ` (₺${Number(u.tutar).toLocaleString('tr-TR')})`;
+    m += satir+'\n';
+  });
+  if(d.toplamTutar) m += `\n💰 Toplam: ₺${Number(d.toplamTutar).toLocaleString('tr-TR')}\n`;
+  if(d.not) m += `\n📝 Not: ${d.not}\n`;
+  return m;
+}
+function _oppWaShareAc(d){
+  window._oppWaShare = d;
+  const renk = d.adim==='Beyan' ? 'var(--purple)' : 'var(--blue)';
+  const emoji = d.adim==='Beyan' ? '📋' : '📄';
+  const box = document.getElementById('oppWaShareIcerik');
+  if(box){
+    let h = `<div style="background:var(--navy3);border:1.5px solid ${renk};border-radius:12px;padding:14px;margin-bottom:14px;">`;
+    h += `<div style="font-weight:700;font-size:15px;color:${renk};margin-bottom:10px;">${emoji} Fırsat ${escapeHTML(d.adim)} Aşamasına Geçti</div>`;
+    h += `<div style="font-size:13px;line-height:2;">`;
+    h += `👤 <b>MY:</b> ${escapeHTML(d.myAdi)}<br>`;
+    h += `🏢 <b>Müşteri:</b> ${escapeHTML(d.musteri)}<br>`;
+    h += `🔢 <b>NCST:</b> ${escapeHTML(String(d.ncst))}`;
+    h += `</div>`;
+    h += `<div style="font-size:13px;margin-top:8px;"><b>📦 Ürün(ler):</b><ul style="margin:4px 0 0 18px;padding:0;">`;
+    (d.urunler||[]).forEach(u=>{
+      let satir = `${escapeHTML(u.urun||'—')} — ${u.adet||1} adet`;
+      if(u.tutar) satir += ` (₺${Number(u.tutar).toLocaleString('tr-TR')})`;
+      h += `<li>${satir}</li>`;
+    });
+    h += `</ul></div>`;
+    if(d.toplamTutar) h += `<div style="font-size:13px;margin-top:6px;">💰 <b>Toplam:</b> ₺${Number(d.toplamTutar).toLocaleString('tr-TR')}</div>`;
+    if(d.not) h += `<div style="font-size:13px;margin-top:6px;">📝 <b>Not:</b> ${escapeHTML(d.not)}</div>`;
+    h += `</div>`;
+    box.innerHTML = h;
+  }
+  openModal('oppWaShareModal');
+}
+async function oppWaPaylas(){
+  const d = window._oppWaShare;
+  if(!d) return;
+  const mesaj = _oppWaMesajOlustur(d);
+  window.open('https://wa.me/?text='+encodeURIComponent(mesaj), '_blank');
+  await _oppWaFlagliKapat(d.oppId);
+}
+async function oppWaGec(){
+  const d = window._oppWaShare;
+  if(!d){ closeModal('oppWaShareModal'); return; }
+  await _oppWaFlagliKapat(d.oppId);
+}
+async function _oppWaFlagliKapat(oppId){
+  try{ await sb.from('opportunities').update({wa_paylasim_yapildi:true}).eq('opp_id',oppId); }catch(e){}
+  closeModal('oppWaShareModal');
+  window._oppWaShare = null;
 }
 
 /* ===== PİPELİNE RAPORU ===== */

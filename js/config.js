@@ -1,7 +1,14 @@
 // ============================================================
-// config.js — v1.2.69
+// config.js — v1.2.70
 // Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.70 — APP_VERSION → V31.28. Fırsat: YENİ WhatsApp paylaşım özelliği —
+//             fırsat herhangi bir aşamadan Beyan/Evrak'a çekildiğinde (veya
+//             yeni kayıt doğrudan bu aşamayla girildiğinde), fırsat başına
+//             SADECE 1 defa "Paylaş/Geç" penceresi çıkar (oppWaShareModal);
+//             MY/Müşteri/NCST/ürün(ler)+adet/tutar/Not içerir, wa.me linkiyle
+//             paylaşılır. DB migration gerekti: opportunities.wa_paylasim_yapildi
+//             (boolean, default false). firsat.js v1.2.4.
 //   v1.2.69 — APP_VERSION → V31.27. Arama anketi: "Bu tarihte firmadan
 //             ziyaret oldu mu?" = Hayır akışı duzeltildi (alakasiz yuz-yuze/
 //             isim sorulari artik sadece Evet'te cikiyor; Hayir'da once
@@ -180,7 +187,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.27';
+const APP_VERSION = 'V31.28';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
