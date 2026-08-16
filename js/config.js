@@ -1,7 +1,11 @@
 // ============================================================
-// config.js — v1.2.63
+// config.js — v1.2.64
 // Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.64 — APP_VERSION → V31.22. Cagri Analizi: 5b MY Kirilim/Liderlik
+//             Tablosu (en cok yanlis numara, en temiz veri, KCM bazli
+//             memnuniyet en yuksek/dusuk 3'er MY) + kart cercevesine mor
+//             (sahte/supheli) rengi eklendi. arama.js v1.0.8.
 //   v1.2.63 — APP_VERSION → V31.21. Arama: 'Bugun' -> 'Bekleyen Cagrilar'
 //             (+ tarih filtresi), kutu etiketleri Bekleyen/Gelecek/Tamamlanan,
 //             sayfa basligi 'Ziyaret Teyit Aramalari', kart cerceve
@@ -151,7 +155,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.21';
+const APP_VERSION = 'V31.22';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
