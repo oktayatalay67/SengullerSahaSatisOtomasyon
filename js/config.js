@@ -1,7 +1,11 @@
 // ============================================================
-// config.js — v1.2.65
+// config.js — v1.2.66
 // Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.66 — APP_VERSION → V31.24. FIX: Arama Detay modali 'kayit bulunamadi'
+//             gosteriyordu — sabit kolon listesi select'i PostgREST tarafinda
+//             sessizce reddediliyordu (hata kontrol edilmiyordu). select('*') +
+//             hata mesaji ekrana yazilir oldu. arama.js v1.0.10.
 //   v1.2.65 — APP_VERSION → V31.23. Tamamlanan arama kartlari artik daima
 //             anlamli ozet gosterir; karta tiklamak / yeni "Detay" tusu, o
 //             goreve ait TUM arama denemelerinin tam detayini gosteren yeni
@@ -160,7 +164,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.23';
+const APP_VERSION = 'V31.24';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,5 +1,10 @@
 // ============================================================
-// arama.js — v1.0.9
+// arama.js — v1.0.10
+//   v1.0.10 (V31.24): FIX — Detay modali 'kayit bulunamadi' gosteriyordu cunku
+//     araSonucDetayAc'in arama_sonuclari select'i sabit kolon listesi kullaniyordu
+//     ve PostgREST bir kolon uyusmazliginda TUM select'i hatayla reddediyor,
+//     kod bu hatayi kontrol etmedigi icin sessizce 'kayit yok' gibi gorunuyordu.
+//     select('*') + hata mesaji ekranda gosterilir oldu.
 //   v1.0.9 (V31.23): Tamamlanan arama kartlari artik hep anlamli bir ozet
 //     gosterir (_aramaSonucOzet — sikayet/yanlis numara/sahte supheli oncelikli).
 //     Karta tiklamak veya yeni "Detay" tusu, o goreve ait TUM arama_sonuclari
@@ -308,10 +313,18 @@ async function araSonucDetayAc(taskId){
   }
   if(kunyeEl) kunyeEl.innerHTML=`<b>${escapeHTML(unvan)}</b><br>Ziyaret: ${escapeHTML(myAd)} · ${zt} · Görev durumu: ${escapeHTML(t.durum)}`;
 
-  const {data:sonuclar}=await sb.from('arama_sonuclari')
-    .select('deneme_no,created_at,agent_id,telefon,ulasildi,ulasilamama_neden,muhatap_dogru,gorusmek_istedi,sonra_aranmak_istedi,sonraki_arama_tarihi,ziyaret_dogrulandi,yuzyuze_uyusmazlik,isim_dogru,ziyaret_yok_neden,gorusme_suresi,guven,ihtiyac_anlasildi,memnuniyet,nps,takip_sozu,takip_tutuldu,sikayet_var,sikayet_metni,agent_notu')
+  // v31.24: select('*') kullanılır — sabit kolon listesi, canlı şemada tek bir
+  // kolon adı bile uyuşmazsa PostgREST TÜM select'i reddediyor ve hata sessizce
+  // yutulup 'kayıt yok' gibi görünüyordu. '*' + hata mesajını göstermek bunu önler.
+  const {data:sonuclar, error:sonucErr}=await sb.from('arama_sonuclari')
+    .select('*')
     .eq('task_id',taskId).order('created_at',{ascending:true});
   if(!icerikEl) return;
+  if(sonucErr){
+    console.error('araSonucDetayAc select hatası:', sonucErr);
+    icerikEl.innerHTML='<div class="empty">Kayıtlar yüklenirken hata oluştu: '+escapeHTML(sonucErr.message||String(sonucErr))+'</div>';
+    return;
+  }
   if(!sonuclar || !sonuclar.length){ icerikEl.innerHTML='<div class="empty">Bu görev için arama kaydı bulunamadı.</div>'; return; }
 
   const boolTxt=(b)=> b===true?'Evet':(b===false?'Hayır':'');
