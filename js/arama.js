@@ -1,5 +1,14 @@
 // ============================================================
-// arama.js — v1.0.10
+// arama.js — v1.0.11
+//   v1.0.11 (V31.27): Anket akisi mantik hatasi duzeltildi — "Bu tarihte
+//     firmadan ziyaret oldu mu?" = Hayir secildiginde artik alakasiz
+//     yuz-yuze/isim-hatirlama sorulari cikmiyor (artik sadece Evet'te
+//     cikiyor). Hayir sonrasi once "Bu konuda emin misiniz?" sorusu
+//     cikiyor (Eminim -> neden sorusu / Emin degilim -> Emin degil'e
+//     donusturur, ekstra soru sormaz). Memnuniyet ve NPS olcekleri
+//     ikisi de 1-10 araligina cekildi (eskiden 1-5 ve 0-10 idi);
+//     tum ozet/detay ekranlarindaki "/5" etiketleri "/10" oldu;
+//     Memnuniyetsiz kirilim esigi orantili olarak lte.2 -> lte.4 guncellendi.
 //   v1.0.10 (V31.24): FIX — Detay modali 'kayit bulunamadi' gosteriyordu cunku
 //     araSonucDetayAc'in arama_sonuclari select'i sabit kolon listesi kullaniyordu
 //     ve PostgREST bir kolon uyusmazliginda TUM select'i hatayla reddediyor,
@@ -174,7 +183,7 @@ function _aramaSonucOzet(s){
   if(s.ziyaret_dogrulandi==='Emin değil') return '❓ Ziyaret teyidi belirsiz';
   const p=[];
   if(s.ziyaret_dogrulandi) p.push('Ziyaret teyit: '+s.ziyaret_dogrulandi);
-  if(s.memnuniyet) p.push('Memnuniyet '+s.memnuniyet+'/5');
+  if(s.memnuniyet) p.push('Memnuniyet '+s.memnuniyet+'/10');
   if(s.nps!=null) p.push('NPS '+s.nps+'/10');
   if(s.guven==='Hayır') p.push('güven yok');
   if(!p.length) p.push('Görüşüldü');
@@ -357,7 +366,7 @@ async function araSonucDetayAc(taskId){
     gov+=blok('Görüşme süresi', s.gorusme_suresi);
     gov+=blok('Temsilci güven verdi mi', s.guven);
     gov+=blok('İhtiyaç anlaşıldı mı', s.ihtiyac_anlasildi);
-    gov+=blok('Memnuniyet', s.memnuniyet?(s.memnuniyet+'/5'):'');
+    gov+=blok('Memnuniyet', s.memnuniyet?(s.memnuniyet+'/10'):'');
     gov+=blok('NPS (tavsiye)', s.nps!=null?(s.nps+'/10'):'');
     gov+=blok('Takip sözü verildi mi', boolTxt(s.takip_sozu));
     gov+=blok('Takip sözü tutuldu mu', boolTxt(s.takip_tutuldu));
@@ -528,7 +537,7 @@ function _aramaGecmisRender(ziyaretler, aramalar, guncelVisitId){
     else if(s.ulasildi===true){
       const p=[];
       if(s.ziyaret_dogrulandi) p.push('Ziyaret: '+s.ziyaret_dogrulandi);
-      if(s.memnuniyet!=null) p.push('Memnuniyet '+s.memnuniyet+'/5');
+      if(s.memnuniyet!=null) p.push('Memnuniyet '+s.memnuniyet+'/10');
       if(s.guven==='Hayır') p.push('Güven yok');
       if(s.sikayet_var) p.push('Şikayet var');
       ozet=p.join(' · ')||'Ulaşıldı';
@@ -567,6 +576,15 @@ function _aramaGecmisToggle(){
 
 function _anketSec(key,val){ window._anket.c[key]=val; _anketRender(); }
 function _anketText(key,val){ window._anket.c[key]=val; } // re-render yok (focus korunur)
+function _anketZiyaretEminSec(val){
+  const c=window._anket.c;
+  if(val==='Emin değilim, başkası bilebilir'){
+    c.ziyaret_dogrulandi='Emin değil'; c.ziyaret_emin=null; c.ziyaret_yok_neden=null;
+  } else {
+    c.ziyaret_emin=val;
+  }
+  _anketRender();
+}
 
 function _chips(key,label,opts){
   const c=window._anket.c;
@@ -600,19 +618,24 @@ function _anketRender(){
     }
     if(c.gorusmek_istedi==='Evet'){
       h+=_chips('ziyaret_dogrulandi','Bu tarihte firmadan ziyaret oldu mu?',['Evet','Hayır','Emin değil']);
-      if(c.ziyaret_dogrulandi){
+      if(c.ziyaret_dogrulandi==='Evet'){
         h+=_chips('yuzyuze','Görüşme yüz yüze miydi?',['Yüz yüze','Telefonla','Hatırlamıyor']);
         h+=_chips('isim_dogru','Ziyaret edenin adını hatırlıyor mu?',['Doğru','Yanlış','Hatırlamıyor']);
       }
       if(c.ziyaret_dogrulandi==='Hayır'){
-        h+=_chips('ziyaret_yok_neden','Ziyaret olmadıysa neden?',['MY gelmedi (MY kaynaklı)','Randevu ertelendi','Müşteri müsait değildi','Yanlış adres/kişi']);
+        h+=`<div class="field" style="margin-bottom:10px;"><label>Bu konuda emin misiniz?</label><div class="chip-grid-box">`+
+          ['Eminim, ziyaret olmadı','Emin değilim, başkası bilebilir'].map(o=>`<div class="chip-btn${c.ziyaret_emin===o?' selected':''}" onclick="_anketZiyaretEminSec('${escapeHTML(o)}')">${escapeHTML(o)}</div>`).join('')+
+          `</div></div>`;
+        if(c.ziyaret_emin==='Eminim, ziyaret olmadı'){
+          h+=_chips('ziyaret_yok_neden','Ziyaret olmadıysa neden?',['MY gelmedi (MY kaynaklı)','Randevu ertelendi','Müşteri müsait değildi','Yanlış adres/kişi']);
+        }
       }
       if(c.ziyaret_dogrulandi==='Evet'){
         h+=_chips('gorusme_suresi','Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
         h+=_chips('guven','Temsilci güven verdi mi?',['Evet','Kısmen','Hayır']);
         h+=_chips('ihtiyac_anlasildi','İhtiyaç anlaşıldı mı?',['Evet','Kısmen','Hayır']);
-        h+=_scale('memnuniyet','Memnuniyet (1-5)',1,5);
-        h+=_scale('nps','Tavsiye eder mi? (0-10)',0,10);
+        h+=_scale('memnuniyet','Memnuniyet (1-10)',1,10);
+        h+=_scale('nps','Tavsiye eder mi? (1-10)',1,10);
         h+=_chips('takip_sozu','Takip sözü verildi mi?',['Evet','Hayır']);
         if(c.takip_sozu==='Evet') h+=_chips('takip_tutuldu','Söz tutuldu mu?',['Evet','Hayır']);
       }
@@ -751,7 +774,7 @@ function _analizOzet(k,r){
   if(k==='ulasilamayan') return 'Ulaşılamadı'+(r.ulasilamama_neden?(' ('+r.ulasilamama_neden+')'):'');
   if(k==='sahte')        return 'Sahte ziyaret şüphesi';
   if(k==='supheli')      return 'Ziyaret: Emin değil';
-  if(k==='memnuniyetsiz')return 'Memnuniyet '+(r.memnuniyet??'-')+'/5'+(r.guven==='Hayır'?' · güven yok':'');
+  if(k==='memnuniyetsiz')return 'Memnuniyet '+(r.memnuniyet??'-')+'/10'+(r.guven==='Hayır'?' · güven yok':'');
   if(k==='sikayet')      return 'Şikayet var';
   if(k==='yuzyuze')      return 'Yüz yüze uyuşmazlık';
   return '';
@@ -796,7 +819,7 @@ async function loadAramaAnaliz(){
     else if(kat.k==='supheli') q=q.eq('ziyaret_dogrulandi','Emin değil');
     else if(kat.k==='sikayet') q=q.eq('sikayet_var',true);
     else if(kat.k==='yuzyuze') q=q.eq('yuzyuze_uyusmazlik',true);
-    else if(kat.k==='memnuniyetsiz') q=q.or('memnuniyet.lte.2,guven.eq.Hayır');
+    else if(kat.k==='memnuniyetsiz') q=q.or('memnuniyet.lte.4,guven.eq.Hayır');
     if(bas) q=q.gte('created_at',bas+'T00:00:00');
     if(bit) q=q.lte('created_at',bit+'T23:59:59');
     if(izinMy) q=q.in('my_id',izinMy);

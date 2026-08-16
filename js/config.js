@@ -1,7 +1,14 @@
 // ============================================================
-// config.js — v1.2.68
+// config.js — v1.2.69
 // Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.69 — APP_VERSION → V31.27. Arama anketi: "Bu tarihte firmadan
+//             ziyaret oldu mu?" = Hayır akışı duzeltildi (alakasiz yuz-yuze/
+//             isim sorulari artik sadece Evet'te cikiyor; Hayir'da once
+//             "Bu konuda emin misiniz?" ara sorusu cikiyor). Memnuniyet ve
+//             NPS olcekleri ikisi de 1-10 oldu (eskiden 1-5 / 0-10);
+//             ilgili "/5" etiketleri "/10" oldu, Memnuniyetsiz kirilim
+//             esigi orantili guncellendi (lte.2→lte.4). arama.js v1.0.11.
 //   v1.2.68 — APP_VERSION → V31.26. Donanim: Tedarik akışı bildirimi — Ana menu
 //             'Donanim Takip' ikonunda rozet (kendi siparişlerinden Onaylandı
 //             olanlar), rezervasyon kartinda kendi yeni-onayi turuncu glow +
@@ -173,7 +180,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.26';
+const APP_VERSION = 'V31.27';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
