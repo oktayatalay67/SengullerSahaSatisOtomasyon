@@ -1,5 +1,10 @@
 // ============================================================
-// arama.js — v1.0.8
+// arama.js — v1.0.9
+//   v1.0.9 (V31.23): Tamamlanan arama kartlari artik hep anlamli bir ozet
+//     gosterir (_aramaSonucOzet — sikayet/yanlis numara/sahte supheli oncelikli).
+//     Karta tiklamak veya yeni "Detay" tusu, o goreve ait TUM arama_sonuclari
+//     denemelerini (her alan) gosteren yeni salt-okunur modal (aramaSonucDetayModal)
+//     acar. "Tekrar Ara" tusu "Yeniden Ara" olarak yeniden adlandirildi.
 //   v1.0.8 (V31.22): Kart cercevesine 5. renk (mor: sahte/supheli ziyaret).
 //     Cagri Analizi'ne 5b MY Kirilim/Liderlik Tablosu paneli eklendi (acilir/
 //     kapanir, analiz tarih araligini kullanir): en cok yanlis numara (MY),
@@ -151,6 +156,26 @@ async function _aramaKartRenkYukle(tasks){
   tasks.forEach(t=>{ if(sonMap[t.task_id]) t._sonucRaw=sonMap[t.task_id]; });
 }
 
+// v31.23: Tamamlanan arama kartındaki tek satır özet — daima anlamlı bir şey
+// göstermesi için öncelik sırasına göre (şikayet/yanlış numara/sahte şüphesi önce)
+// en önemli bulguyu yansıtır. Önceki hali çoğu kayıtta boş kalıyordu.
+function _aramaSonucOzet(s){
+  if(!s) return '';
+  const kisalt=(t,n)=>{ t=(t||'').trim(); return t.length>n?t.slice(0,n)+'…':t; };
+  if(s.ulasilamama_neden==='Yanlış numara') return '☎️ Yanlış numara';
+  if(s.ulasildi===false) return 'Ulaşılamadı'+(s.ulasilamama_neden?(' ('+s.ulasilamama_neden+')'):'');
+  if(s.sikayet_var===true) return '⚠️ Şikayet: '+(s.sikayet_metni?kisalt(s.sikayet_metni,40):'kayıt var');
+  if(s.ziyaret_dogrulandi==='Hayır') return '🚩 Ziyaret teyit edilemedi (sahte şüphesi)';
+  if(s.ziyaret_dogrulandi==='Emin değil') return '❓ Ziyaret teyidi belirsiz';
+  const p=[];
+  if(s.ziyaret_dogrulandi) p.push('Ziyaret teyit: '+s.ziyaret_dogrulandi);
+  if(s.memnuniyet) p.push('Memnuniyet '+s.memnuniyet+'/5');
+  if(s.nps!=null) p.push('NPS '+s.nps+'/10');
+  if(s.guven==='Hayır') p.push('güven yok');
+  if(!p.length) p.push('Görüşüldü');
+  return p.join(' · ');
+}
+
 function _aramaKart(t,unvanMap,vMap,mod){
   const unvan=unvanMap[t.ncst]||t.ncst||'—';
   const v=vMap[t.visit_id]||{};
@@ -164,16 +189,22 @@ function _aramaKart(t,unvanMap,vMap,mod){
   } else if(mod==='gelecek'){
     alt=`<div class="visit-my" style="color:var(--text3);">Aranacak: ${t.deadline||'—'}</div>`;
   } else {
-    alt=`<div class="visit-my">Sonuç: ${escapeHTML(t.durum)}${t._sonuc?(' · '+escapeHTML(t._sonuc)):''}</div>
-      <div style="margin-top:6px;"><button class="btn btn-sm btn-ghost" onclick="araModalAc(${t.task_id})">Tekrar Ara</button></div>`;
+    // v31.23: her zaman anlamlı bir özet (_aramaSonucOzet) + Detay modalı + yeniden ara
+    alt=`<div class="visit-my">${escapeHTML(t.durum)}${t._sonuc?(' · '+escapeHTML(t._sonuc)):''}</div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();araSonucDetayAc(${t.task_id})">📋 Detay</button>
+        <button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();araModalAc(${t.task_id})">Yeniden Ara</button>
+      </div>`;
   }
   const tekrar=(t.durum==='Tekrar Aranacak'&&mod==='aktif')?' · <span style="color:var(--amber);">Tekrar</span>':'';
   const kisalt=(s,n)=>{ s=(s||'').trim(); return s.length>n?s.slice(0,n)+'…':s; };
   const ozetSatir = (v.ziyaret_amaci||v.urun_gruplari)
     ? `<div class="visit-my" style="color:var(--text3);">Amaç: ${escapeHTML(v.ziyaret_amaci||'—')}${v.urun_gruplari?(' · Ürün: '+escapeHTML(kisalt(v.urun_gruplari,50))):''}</div>` : '';
   const renk=_aramaKartRenk(t);
-  const cerceve=renk?` style="border:1.5px solid ${renk};"`:'';
-  return `<div class="visit-card"${cerceve}><div class="visit-firm">${escapeHTML(unvan)}</div>
+  const stilParca=[]; if(renk) stilParca.push(`border:1.5px solid ${renk};`); if(mod==='tamamlanan') stilParca.push('cursor:pointer;');
+  const cerceve=stilParca.length?` style="${stilParca.join('')}"`:'';
+  const tiklaAttr=(mod==='tamamlanan')?` onclick="araSonucDetayAc(${t.task_id})"`:'';
+  return `<div class="visit-card"${tiklaAttr}${cerceve}><div class="visit-firm">${escapeHTML(unvan)}</div>
     <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${ozetSatir}${alt}</div>`;
 }
 
@@ -238,17 +269,92 @@ async function loadAramaTamamlanan(){
   ARAMA.tasks=tasks||[];
   if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Tamamlanan kayıt yok.</div>'; return; }
   const ids=tasks.map(t=>t.task_id);
-  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,ulasilamama_neden,ziyaret_dogrulandi,sikayet_var').in('task_id',ids);
-  const sMap={}; (sonuclar||[]).forEach(s=>{ sMap[s.task_id]=s; });
+  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,nps,guven,ulasilamama_neden,ziyaret_dogrulandi,sikayet_var,sikayet_metni,created_at').in('task_id',ids).order('created_at',{ascending:false});
+  const sMap={}; (sonuclar||[]).forEach(s=>{ if(!sMap[s.task_id]) sMap[s.task_id]=s; }); // desc: ilk gelen = en son deneme
   tasks.forEach(t=>{
     const s=sMap[t.task_id];
     if(s){
       t._sonucRaw=s;
-      t._sonuc = s.ulasildi===false?('Ulaşılamadı'+(s.ulasilamama_neden?' ('+s.ulasilamama_neden+')':'')):(s.memnuniyet?('Memnuniyet '+s.memnuniyet+'/5'):(s.ziyaret_dogrulandi?('Ziyaret: '+s.ziyaret_dogrulandi):''));
+      t._sonuc = _aramaSonucOzet(s);
     }
   });
   const {unvanMap,vMap}=await _aramaEnrich(tasks);
   g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'tamamlanan')).join('');
+}
+
+// ============================================================
+// v31.23: Tamamlanan arama kaydı — DETAY modalı. Bir göreve ait TÜM
+// arama_sonuclari denemelerini (deneme_no sırasıyla), her alanı boş
+// olmayanları göstererek listeler. Kart tıklaması ve "📋 Detay" tuşu buraya bağlı.
+// ============================================================
+async function araSonucDetayAc(taskId){
+  const t=(ARAMA.tasks||[]).find(x=>x.task_id===taskId);
+  if(!t){ toast('Kayıt bulunamadı','error'); return; }
+  const kunyeEl=document.getElementById('aramaSonucDetayKunye');
+  const icerikEl=document.getElementById('aramaSonucDetayIcerik');
+  if(icerikEl) icerikEl.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  if(kunyeEl) kunyeEl.innerHTML='';
+  openModal('aramaSonucDetayModal');
+
+  let unvan=t.ncst, myAd='—', zt='—';
+  const [{data:c}, vRes] = await Promise.all([
+    sb.from('customers').select('unvan').eq('ncst',t.ncst).maybeSingle(),
+    t.visit_id ? sb.from('visits').select('my_id,tarih_saat').eq('visit_id',t.visit_id).maybeSingle() : Promise.resolve({data:null})
+  ]);
+  if(c?.unvan) unvan=c.unvan;
+  if(vRes?.data){
+    myAd = vRes.data.my_id?(myIdToName[vRes.data.my_id]||('MY#'+vRes.data.my_id)):'—';
+    zt = vRes.data.tarih_saat?fmtDate(vRes.data.tarih_saat):'—';
+  }
+  if(kunyeEl) kunyeEl.innerHTML=`<b>${escapeHTML(unvan)}</b><br>Ziyaret: ${escapeHTML(myAd)} · ${zt} · Görev durumu: ${escapeHTML(t.durum)}`;
+
+  const {data:sonuclar}=await sb.from('arama_sonuclari')
+    .select('deneme_no,created_at,agent_id,telefon,ulasildi,ulasilamama_neden,muhatap_dogru,gorusmek_istedi,sonra_aranmak_istedi,sonraki_arama_tarihi,ziyaret_dogrulandi,yuzyuze_uyusmazlik,isim_dogru,ziyaret_yok_neden,gorusme_suresi,guven,ihtiyac_anlasildi,memnuniyet,nps,takip_sozu,takip_tutuldu,sikayet_var,sikayet_metni,agent_notu')
+    .eq('task_id',taskId).order('created_at',{ascending:true});
+  if(!icerikEl) return;
+  if(!sonuclar || !sonuclar.length){ icerikEl.innerHTML='<div class="empty">Bu görev için arama kaydı bulunamadı.</div>'; return; }
+
+  const boolTxt=(b)=> b===true?'Evet':(b===false?'Hayır':'');
+  const blok=(label,val)=>{
+    if(val===null||val===undefined||val==='') return '';
+    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">
+      <span style="color:var(--text3);">${escapeHTML(label)}</span><span style="color:var(--text);text-align:right;">${escapeHTML(String(val))}</span></div>`;
+  };
+
+  icerikEl.innerHTML = sonuclar.map((s,i)=>{
+    let renk='var(--border)';
+    if(s.sikayet_var===true || s.ulasilamama_neden==='Yanlış numara') renk='var(--red)';
+    else if(s.ziyaret_dogrulandi==='Hayır' || s.ziyaret_dogrulandi==='Emin değil') renk='var(--purple)';
+    else if(s.ziyaret_dogrulandi==='Evet') renk='var(--green)';
+    else if(s.ulasildi===false) renk='var(--orange)';
+    const agentAd = s.agent_id?(myIdToName[s.agent_id]||('#'+s.agent_id)):'—';
+    const baslik='Deneme '+(s.deneme_no||(i+1))+' · '+(s.created_at?fmtDate(s.created_at):'—')+' · '+agentAd;
+    let gov='';
+    gov+=blok('Ulaşıldı mı', boolTxt(s.ulasildi));
+    gov+=blok('Ulaşılamama nedeni', s.ulasilamama_neden);
+    gov+=blok('Telefon', s.telefon);
+    gov+=blok('Doğru muhatap mı', s.muhatap_dogru);
+    gov+=blok('Görüşmek uygun muydu', boolTxt(s.gorusmek_istedi));
+    gov+=blok('Sonra aranmak istedi mi', boolTxt(s.sonra_aranmak_istedi));
+    gov+=blok('Sonraki arama tarihi', s.sonraki_arama_tarihi?fmtDate(s.sonraki_arama_tarihi):'');
+    gov+=blok('Ziyaret teyit edildi mi', s.ziyaret_dogrulandi);
+    gov+=blok('Görüşme şekli', s.yuzyuze_uyusmazlik===true?'Telefonla':(s.yuzyuze_uyusmazlik===false?'Yüz yüze':''));
+    gov+=blok('Ziyaret edenin adı doğru mu', s.isim_dogru);
+    gov+=blok('Ziyaret olmadıysa neden', s.ziyaret_yok_neden);
+    gov+=blok('Görüşme süresi', s.gorusme_suresi);
+    gov+=blok('Temsilci güven verdi mi', s.guven);
+    gov+=blok('İhtiyaç anlaşıldı mı', s.ihtiyac_anlasildi);
+    gov+=blok('Memnuniyet', s.memnuniyet?(s.memnuniyet+'/5'):'');
+    gov+=blok('NPS (tavsiye)', s.nps!=null?(s.nps+'/10'):'');
+    gov+=blok('Takip sözü verildi mi', boolTxt(s.takip_sozu));
+    gov+=blok('Takip sözü tutuldu mu', boolTxt(s.takip_tutuldu));
+    gov+=blok('Şikayet / talep var mı', boolTxt(s.sikayet_var));
+    gov+=blok('Şikayet / talep detayı', s.sikayet_metni);
+    gov+=blok('Agent notu', s.agent_notu);
+    return `<div style="border-left:3px solid ${renk};background:var(--navy3);border-radius:8px;padding:8px 10px;margin-bottom:10px;">
+      <div style="font-weight:700;font-size:12px;color:var(--text);margin-bottom:4px;">${escapeHTML(baslik)}</div>${gov}
+    </div>`;
+  }).join('');
 }
 
 // SLA: deadline'ı N (parametrik, vars. 7) günden fazla geçmiş ve hâlâ Aranacak/Tekrar

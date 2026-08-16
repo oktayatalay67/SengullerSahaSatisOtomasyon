@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.2.64
+// config.js — v1.2.65
 // Son güncelleme: 2026-08-16
 // Değişiklikler:
+//   v1.2.65 — APP_VERSION → V31.23. Tamamlanan arama kartlari artik daima
+//             anlamli ozet gosterir; karta tiklamak / yeni "Detay" tusu, o
+//             goreve ait TUM arama denemelerinin tam detayini gosteren yeni
+//             salt-okunur modal acar (aramaSonucDetayModal). "Tekrar Ara" ->
+//             "Yeniden Ara". arama.js v1.0.9.
 //   v1.2.64 — APP_VERSION → V31.22. Cagri Analizi: 5b MY Kirilim/Liderlik
 //             Tablosu (en cok yanlis numara, en temiz veri, KCM bazli
 //             memnuniyet en yuksek/dusuk 3'er MY) + kart cercevesine mor
@@ -155,7 +160,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.22';
+const APP_VERSION = 'V31.23';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
