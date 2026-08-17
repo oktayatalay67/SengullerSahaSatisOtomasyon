@@ -1,7 +1,30 @@
 // ============================================================
-// config.js — v1.2.70
-// Son güncelleme: 2026-08-16
+// config.js — v1.2.73
+// Son güncelleme: 2026-08-17
 // Değişiklikler:
+//   v1.2.73 — APP_VERSION → V31.31. FIX: Profil görüntüleme (impersonation)
+//             bandı da (#impersonationBanner) zoom'da kayıyordu — V31.30'daki
+//             visualViewport düzeltmesi sadece .topbar/.app-footer'ı
+//             kapsıyordu, bu bant .page dışında ayrı bir top:0 sabit eleman
+//             olduğu için kapsam dışı kalmıştı. Aynı mekanizma (--vvy-top)
+//             ile görünen alanın üstüne kilitlendi. Zoom yokken sıfır etki.
+//             main.css.
+//   v1.2.72 — APP_VERSION → V31.30. FIX (kökten çözüm — V31.29'daki viewport
+//             meta denemesi etkisiz kalmıştı): trackpad/Ctrl pinch-zoom'da
+//             visual viewport ile layout viewport farklılaşıyor, position:fixed
+//             topbar/alt bar layout viewport'a sabit kalıp görünen alanın
+//             dışında kalıyordu. js/utils.js'e window.visualViewport dinleyicisi
+//             eklendi — topbar/alt bar artık AYRI AYRI (tek parça kaydırma
+//             yetersizdi) görünen alanın üstüne/altına kilitleniyor. Zoom
+//             yokken sıfır etki. Kullanıcının gerçek cihazından alınan
+//             visualViewport verileriyle (offsetTop:339, offsetLeft:241,
+//             scale:4.18) doğrulandı. main.css, utils.js v1.0.2.
+//   v1.2.71 — APP_VERSION → V31.29. FIX: index.html <meta viewport>'tan
+//             "maximum-scale=1.0, user-scalable=no" kaldırıldı — masaüstü
+//             Chrome'da Ctrl+Zoom yapılınca topbar/alt versiyon barının
+//             (position:fixed) büyütülmüş görünüme kilitlenmeyip içerikle
+//             kayması/kaybolması sorununu çözüyor. Not: mobilde artık
+//             pinch/double-tap zoom serbest (öncesinde kilitliydi).
 //   v1.2.70 — APP_VERSION → V31.28. Fırsat: YENİ WhatsApp paylaşım özelliği —
 //             fırsat herhangi bir aşamadan Beyan/Evrak'a çekildiğinde (veya
 //             yeni kayıt doğrudan bu aşamayla girildiğinde), fırsat başına
@@ -187,7 +210,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.28';
+const APP_VERSION = 'V31.31';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,8 +1,16 @@
-:root{--red:#E0042A;--red-dark:#b8001f;--navy:#0d0d1a;--navy2:#1a1a2e;--navy3:#252540;--card:#1e1e35;--border:rgba(255,255,255,0.08);--text:#f0f0f8;--text2:#9999bb;--text3:#6666aa;--green:#00d68f;--amber:#ffb400;--orange:#ff7a29;--blue:#4d9fff;--purple:#a855f7;--radius:16px;--radius-sm:10px;font-family:'Figtree',-apple-system,sans-serif;}
+:root{--red:#E0042A;--red-dark:#b8001f;--navy:#0d0d1a;--navy2:#1a1a2e;--navy3:#252540;--card:#1e1e35;--border:rgba(255,255,255,0.08);--text:#f0f0f8;--text2:#9999bb;--text3:#6666aa;--green:#00d68f;--amber:#ffb400;--orange:#ff7a29;--blue:#4d9fff;--purple:#a855f7;--radius:16px;--radius-sm:10px;--vvy-top:0px;--vvy-bottom:0px;font-family:'Figtree',-apple-system,sans-serif;}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
 .page{position:fixed;inset:0;display:none;flex-direction:column;overflow:hidden;}
 .page.active{display:flex;}
+/* V31.30: pinch/trackpad-zoom sırasında topbar/alt bar görünen alanın (visual
+   viewport) üstüne/altına kilitlenir. --vvy-top/--vvy-bottom varsayılan 0px —
+   js/utils.js'teki visualViewport senkronu çalışmadığında hiçbir etkisi yok. */
+.topbar{transform:translateY(var(--vvy-top));}
+.app-footer{transform:translateY(var(--vvy-bottom));}
+/* V31.31: impersonationBanner de .page dışında ayrı, top:0'a sabit bir eleman —
+   aynı sebepten zoom'da kayıyordu, aynı düzeltme buraya da uygulanır. */
+#impersonationBanner{transform:translateY(var(--vvy-top));}
 .auth-bg{background:linear-gradient(160deg,var(--navy) 0%,var(--navy2) 50%,#1a0a10 100%);justify-content:center;align-items:center;padding:24px;overflow-y:auto;}
 .auth-card{width:100%;max-width:400px;background:var(--card);border-radius:24px;padding:36px 28px;border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,0.4);}
 .brand{display:flex;align-items:center;gap:12px;margin-bottom:28px;}
@@ -136,7 +144,10 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
 .summary-label{font-size:10px;color:var(--text2);margin-top:2px;}
 .summary-label.lg{font-size:11px;font-weight:700;color:var(--text);}
 @media(min-width:480px){
-  .page,.app-footer,.modal-overlay{max-width:480px;left:50%;transform:translateX(-50%);right:auto;}
+  .page,.app-footer,.modal-overlay{max-width:480px;left:50%;right:auto;}
+  .page{transform:translateX(-50%);}
+  .modal-overlay{transform:translateX(-50%);}
+  .app-footer{transform:translate(-50%,0) translateY(var(--vvy-bottom));}
   .page{width:100%;}
   .modal-overlay{width:100%;}
   .toast-container{max-width:380px;}
