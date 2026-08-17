@@ -1,11 +1,40 @@
 // ============================================================
-// utils.js — v1.0.1
-// Son güncelleme: 2026-06-24
+// utils.js — v1.0.2
+// Son güncelleme: 2026-08-17
 // Değişiklikler:
+//   v1.0.2 (V31.30) — FIX: Masaüstünde trackpad/Ctrl ile pinch-tarzı zoom
+//            yapıldığında (visualViewport, layout viewport'tan kayıp/küçülüyor)
+//            topbar ve alt versiyon barı görünür alanın dışında kalıp
+//            kayboluyordu. window.visualViewport API'si ile topbar/alt bar
+//            AYRI AYRI görünen alanın üstüne/altına kilitlenir (tek parça
+//            kaydırma matematiksel olarak yetersiz kalıyordu — bkz. changelog
+//            detayı config.js'te). Zoom/pan yokken hiçbir etkisi yok. Tarayıcı
+//            visualViewport'u desteklemiyorsa fonksiyon hiçbir şey yapmaz.
 //   v1.0.1 — fmtDateTime: cihazın saat dilimi ayarından bağımsız hale getirildi,
 //            artık her zaman explicit 'Europe/Istanbul' kullanıyor.
 // ============================================================
 'use strict';
+/* ===== VISUAL VIEWPORT SENKRONU (V31.30) =====
+   Amaç: pinch/trackpad-zoom sırasında topbar HER ZAMAN görünen alanın en
+   üstüne, alt versiyon barı HER ZAMAN görünen alanın en altına kilitli kalsın.
+   Tek bir .page kaydırması matematiksel olarak yetmiyor: topbar ve alt bar
+   sayfanın iki ucunda (~800px ara), aşırı zoomda görünen alan bundan çok
+   daha dar olabiliyor — ikisi aynı anda tek kaydırmayla görünür alana sığmaz.
+   Bu yüzden ikisi BAĞIMSIZ hesaplanıp ayrı ayrı konumlandırılır. */
+(function(){
+  if(!window.visualViewport) return;
+  const vv = window.visualViewport;
+  function syncVisualViewport(){
+    const top = vv.offsetTop || 0;
+    const bottom = (vv.offsetTop||0) + (vv.height||window.innerHeight) - window.innerHeight;
+    document.documentElement.style.setProperty('--vvy-top', top+'px');
+    document.documentElement.style.setProperty('--vvy-bottom', bottom+'px');
+  }
+  vv.addEventListener('resize', syncVisualViewport);
+  vv.addEventListener('scroll', syncVisualViewport);
+  syncVisualViewport();
+})();
+
 /* ===== YARDIMCILAR ===== */
 function escapeHTML(s){if(!s)return '';return String(s).replace(/[&<>'"]/g,t=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t]||t));}
 
