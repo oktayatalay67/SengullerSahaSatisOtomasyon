@@ -10,7 +10,15 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
 .app-footer{transform:translateY(var(--vvy-bottom));}
 /* V31.31: impersonationBanner de .page dışında ayrı, top:0'a sabit bir eleman —
    aynı sebepten zoom'da kayıyordu, aynı düzeltme buraya da uygulanır. */
-#impersonationBanner{transform:translateY(var(--vvy-top));}
+/* V31.32 FIX: impersonationBanner .page/.app-footer/.modal-overlay gibi 480px'lik
+   ortalanmış sütuna hiç dahil edilmemişti — geniş ekranda TAM PENCERE genişliğinde
+   render oluyordu. Yüksek zoom'da görünen dar alan, tam genişlikteki bandın sol
+   ucundaki yazı ile sağ ucundaki (justify-content:space-between ile en sağa
+   yaslanmış) "Çık" tuşunu aynı anda gösteremiyordu — tuş görünür alanın çok
+   dışında (sağda) kalıyordu. Ayrıca bu, bandın topbar'ı örtmesi sorunuyla da
+   aynı kökten geliyordu. left/right index.html'deki inline style'dan çıkarılıp
+   buraya taşındı (base: tam genişlik; ≥480px ekranda media query 480px'e sabitler). */
+#impersonationBanner{left:0;right:0;transform:translateY(var(--vvy-top));}
 .auth-bg{background:linear-gradient(160deg,var(--navy) 0%,var(--navy2) 50%,#1a0a10 100%);justify-content:center;align-items:center;padding:24px;overflow-y:auto;}
 .auth-card{width:100%;max-width:400px;background:var(--card);border-radius:24px;padding:36px 28px;border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,0.4);}
 .brand{display:flex;align-items:center;gap:12px;margin-bottom:28px;}
@@ -144,10 +152,12 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
 .summary-label{font-size:10px;color:var(--text2);margin-top:2px;}
 .summary-label.lg{font-size:11px;font-weight:700;color:var(--text);}
 @media(min-width:480px){
-  .page,.app-footer,.modal-overlay{max-width:480px;left:50%;right:auto;}
+  .page,.app-footer,.modal-overlay,#impersonationBanner{max-width:480px;left:50%;right:auto;}
   .page{transform:translateX(-50%);}
   .modal-overlay{transform:translateX(-50%);}
   .app-footer{transform:translate(-50%,0) translateY(var(--vvy-bottom));}
+  /* V31.32: banner da app'in 480px'lik ortalanmış sütununa kilitlenir. */
+  #impersonationBanner{transform:translate(-50%,0) translateY(var(--vvy-top));}
   .page{width:100%;}
   .modal-overlay{width:100%;}
   .toast-container{max-width:380px;}

@@ -1,7 +1,16 @@
 // ============================================================
-// config.js — v1.2.73
-// Son güncelleme: 2026-08-17
+// config.js — v1.2.74
+// Son güncelleme: 2026-08-18
 // Değişiklikler:
+//   v1.2.74 — APP_VERSION → V31.32. FIX: İmpersonation bandı yüksek zoom'da
+//             kesiliyordu, "Çık" tuşu erişilemez oluyordu. Kök neden: bant
+//             .page/.app-footer/.modal-overlay'in aksine 480px'lik ortalanmış
+//             sütuna hiç dahil edilmemişti, geniş ekranda TAM PENCERE
+//             genişliğinde render oluyordu — bu da eskiden beri bilinen
+//             "bandın topbar'ı örtmesi" sorunuyla aynı kökten. Artık banner
+//             de ≥480px ekranlarda diğer sabit elemanlar gibi ortalanmış
+//             sütuna kilitleniyor (index.html inline style'dan left/right
+//             çıkarıldı, main.css'e taşındı). index.html, main.css.
 //   v1.2.73 — APP_VERSION → V31.31. FIX: Profil görüntüleme (impersonation)
 //             bandı da (#impersonationBanner) zoom'da kayıyordu — V31.30'daki
 //             visualViewport düzeltmesi sadece .topbar/.app-footer'ı
@@ -210,7 +219,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.31';
+const APP_VERSION = 'V31.32';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
