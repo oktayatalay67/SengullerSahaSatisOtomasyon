@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.2.74
-// Son güncelleme: 2026-08-18
+// config.js — v1.2.75
+// Son güncelleme: 2026-08-20
 // Değişiklikler:
+//   v1.2.75 — APP_VERSION → V31.33. YENİ: Duyurular modülü (js/duyuru.js).
+//             Ek yetki YOK — görünürlük Fırsat modülüyle aynı (applyRBAC).
 //   v1.2.74 — APP_VERSION → V31.32. FIX: İmpersonation bandı yüksek zoom'da
 //             kesiliyordu, "Çık" tuşu erişilemez oluyordu. Kök neden: bant
 //             .page/.app-footer/.modal-overlay'in aksine 480px'lik ortalanmış
@@ -219,7 +221,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.32';
+const APP_VERSION = 'V31.33';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

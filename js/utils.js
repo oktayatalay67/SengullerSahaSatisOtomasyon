@@ -1,7 +1,9 @@
 // ============================================================
-// utils.js — v1.0.2
-// Son güncelleme: 2026-08-17
+// utils.js — v1.0.3
+// Son güncelleme: 2026-08-20
 // Değişiklikler:
+//   v1.0.3 (V31.33) — navTo: pageDuyuru için loadDuyurular() çağrısı eklendi
+//            (Duyurular modülü, js/duyuru.js).
 //   v1.0.2 (V31.30) — FIX: Masaüstünde trackpad/Ctrl ile pinch-tarzı zoom
 //            yapıldığında (visualViewport, layout viewport'tan kayıp/küçülüyor)
 //            topbar ve alt versiyon barı görünür alanın dışında kalıp
@@ -147,6 +149,7 @@ function navTo(pid,reset=false){
     initTemasPersonelFilter();
   }
   if(pid==='pagePipeline'){loadPipeline();initPpPersonelFilter();}
+  if(pid==='pageDuyuru'){ if(typeof loadDuyurular==='function') loadDuyurular(); }
   if(pid==='pageFirsatForm'){if(reset)initFirsatForm();else initFirsatForm();}
   if(pid==='pageGorev'){initGorevModulu();}
   if(pid==='pageArama'){ if(typeof initAramaEkrani==='function') initAramaEkrani(); }

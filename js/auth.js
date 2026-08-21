@@ -1,7 +1,10 @@
 // ============================================================
-// auth.js — v1.2.17
-// Son güncelleme: 2026-08-16
+// auth.js — v1.2.18
+// Son güncelleme: 2026-08-20
 // Değişiklikler:
+//   v1.2.18 — (V31.33) initApp'te girişte duyuru.js:_duyuruBadgeGuncelle()
+//             çağrılır — Duyurular rozeti (okunmamış sayısı) kullanıcı ekranı
+//             hiç açmasa da ana menüde görünür.
 //   v1.2.17 — (V31.26) initApp'te girişte donanim.js:_donanimBadgeGuncelle()
 //             çağrılır — Donanım Takip rozeti kullanıcı ekranı hiç açmasa da görünür.
 //   v1.2.14 — (V30.77) applyRBAC sabit rol listesi yerine DB scope'u kullanir.
@@ -126,6 +129,8 @@ async function initApp(){
   // v31.26: Donanım Takip menü rozeti — kullanıcı ekranı hiç açmasa da girişte
   // onaylanmış siparişleri varsa ana menüde görünsün (tedarik akışı bildirimi).
   if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
+  // v31.33: Duyurular menü rozeti — girişte okunmamış duyuru sayısı görünsün.
+  if(typeof _duyuruBadgeGuncelle==='function') _duyuruBadgeGuncelle();
 }
 
 let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)

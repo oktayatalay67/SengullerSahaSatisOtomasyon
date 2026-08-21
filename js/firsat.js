@@ -1,7 +1,10 @@
 // ============================================================
-// firsat.js — v1.2.4
-// Son güncelleme: 2026-08-16
+// firsat.js — v1.2.5
+// Son güncelleme: 2026-08-20
 // Değişiklikler:
+//   v1.2.5 (V31.33) — YENİ: saveOpp içinde, adım Beyan/Evrak'a her geçişinde
+//             (WA popup'ından bağımsız, tekrar tekrar) js/duyuru.js:
+//             _duyuruFeedEkle() çağrılır — Duyurular akışına kayıt düşer.
 //   v1.2.4 (V31.28) — YENİ: WhatsApp paylaşım özelliği. Fırsat herhangi bir
 //            aşamadan Beyan/Evrak'a çekildiğinde (veya yeni kayıt doğrudan bu
 //            aşamalardan biriyle girildiğinde), fırsat başına SADECE 1 defa
@@ -534,6 +537,24 @@ function selectOppCust(ncst,unvan){
   const oppZatenPaylasilmis=!!(eskiOppRow&&eskiOppRow.wa_paylasim_yapildi);
   const oppWaTetikle=(adim==='Beyan'||adim==='Evrak')&&(eskiAdimGenel!==adim)&&!oppZatenPaylasilmis;
 
+  // v1.2.3 (V31.33): Duyurular akışı — WA popup'ından BAĞIMSIZ, fırsat
+  // her Beyan/Evrak'a geçtiğinde (tekrar tekrar da olsa, wa_paylasim_yapildi
+  // bayrağından etkilenmez) duyuru_feed'e bir satır düşer. js/duyuru.js.
+  if((adim==='Beyan'||adim==='Evrak')&&(eskiAdimGenel!==adim)&&oppId&&typeof _duyuruFeedEkle==='function'){
+    const _duyuruMyId=(eskiOppRow&&eskiOppRow.my_id)||payload.my_id||currentUser.my_id;
+    _duyuruFeedEkle({
+      oppId, adim,
+      ncst: oppSelectedNcst||(eskiOppRow&&eskiOppRow.ncst)||null,
+      unvan: oppSelectedUnvan||'—',
+      myId: _duyuruMyId,
+      myAdi: (typeof myIdToName!=='undefined'&&myIdToName[_duyuruMyId])||currentUser.ad_soyad||'—',
+      kcmId: oppKcmId||null,
+      urunOzeti: urunData.map(u=>u.urun+(u.adet?' x'+u.adet:'')).join(', '),
+      toplamTutar: toplamTutar||null,
+      not: aciklama||''
+    });
+  }
+
   // === Log ===
   const logAksiyon=currentEditingOppId?'G\u00fcncellendi':'Olu\u015fturuldu';
   const logDetay=adim+(urunData.length>0?' | '+urunData.map(u=>u.urun).join(', '):'');
@@ -804,4 +825,3 @@ const getAdim=o=>o.adim||o.durum||'Fırsat';
     `).join('');
   }catch(err){console.error(err);c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;}
 }
-

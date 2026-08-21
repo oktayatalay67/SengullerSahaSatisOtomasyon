@@ -1,5 +1,70 @@
 // ============================================================
-// arama.js — v1.0.11
+// arama.js — v1.0.14
+//   v1.0.14 (21.08.2026, filtre paneli yeniden yapilandirildi):
+//     - BUG FIX (talep edilen): Tarih filtresi ARAMA/gorev tarihini degil,
+//       artik ZIYARET tarihini (visits.tarih_saat, Europe/Istanbul takvim
+//       gunu) baz aliyor. Onceki hali tasks.deadline/tamamlanma_tarihi
+//       uzerinden filtreliyordu — "15 Agustos'ta yapilan ziyaretlerin teyit
+//       aramalarini goster" beklentisiyle ortusmuyordu. Filtre artik
+//       client-side (vMap uzerinden) uygulaniyor.
+//     - YENI: KÇM -> MY/FMY iki kademeli filtre (Bekleyen + Tamamlanan).
+//       Duz "Tum personel" listesi kaldirildi — once KÇM secilir, MY/FMY
+//       acilir listesi sadece o KÇM'nin personelini gosterir. TÜM kapsami
+//       olmayan kullanicilarda KÇM tek secenekle otomatik daralir.
+//     - Filtre paneli sirasi: Ziyaret tarihi -> Durum -> KÇM -> MY/FMY ->
+//       (en altta) Musteri adi arama.
+//     - Not: KÇM/MY/musteri adi/ziyaret tarihi filtrelerinin tumu artik
+//       client-side (enrich adimindaki vMap/unvanMap uzerinden, limit
+//       500/300 kayitlik sayfada) uygulaniyor — cok eski/genis bir aralikta
+//       ariyorsaniz once durum ile daraltin.
+//   v1.0.13 (21.08.2026, filtre duzeltme + yeni filtreler):
+//     - BUG FIX (kok neden — "filtreler calismiyor"): "bugun" hesabi
+//       new Date().toISOString().slice(0,10) ile UTC gunune gore yapiliyordu.
+//       Turkiye UTC+3 (DST yok) oldugu icin gece 00:00-02:59 arasinda bu hala
+//       BIR ONCEKI gunu veriyor, Bekleyen/Tamamlanan listeleri ve SLA kapama
+//       o pencerede yanlis/eksik calisiyordu. Yeni _istanbulBugun()/
+//       _istanbulTarihEkle() yardimcilari her zaman Europe/Istanbul takvim
+//       gunune gore hesapliyor.
+//     - BUG FIX: arama_sonuclari.created_at (timestamptz) ve
+//       tasks.tamamlanma_tarihi filtrelerine +03:00 ofseti eklendi — ofsetsiz
+//       gonderilen tarih Postgres oturum saat dilimine (UTC) gore
+//       yorumlaniyor, Istanbul gunuyle 3 saat kayiyordu (Cagri Analizi, MY
+//       Kirilim paneli, Tamamlanan sekmesi tarih filtreleri dahil).
+//     - YENI FILTRE (talep edilen): Tamamlanan sekmesine durum filtresi —
+//       "Ulasilamayan (tekrar aranabilir)" secilince sadece Ulasilamiyor
+//       kayitlari listelenir; karttaki mevcut "Yeniden Ara" tusuyla direkt
+//       tekrar aranabilir. Bekleyen sekmesine de durum filtresi (Hic
+//       aranmadi / Tekrar aranacak) eklendi.
+//     - YENI FILTRE: Bekleyen + Tamamlanan sekmelerine firma adi arama kutusu
+//       (debounce'lu, client-side) ve personel (MY) filtresi (kapsam/scope'a
+//       gore siniirli acilir liste) eklendi.
+//   v1.0.12 (20.08.2026, konsolidasyon): Anket akisi yeniden tasarlandi (soru
+//     sayisi azaltildi, muhatap dogrulamasi gercek bir "gate" oldu):
+//     - "Dogru muhatap mi?" -> "Gorusulen kisi yetkili ve dogru kontak mi?"
+//       (Evet/Hayir). Hayir ise anket burada kapanir (Kaydet/Tamamlandi,
+//       turuncu etiket), sonraki hicbir soru cikmaz.
+//     - "Gorusmek uygun mu?" -> "Gorusmek icin uygun mu?". Hayir ise "sonra
+//       aranmak ister mi" ara sorusu kaldirildi, dogrudan yeni arama tarihi
+//       sorulup Tekrar Aranacak olarak kapatiliyor.
+//     - "Bu tarihte firmadan ziyaret oldu mu?" sorusu ziyaret tarihini
+//       iceren dinamik metne tasindi ("{tarih} sizi Turkcell'den arkadasimiz
+//       ziyarete geldi mi?") ve 3. secenek "Emin degil" -> "Gelmedi ama
+//       Telefonla konustuk" oldu (belirsizlik degil, net alternatif kanal
+//       bilgisi — ayri mavi etiket/renk ile gosteriliyor, sahte supheden
+//       (Hayir=mor) ayristirildi). Buna bagli "Bu konuda emin misiniz?"
+//       (ziyaret_emin) ve "Ziyaret olmadiysa neden?" (ziyaret_yok_neden)
+//       alt-sorulari tamamen kaldirildi.
+//     - Kaldirilan sorular: "Gorusme yuz yuze miydi?" (yuzyuze), "Ziyaret
+//       edenin adini hatirliyor mu?" (isim_dogru), "Temsilci guven verdi
+//       mi?" (guven), NPS/"Tavsiye eder mi?" (memnuniyet sorusu tek basina
+//       yeterli görüldü), "Takip sozu verildi mi?" + "Soz tutuldu mu?".
+//     - "Ihtiyac anlasildi mi?" -> "Temsilcimiz ihtiyacinizi anladi ve cozum
+//       uretebildi mi?" (Evet ve Telefonla-konustuk dallarinin ikisinde de
+//       sorulur). Sikayet/talep sorusu artik her ziyaret_dogrulandi dalinda
+//       (Evet/Hayir/Telefonla) soruluyor.
+//     - Yan etki: bagimsiz bug duzeltildi — MY Kirilim/Liderlik panelinde
+//       memnuniyet ortalamasi hala "/5" yaziyordu (skala 1-10'a gecileli
+//       beri diger tum yerler /10 idi, bu panel unutulmustu).
 //   v1.0.11 (V31.27): Anket akisi mantik hatasi duzeltildi — "Bu tarihte
 //     firmadan ziyaret oldu mu?" = Hayir secildiginde artik alakasiz
 //     yuz-yuze/isim-hatirlama sorulari cikmiyor (artik sadece Evet'te
@@ -55,6 +120,23 @@
 'use strict';
 
 const ARAMA = { teyitTypeId:null, tasks:[] };
+
+// v1.0.13: BUG FIX — "bugün" hesabı cihazın saat dilimine/UTC'ye değil, her zaman
+// Europe/Istanbul takvim gününe göre yapılmalı. new Date().toISOString().slice(0,10)
+// UTC gününü döndürüyordu; Türkiye UTC+3 (DST yok) olduğu için gece 00:00-02:59
+// arasında bu, hâlâ BİR ÖNCEKİ günü veriyordu — "Bekleyen Çağrılar" o pencerede
+// bugüne ait görevleri göstermiyor/yanlış filtreliyor gibi görünüyordu. Ayrıca
+// arama_sonuclari.created_at (timestamptz) filtrelerine de +03:00 ofseti eklendi
+// (offsetsiz gönderilen tarih Postgres oturum saat dilimi olan UTC'ye göre
+// yorumlanıyor, İstanbul günüyle 3 saat kayıyordu).
+function _istanbulBugun(){
+  return new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Istanbul'}); // 'sv-SE' -> YYYY-MM-DD
+}
+function _istanbulTarihEkle(gunSayisi){
+  const d=new Date(_istanbulBugun()+'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate()+gunSayisi);
+  return d.toISOString().slice(0,10);
+}
 
 async function _aramaTeyitTypeId(){
   if(ARAMA.teyitTypeId) return ARAMA.teyitTypeId;
@@ -113,11 +195,11 @@ function _aramaShellRender(){
 
 async function _aramaSayaclariYukle(){
   const typeId=await _aramaTeyitTypeId();
-  const bugun=new Date().toISOString().slice(0,10);
+  const bugun=_istanbulBugun();
   const [bek,gel,tam]=await Promise.all([
     sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).lte('deadline',bugun).then(r=>r.count||0),
     sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).gt('deadline',bugun).then(r=>r.count||0),
-    sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).eq('durum','Tamamlandı').gte('tamamlanma_tarihi',bugun+'T00:00:00').then(r=>r.count||0)
+    sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).eq('durum','Tamamlandı').gte('tamamlanma_tarihi',bugun+'T00:00:00+03:00').then(r=>r.count||0)
   ]);
   const b=document.getElementById('aramaStatBugun'); if(b) b.textContent=bek;
   const g=document.getElementById('aramaStatGelecek'); if(g) g.textContent=gel;
@@ -141,12 +223,14 @@ async function _aramaEnrich(tasks){
   const ncstList=[...new Set(tasks.map(t=>t.ncst).filter(Boolean))];
   const unvanMap={}; if(ncstList.length){ const {data}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList); (data||[]).forEach(c=>unvanMap[c.ncst]=c.unvan); }
   const vIds=[...new Set(tasks.map(t=>t.visit_id).filter(Boolean))];
-  const vMap={}; if(vIds.length){ const {data}=await sb.from('visits').select('visit_id,my_id,tarih_saat,ziyaret_amaci,urun_gruplari,ziyaret_sonucu').in('visit_id',vIds); (data||[]).forEach(v=>vMap[v.visit_id]=v); }
+  const vMap={}; if(vIds.length){ const {data}=await sb.from('visits').select('visit_id,my_id,kcm_id,tarih_saat,ziyaret_amaci,urun_gruplari,ziyaret_sonucu').in('visit_id',vIds); (data||[]).forEach(v=>vMap[v.visit_id]=v); }
   return {unvanMap,vMap};
 }
-// v31.22: kart çerçeve rengi — durum + son arama sonucuna göre görsel önceliklendirme.
+// v1.0.12: kart çerçeve rengi — durum + son arama sonucuna göre görsel önceliklendirme.
 //   Kırmızı: yanlış numara veya şikayet kaydı var (en yüksek öncelik)
-//   Mor: sahte ziyaret şüphesi (Hayır) veya şüpheli (Emin değil)
+//   Mor: sahte ziyaret şüphesi (Hayır) veya (eski kayıtlarda) şüpheli (Emin değil)
+//   Mavi: ziyaret olmadı ama telefonla görüşüldü (yeni — sahte şüphesi DEĞİL, ayrı etiket)
+//   Turuncu (koyu): yanlış/yetkisiz kişiyle görüşüldü (yeni — muhatap_dogru=Hayır)
 //   Sarı (amber): ulaşıldı ama tekrar aranacak
 //   Yeşil: görüşüldü ve ziyaret teyit alındı (Tamamlandı + ziyaret_dogrulandi=Evet)
 //   Turuncu: ulaşılamayan / aramadan kapatılan / SLA ile kapanan
@@ -154,6 +238,8 @@ function _aramaKartRenk(t){
   const s=t._sonucRaw||{};
   if(s.sikayet_var===true || s.ulasilamama_neden==='Yanlış numara') return 'var(--red)';
   if(t.durum==='Tamamlandı' && (s.ziyaret_dogrulandi==='Hayır' || s.ziyaret_dogrulandi==='Emin değil')) return 'var(--purple)';
+  if(t.durum==='Tamamlandı' && s.ziyaret_dogrulandi==='Gelmedi ama Telefonla konuştuk') return 'var(--blue)';
+  if(t.durum==='Tamamlandı' && s.muhatap_dogru==='Hayır') return 'var(--orange)';
   if(t.durum==='Tekrar Aranacak' && s.ulasildi===true) return 'var(--amber)';
   if(t.durum==='Tamamlandı' && s.ziyaret_dogrulandi==='Evet') return 'var(--green)';
   if(['Ulaşılamıyor','Aramadan Kapatıldı','Arama Yapılmadı'].includes(t.durum)) return 'var(--orange)';
@@ -170,17 +256,19 @@ async function _aramaKartRenkYukle(tasks){
   tasks.forEach(t=>{ if(sonMap[t.task_id]) t._sonucRaw=sonMap[t.task_id]; });
 }
 
-// v31.23: Tamamlanan arama kartındaki tek satır özet — daima anlamlı bir şey
-// göstermesi için öncelik sırasına göre (şikayet/yanlış numara/sahte şüphesi önce)
-// en önemli bulguyu yansıtır. Önceki hali çoğu kayıtta boş kalıyordu.
+// v31.23 (+v1.0.12 ek dallar): Tamamlanan arama kartındaki tek satır özet — daima
+// anlamlı bir şey göstermesi için öncelik sırasına göre (şikayet/yanlış numara/
+// yanlış muhatap/sahte şüphesi önce) en önemli bulguyu yansıtır.
 function _aramaSonucOzet(s){
   if(!s) return '';
   const kisalt=(t,n)=>{ t=(t||'').trim(); return t.length>n?t.slice(0,n)+'…':t; };
   if(s.ulasilamama_neden==='Yanlış numara') return '☎️ Yanlış numara';
   if(s.ulasildi===false) return 'Ulaşılamadı'+(s.ulasilamama_neden?(' ('+s.ulasilamama_neden+')'):'');
   if(s.sikayet_var===true) return '⚠️ Şikayet: '+(s.sikayet_metni?kisalt(s.sikayet_metni,40):'kayıt var');
+  if(s.muhatap_dogru==='Hayır') return '🚫 Yanlış/yetkisiz kişi ile görüşüldü';
   if(s.ziyaret_dogrulandi==='Hayır') return '🚩 Ziyaret teyit edilemedi (sahte şüphesi)';
   if(s.ziyaret_dogrulandi==='Emin değil') return '❓ Ziyaret teyidi belirsiz';
+  if(s.ziyaret_dogrulandi==='Gelmedi ama Telefonla konuştuk') return '📞 Ziyaret olmadı, telefonla görüşüldü';
   const p=[];
   if(s.ziyaret_dogrulandi) p.push('Ziyaret teyit: '+s.ziyaret_dogrulandi);
   if(s.memnuniyet) p.push('Memnuniyet '+s.memnuniyet+'/10');
@@ -222,34 +310,134 @@ function _aramaKart(t,unvanMap,vMap,mod){
     <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${ozetSatir}${alt}</div>`;
 }
 
+// v1.0.14: KÇM -> MY/FMY iki kademeli filtre. Düz "Tüm personel" listesi çok
+// KÇM'li kapsamlarda kalabalık oluyordu — önce KÇM seçilir, MY/FMY açılır
+// listesi sadece o KÇM'nin personelini gösterir.
+async function _aramaMyKcmMap(){
+  if(ARAMA._myKcmMap) return ARAMA._myKcmMap;
+  const {data}=await sb.from('users').select('my_id,kcm_id');
+  const map={}; (data||[]).forEach(u=>map[u.my_id]=u.kcm_id);
+  ARAMA._myKcmMap=map;
+  return map;
+}
+// KÇM açılır listesi — TÜM kapsamı yoksa yalnızca kendi KÇM'si (tek seçenek).
+async function _aramaKcmSecenekleriHTML(seciliKcm){
+  const izinMy = await _analizIzinMyList(); // null = TÜM
+  const {data:kcmler}=await sb.from('kcm_groups').select('kcm_id,kcm_adi').order('kcm_adi');
+  let list=kcmler||[];
+  if(izinMy!==null && currentUser.kcm_id) list=list.filter(k=>String(k.kcm_id)===String(currentUser.kcm_id));
+  return '<option value="">Tüm KÇM\'ler</option>'+list.map(k=>`<option value="${k.kcm_id}"${String(seciliKcm)===String(k.kcm_id)?' selected':''}>${escapeHTML(k.kcm_adi)}</option>`).join('');
+}
+// MY/FMY açılır listesi — kapsam izni + (varsa) seçili KÇM'ye göre daralır.
+async function _aramaMySecenekleriHTML(seciliMy, seciliKcm){
+  const izinMy = await _analizIzinMyList(); // null = TÜM
+  const kcmMap = await _aramaMyKcmMap();
+  let ids = Object.keys(myIdToName).map(Number);
+  if(izinMy) ids = ids.filter(id=>izinMy.includes(id));
+  if(seciliKcm) ids = ids.filter(id=>String(kcmMap[id])===String(seciliKcm));
+  ids.sort((a,b)=>(myIdToName[a]||'').localeCompare(myIdToName[b]||'','tr'));
+  return '<option value="">Tüm MY/FMY</option>'+ids.map(id=>`<option value="${id}"${String(seciliMy)===String(id)?' selected':''}>${escapeHTML(myIdToName[id]||('#'+id))}</option>`).join('');
+}
+// KÇM değişince bağlı MY/FMY listesini yeniden kurup ekranı yeniler.
+async function _aramaKcmDegisti(prefix){
+  const kcmVal=document.getElementById('arama'+prefix+'Kcm')?.value||'';
+  const myEl=document.getElementById('arama'+prefix+'My');
+  if(myEl) myEl.innerHTML=await _aramaMySecenekleriHTML('',kcmVal);
+  if(prefix==='Bek') loadAramaBugun(); else loadAramaTamamlanan();
+}
+// Firma adı arama kutusu her tuş vuruşunda sorgu atmasın diye basit debounce.
+let _aramaAramaDebounceTimer=null;
+function _aramaAramaDebounce(fn){
+  clearTimeout(_aramaAramaDebounceTimer);
+  _aramaAramaDebounceTimer=setTimeout(fn,400);
+}
+// v1.0.14: bir zaman damgasının Europe/Istanbul TAKVİM GÜNÜ (YYYY-MM-DD).
+function _aramaZiyaretGunu(tarihSaat){
+  if(!tarihSaat) return null;
+  try{ return new Date(tarihSaat).toLocaleDateString('sv-SE',{timeZone:'Europe/Istanbul'}); }catch(e){ return null; }
+}
+// v1.0.14: BUG FIX — tarih filtresi artık ARAMA/görev tarihini değil, ZİYARET
+// tarihini (visits.tarih_saat) baz alıyor. Önceki hâli tasks.deadline/
+// tamamlanma_tarihi üzerinden filtreliyordu — kullanıcı "15 Ağustos'ta yapılan
+// ziyaretlerin teyit aramalarını göster" derken görev/arama tarihine göre
+// filtreleniyordu, bu da beklenenle örtüşmüyordu.
+// Bekleyen/Tamamlanan listelerinde firma adı + KÇM + MY/FMY + ziyaret tarihi
+// filtresi — tasks tablosunda bu alanların hiçbiri olmadığı için enrich
+// adımında zaten yüklenen unvanMap/vMap üzerinden, ekstra sorgu atmadan
+// client-side süzülür. Not: bu filtre sadece o an ekrana çekilmiş sayfadaki
+// kayıtlarda arar (limit 500/300) — çok eski/geniş bir aralıkta arıyorsanız
+// önce durum/KÇM ile daraltın.
+function _aramaClientFiltre(tasks, unvanMap, vMap, opts){
+  const {aramaText, myFiltre, kcmFiltre, bas, bit} = opts||{};
+  let list=tasks;
+  if(kcmFiltre) list=list.filter(t=>{ const v=vMap[t.visit_id]; return v && String(v.kcm_id)===String(kcmFiltre); });
+  if(myFiltre) list=list.filter(t=>{ const v=vMap[t.visit_id]; return v && String(v.my_id)===String(myFiltre); });
+  if(bas||bit){
+    list=list.filter(t=>{
+      const v=vMap[t.visit_id]; const g=v&&_aramaZiyaretGunu(v.tarih_saat);
+      if(!g) return false;
+      if(bas && g<bas) return false;
+      if(bit && g>bit) return false;
+      return true;
+    });
+  }
+  const q=(aramaText||'').trim().toLocaleLowerCase('tr-TR');
+  if(q) list=list.filter(t=>(unvanMap[t.ncst]||t.ncst||'').toLocaleLowerCase('tr-TR').includes(q));
+  return list;
+}
+
 async function loadAramaBugun(){
   const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
-  const bugun=new Date().toISOString().slice(0,10);
-  // v31.21: Tamamlananlar'daki gibi tarih filtresi (deadline aralığı) — sekme adı 'Bekleyen Çağrılar'
+  const bugun=_istanbulBugun();
+  // v1.0.14: filtre sırası — Ziyaret tarihi → Durum → KÇM → MY/FMY → (en altta)
+  // Müşteri adı. Tarih filtresi artık arama/görev tarihini değil ZİYARET
+  // tarihini baz alıyor (bkz. _aramaClientFiltre notu). Sekme adı 'Bekleyen Çağrılar'.
   const fEl=document.getElementById('aramaFiltre');
   if(fEl && !fEl.dataset.ready){
-    fEl.innerHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+    fEl.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Ziyaret tarihi aralığı</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
       <input type="date" id="aramaBekBas" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
       <input type="date" id="aramaBekBit" max="${bugun}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-      <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaBugun()">Filtrele</button></div>`;
+      <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaBugun()">Filtrele</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+      <select id="aramaBekDurum" onchange="loadAramaBugun()" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+        <option value="">Tüm durumlar</option>
+        <option value="Aranacak">Hiç aranmadı</option>
+        <option value="Tekrar Aranacak">Tekrar aranacak</option>
+      </select>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+      <select id="aramaBekKcm" onchange="_aramaKcmDegisti('Bek')" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
+      <select id="aramaBekMy" onchange="loadAramaBugun()" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      <input type="text" id="aramaBekArama" placeholder="Müşteri adı ara…" oninput="_aramaAramaDebounce(loadAramaBugun)" style="flex:1;min-width:140px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      </div>`;
     fEl.dataset.ready='1';
+    const kcmEl=document.getElementById('aramaBekKcm'); if(kcmEl) kcmEl.innerHTML=await _aramaKcmSecenekleriHTML('');
+    const myEl=document.getElementById('aramaBekMy'); if(myEl) myEl.innerHTML=await _aramaMySecenekleriHTML('','');
   }
   const bas=document.getElementById('aramaBekBas')?.value;
   const bit=document.getElementById('aramaBekBit')?.value;
-  let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).lte('deadline',bugun).order('deadline',{ascending:true}).limit(500);
-  if(bas) q=q.gte('deadline',bas);
-  if(bit) q=q.lte('deadline',bit);
-  const {data:tasks}=await q;
-  ARAMA.tasks=tasks||[];
-  if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Bekleyen çağrı yok.</div>'; return; }
-  await _aramaKartRenkYukle(tasks);
-  const {unvanMap,vMap}=await _aramaEnrich(tasks);
+  const durumSecili=document.getElementById('aramaBekDurum')?.value;
+  const kcmFiltre=document.getElementById('aramaBekKcm')?.value;
+  const myFiltre=document.getElementById('aramaBekMy')?.value;
+  const aramaText=document.getElementById('aramaBekArama')?.value;
+  let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).lte('deadline',bugun).order('deadline',{ascending:true}).limit(500);
+  q = durumSecili ? q.eq('durum',durumSecili) : q.in('durum',['Aranacak','Tekrar Aranacak']);
+  const {data:tasksRaw}=await q;
+  ARAMA.tasks=tasksRaw||[];
+  if(!tasksRaw||!tasksRaw.length){ g.innerHTML='<div class="empty">Bekleyen çağrı yok.</div>'; return; }
+  await _aramaKartRenkYukle(tasksRaw);
+  const {unvanMap,vMap}=await _aramaEnrich(tasksRaw);
+  const tasks=_aramaClientFiltre(tasksRaw,unvanMap,vMap,{aramaText,myFiltre,kcmFiltre,bas,bit});
+  if(!tasks.length){ g.innerHTML='<div class="empty">Filtreye uyan çağrı yok.</div>'; return; }
   g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'aktif')).join('');
 }
 
 async function loadAramaGelecek(){
   const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
-  const bugun=new Date().toISOString().slice(0,10);
+  const bugun=_istanbulBugun();
   const {data:tasks}=await sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).gt('deadline',bugun).order('deadline',{ascending:true}).limit(1000);
   ARAMA.tasks=tasks||[];
   if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Gelecek çağrı yok.</div>'; return; }
@@ -266,33 +454,61 @@ async function loadAramaGelecek(){
 
 async function loadAramaTamamlanan(){
   const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
+  const bugun=_istanbulBugun();
+  // v1.0.14: filtre sırası — Ziyaret tarihi → Durum → KÇM → MY/FMY → (en altta)
+  // Müşteri adı. Tarih filtresi artık arama/tamamlanma tarihini değil ZİYARET
+  // tarihini baz alıyor.
   const fEl=document.getElementById('aramaFiltre');
   if(fEl && !fEl.dataset.ready){
-    fEl.innerHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+    fEl.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Ziyaret tarihi aralığı</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
       <input type="date" id="aramaTamBas" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-      <input type="date" id="aramaTamBit" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-      <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaTamamlanan()">Filtrele</button></div>`;
+      <input type="date" id="aramaTamBit" max="${bugun}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaTamamlanan()">Filtrele</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+      <select id="aramaTamDurum" onchange="loadAramaTamamlanan()" style="flex:1;min-width:150px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+        <option value="">Tüm durumlar</option>
+        <option value="Tamamlandı">Tamamlandı</option>
+        <option value="Ulaşılamıyor">Ulaşılamayan (tekrar aranabilir)</option>
+        <option value="Aramadan Kapatıldı">Aramadan kapatıldı</option>
+        <option value="Arama Yapılmadı">Arama yapılmadı (SLA)</option>
+      </select>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+      <select id="aramaTamKcm" onchange="_aramaKcmDegisti('Tam')" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
+      <select id="aramaTamMy" onchange="loadAramaTamamlanan()" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      <input type="text" id="aramaTamArama" placeholder="Müşteri adı ara…" oninput="_aramaAramaDebounce(loadAramaTamamlanan)" style="flex:1;min-width:140px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      </div>`;
     fEl.dataset.ready='1';
+    const kcmEl=document.getElementById('aramaTamKcm'); if(kcmEl) kcmEl.innerHTML=await _aramaKcmSecenekleriHTML('');
+    const myEl=document.getElementById('aramaTamMy'); if(myEl) myEl.innerHTML=await _aramaMySecenekleriHTML('','');
   }
   const bas=document.getElementById('aramaTamBas')?.value;
   const bit=document.getElementById('aramaTamBit')?.value;
-  let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline,tamamlanma_tarihi').eq('type_id',typeId).in('durum',['Tamamlandı','Ulaşılamıyor','Aramadan Kapatıldı','Arama Yapılmadı']).order('tamamlanma_tarihi',{ascending:false}).limit(300);
-  if(bas) q=q.gte('tamamlanma_tarihi',bas+'T00:00:00');
-  if(bit) q=q.lte('tamamlanma_tarihi',bit+'T23:59:59');
-  const {data:tasks}=await q;
-  ARAMA.tasks=tasks||[];
-  if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Tamamlanan kayıt yok.</div>'; return; }
-  const ids=tasks.map(t=>t.task_id);
-  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,nps,guven,ulasilamama_neden,ziyaret_dogrulandi,sikayet_var,sikayet_metni,created_at').in('task_id',ids).order('created_at',{ascending:false});
+  const durumSecili=document.getElementById('aramaTamDurum')?.value;
+  const kcmFiltre=document.getElementById('aramaTamKcm')?.value;
+  const myFiltre=document.getElementById('aramaTamMy')?.value;
+  const aramaText=document.getElementById('aramaTamArama')?.value;
+  let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline,tamamlanma_tarihi').eq('type_id',typeId).order('tamamlanma_tarihi',{ascending:false}).limit(300);
+  q = durumSecili ? q.eq('durum',durumSecili) : q.in('durum',['Tamamlandı','Ulaşılamıyor','Aramadan Kapatıldı','Arama Yapılmadı']);
+  const {data:tasksRaw}=await q;
+  ARAMA.tasks=tasksRaw||[];
+  if(!tasksRaw||!tasksRaw.length){ g.innerHTML='<div class="empty">Tamamlanan kayıt yok.</div>'; return; }
+  const ids=tasksRaw.map(t=>t.task_id);
+  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,nps,guven,ulasilamama_neden,muhatap_dogru,ziyaret_dogrulandi,sikayet_var,sikayet_metni,created_at').in('task_id',ids).order('created_at',{ascending:false});
   const sMap={}; (sonuclar||[]).forEach(s=>{ if(!sMap[s.task_id]) sMap[s.task_id]=s; }); // desc: ilk gelen = en son deneme
-  tasks.forEach(t=>{
+  tasksRaw.forEach(t=>{
     const s=sMap[t.task_id];
     if(s){
       t._sonucRaw=s;
       t._sonuc = _aramaSonucOzet(s);
     }
   });
-  const {unvanMap,vMap}=await _aramaEnrich(tasks);
+  const {unvanMap,vMap}=await _aramaEnrich(tasksRaw);
+  const tasks=_aramaClientFiltre(tasksRaw,unvanMap,vMap,{aramaText,myFiltre,kcmFiltre,bas,bit});
+  if(!tasks.length){ g.innerHTML='<div class="empty">Filtreye uyan kayıt yok.</div>'; return; }
   g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'tamamlanan')).join('');
 }
 
@@ -346,7 +562,9 @@ async function araSonucDetayAc(taskId){
   icerikEl.innerHTML = sonuclar.map((s,i)=>{
     let renk='var(--border)';
     if(s.sikayet_var===true || s.ulasilamama_neden==='Yanlış numara') renk='var(--red)';
+    else if(s.muhatap_dogru==='Hayır') renk='var(--orange)';
     else if(s.ziyaret_dogrulandi==='Hayır' || s.ziyaret_dogrulandi==='Emin değil') renk='var(--purple)';
+    else if(s.ziyaret_dogrulandi==='Gelmedi ama Telefonla konuştuk') renk='var(--blue)';
     else if(s.ziyaret_dogrulandi==='Evet') renk='var(--green)';
     else if(s.ulasildi===false) renk='var(--orange)';
     const agentAd = s.agent_id?(myIdToName[s.agent_id]||('#'+s.agent_id)):'—';
@@ -384,8 +602,7 @@ async function araSonucDetayAc(taskId){
 async function _aramaSlaOtomatikKapat(typeId){
   try{
     const sla=await _aramaSlaGun();
-    const sinir=new Date(); sinir.setDate(sinir.getDate()-sla);
-    const sinirStr=sinir.toISOString().slice(0,10);
+    const sinirStr=_istanbulTarihEkle(-sla);
     const {data:eskiler}=await sb.from('tasks').select('task_id,ncst,visit_id')
       .eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak'])
       .lt('deadline',sinirStr);
@@ -503,7 +720,7 @@ async function _aramaGecmisYukle(ncst, guncelVisitId){
   const [{data:ziyaretler}, {data:aramalar}] = await Promise.all([
     sb.from('visits').select('visit_id,tarih_saat,my_id,temas_turu,durum,ziyaret_amaci,ziyaret_sonucu')
       .eq('ncst',ncst).order('tarih_saat',{ascending:false}).limit(20),
-    sb.from('arama_sonuclari').select('created_at,agent_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,guven,sikayet_var,agent_notu')
+    sb.from('arama_sonuclari').select('created_at,agent_id,ulasildi,ulasilamama_neden,muhatap_dogru,ziyaret_dogrulandi,memnuniyet,guven,sikayet_var,agent_notu')
       .eq('ncst',ncst).order('created_at',{ascending:false}).limit(20)
   ]);
   // SLA'nın otomatik kapattığı "aranmadı" kayıtları gürültü — istihbaratta gösterilmez
@@ -536,13 +753,16 @@ function _aramaGecmisRender(ziyaretler, aramalar, guncelVisitId){
     if(s.ulasildi===false){ ozet='Ulaşılamadı'+(s.ulasilamama_neden?(' ('+s.ulasilamama_neden+')'):''); }
     else if(s.ulasildi===true){
       const p=[];
+      if(s.muhatap_dogru==='Hayır') p.push('Yanlış/yetkisiz kişi');
       if(s.ziyaret_dogrulandi) p.push('Ziyaret: '+s.ziyaret_dogrulandi);
       if(s.memnuniyet!=null) p.push('Memnuniyet '+s.memnuniyet+'/10');
       if(s.guven==='Hayır') p.push('Güven yok');
       if(s.sikayet_var) p.push('Şikayet var');
       ozet=p.join(' · ')||'Ulaşıldı';
-      if(s.ziyaret_dogrulandi==='Hayır'||s.sikayet_var) renk='var(--red)';
+      if(s.sikayet_var||s.ziyaret_dogrulandi==='Hayır') renk='var(--red)';
+      else if(s.muhatap_dogru==='Hayır') renk='var(--orange)';
       else if(s.ziyaret_dogrulandi==='Emin değil') renk='var(--amber)';
+      else if(s.ziyaret_dogrulandi==='Gelmedi ama Telefonla konuştuk') renk='var(--blue)';
     } else { ozet='Aramadan kapatıldı'+(s.ulasilamama_neden?(' ('+s.ulasilamama_neden.replace('Aramadan Kapatıldı: ','')+')'):''); }
     return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
       <div style="display:flex;justify-content:space-between;gap:6px;">
@@ -576,15 +796,9 @@ function _aramaGecmisToggle(){
 
 function _anketSec(key,val){ window._anket.c[key]=val; _anketRender(); }
 function _anketText(key,val){ window._anket.c[key]=val; } // re-render yok (focus korunur)
-function _anketZiyaretEminSec(val){
-  const c=window._anket.c;
-  if(val==='Emin değilim, başkası bilebilir'){
-    c.ziyaret_dogrulandi='Emin değil'; c.ziyaret_emin=null; c.ziyaret_yok_neden=null;
-  } else {
-    c.ziyaret_emin=val;
-  }
-  _anketRender();
-}
+// v1.0.12: "Emin değil" ara-sorusu (ziyaret_emin/ziyaret_yok_neden) kaldırıldı —
+// ziyaret_dogrulandi artık zaten 3 net seçenekle (Evet/Hayır/Gelmedi ama Telefonla
+// konuştuk) belirsizliği çözüyor, ayrı bir "emin misiniz" adımına gerek kalmadı.
 
 function _chips(key,label,opts){
   const c=window._anket.c;
@@ -598,6 +812,15 @@ function _scale(key,label,min,max){
   return `<div class="field" style="margin-bottom:10px;"><label>${label}</label><div class="chip-grid-box">${s}</div></div>`;
 }
 
+// v1.0.12: Anket akışı konsolide edildi (20.08.2026 talebi) — soru sayısı azaltıldı,
+// muhatap doğrulaması artık gerçek bir "gate" (Hayır ise anket burada kapanır).
+// Kaldırılanlar: "Görüşme yüz yüze miydi?" (yuzyuze), "Ziyaret edenin adını
+// hatırlıyor mu?" (isim_dogru), "Temsilci güven verdi mi?" (guven), NPS (nps —
+// memnuniyet sorusu tek başına yeterli görüldü), "Takip sözü verildi mi?"
+// (takip_sozu/takip_tutuldu), "Bu konuda emin misiniz?" alt-akışı (ziyaret_emin/
+// ziyaret_yok_neden — 3 seçenekli ziyaret_dogrulandi zaten belirsizliği çözüyor).
+// "Sonra aranmak ister mi?" ara sorusu kaldırıldı — "Görüşmek için uygun mu?"
+// Hayır ise doğrudan yeni arama tarihi soruluyor.
 function _anketRender(){
   const c=window._anket.c;
   const g=document.getElementById('aramaAnketGovde');
@@ -607,41 +830,44 @@ function _anketRender(){
   if(c.ulasildi==='Hayır'){
     h+=_chips('ulasilamama_neden','Ulaşılamama nedeni',['Cevap yok','Sürekli meşgul','Telefon kapalı','Santralden geçilemedi','Yanlış numara']);
   }
+
   if(c.ulasildi==='Evet'){
-    h+=_chips('muhatap_dogru','Doğru muhatap mı?',['Doğru kişi','Başka kişi','Bilinmiyor']);
-    h+=_chips('gorusmek_istedi','Görüşmek uygun mu?',['Evet','Hayır']);
-    if(c.gorusmek_istedi==='Hayır'){
-      h+=_chips('sonra_aranmak_istedi','Sonra aranmak ister mi?',['Evet','Hayır']);
-      if(c.sonra_aranmak_istedi==='Evet'){
-        h+=`<div class="field" style="margin-bottom:10px;"><label>Sonraki arama tarihi</label><input type="datetime-local" id="anketSonrakiTarih" value="${c.sonraki_arama_tarihi||''}" oninput="_anketText('sonraki_arama_tarihi',this.value)" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;"></div>`;
-      }
+    // Adım 1 (gate): görüşülen kişi yetkili/doğru kontak mı?
+    h+=_chips('muhatap_dogru','Görüşülen kişi yetkili ve doğru kontak mı?',['Evet','Hayır']);
+
+    if(c.muhatap_dogru==='Hayır'){
+      h+=`<div style="font-size:12px;color:var(--text3);margin:-4px 0 10px;">Yanlış/yetkisiz kişiyle görüşüldü — kayıt bu bilgiyle kapatılacak, aşağıdaki soru yok.</div>`;
     }
-    if(c.gorusmek_istedi==='Evet'){
-      h+=_chips('ziyaret_dogrulandi','Bu tarihte firmadan ziyaret oldu mu?',['Evet','Hayır','Emin değil']);
-      if(c.ziyaret_dogrulandi==='Evet'){
-        h+=_chips('yuzyuze','Görüşme yüz yüze miydi?',['Yüz yüze','Telefonla','Hatırlamıyor']);
-        h+=_chips('isim_dogru','Ziyaret edenin adını hatırlıyor mu?',['Doğru','Yanlış','Hatırlamıyor']);
+
+    if(c.muhatap_dogru==='Evet'){
+      // Adım 2 (gate): görüşmek için uygun mu?
+      h+=_chips('gorusmek_istedi','Görüşmek için uygun mu?',['Evet','Hayır']);
+
+      if(c.gorusmek_istedi==='Hayır'){
+        h+=`<div class="field" style="margin-bottom:10px;"><label>Ne zaman tekrar aranacak?</label><input type="datetime-local" id="anketTekrarTarih" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;"></div>`;
       }
-      if(c.ziyaret_dogrulandi==='Hayır'){
-        h+=`<div class="field" style="margin-bottom:10px;"><label>Bu konuda emin misiniz?</label><div class="chip-grid-box">`+
-          ['Eminim, ziyaret olmadı','Emin değilim, başkası bilebilir'].map(o=>`<div class="chip-btn${c.ziyaret_emin===o?' selected':''}" onclick="_anketZiyaretEminSec('${escapeHTML(o)}')">${escapeHTML(o)}</div>`).join('')+
-          `</div></div>`;
-        if(c.ziyaret_emin==='Eminim, ziyaret olmadı'){
-          h+=_chips('ziyaret_yok_neden','Ziyaret olmadıysa neden?',['MY gelmedi (MY kaynaklı)','Randevu ertelendi','Müşteri müsait değildi','Yanlış adres/kişi']);
+
+      if(c.gorusmek_istedi==='Evet'){
+        const zt=window._anket.ziyaretTarih;
+        const ztMetni=zt?fmtDate(zt):'belirtilen tarihte';
+        h+=_chips('ziyaret_dogrulandi',ztMetni+" sizi Turkcell'den arkadaşımız ziyarete geldi mi?",['Evet','Hayır','Gelmedi ama Telefonla konuştuk']);
+
+        // "Evet" ve "Telefonla konuştuk" ikisi de bir görüşme gerçekleştiği için
+        // aynı ihtiyaç/memnuniyet bloğunu görür; "Hayır" (kimse gelmedi/aranmadı,
+        // sahte şüphesi) doğrudan şikayet sorusuna geçer.
+        const gorusmeOldu = (c.ziyaret_dogrulandi==='Evet' || c.ziyaret_dogrulandi==='Gelmedi ama Telefonla konuştuk');
+        if(gorusmeOldu){
+          h+=_chips('gorusme_suresi','Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
+          h+=_chips('ihtiyac_anlasildi','Temsilcimiz ihtiyacınızı anladı ve çözüm üretebildi mi?',['Evet','Kısmen','Hayır']);
+          h+=_scale('memnuniyet','Memnuniyet (1-10)',1,10);
         }
-      }
-      if(c.ziyaret_dogrulandi==='Evet'){
-        h+=_chips('gorusme_suresi','Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
-        h+=_chips('guven','Temsilci güven verdi mi?',['Evet','Kısmen','Hayır']);
-        h+=_chips('ihtiyac_anlasildi','İhtiyaç anlaşıldı mı?',['Evet','Kısmen','Hayır']);
-        h+=_scale('memnuniyet','Memnuniyet (1-10)',1,10);
-        h+=_scale('nps','Tavsiye eder mi? (1-10)',1,10);
-        h+=_chips('takip_sozu','Takip sözü verildi mi?',['Evet','Hayır']);
-        if(c.takip_sozu==='Evet') h+=_chips('takip_tutuldu','Söz tutuldu mu?',['Evet','Hayır']);
-      }
-      h+=_chips('sikayet_var','Şikayet / talep var mı?',['Evet','Hayır']);
-      if(c.sikayet_var==='Evet'){
-        h+=`<div class="field" style="margin-bottom:10px;"><label>Şikayet / talep</label><textarea id="anketSikayet" oninput="_anketText('sikayet_metni',this.value)" style="width:100%;">${escapeHTML(c.sikayet_metni||'')}</textarea></div>`;
+
+        if(c.ziyaret_dogrulandi){
+          h+=_chips('sikayet_var','Şikayet / talep var mı?',['Evet','Hayır']);
+          if(c.sikayet_var==='Evet'){
+            h+=`<div class="field" style="margin-bottom:10px;"><label>Şikayet / talep</label><textarea id="anketSikayet" oninput="_anketText('sikayet_metni',this.value)" style="width:100%;">${escapeHTML(c.sikayet_metni||'')}</textarea></div>`;
+          }
+        }
       }
     }
   }
@@ -653,11 +879,20 @@ function _anketRender(){
   _anketAksiyonRender();
 }
 
+// v1.0.12: muhatap_dogru ve gorusmek_istedi artık gerçek "gate" — kayıt butonu
+// bu adımlar cevaplanmadan görünmüyor (eskiden ulasildi=Evet seçilir seçilmez
+// "Kaydet" çıkıyordu, anket doldurulmadan kayıt açılabiliyordu).
 function _anketAksiyonRender(){
   const c=window._anket.c, st=window._anket;
   const box=document.getElementById('aramaAnketAksiyon');
   let h='';
-  if(c.ulasildi==='Evet'){
+  if(c.ulasildi==='Evet' && c.muhatap_dogru==='Hayır'){
+    // Yanlış/yetkisiz kişiyle görüşüldü — anket burada kapanır.
+    h=`<button class="btn" style="width:100%;background:var(--orange);" onclick="araAnketKaydet()">Kaydet (Tamamlandı — Yanlış/Yetkisiz Kişi)</button>`;
+  } else if(c.ulasildi==='Evet' && c.muhatap_dogru==='Evet' && c.gorusmek_istedi==='Hayır'){
+    // Doğru kişi ama şu an uygun değil — yeni arama tarihiyle "Tekrar Aranacak" kapat.
+    h=`<button class="btn" style="width:100%;background:var(--blue);" onclick="araAnketTekrar()">Tekrar Aranacak</button>`;
+  } else if(c.ulasildi==='Evet' && c.muhatap_dogru==='Evet' && c.gorusmek_istedi==='Evet' && c.ziyaret_dogrulandi){
     h=`<button class="btn" style="width:100%;background:var(--green);" onclick="araAnketKaydet()">Kaydet (Tamamlandı)</button>`;
   } else if(c.ulasildi==='Hayır' && c.ulasilamama_neden){
     if(c.ulasilamama_neden==='Yanlış numara'){
@@ -820,8 +1055,8 @@ async function loadAramaAnaliz(){
     else if(kat.k==='sikayet') q=q.eq('sikayet_var',true);
     else if(kat.k==='yuzyuze') q=q.eq('yuzyuze_uyusmazlik',true);
     else if(kat.k==='memnuniyetsiz') q=q.or('memnuniyet.lte.4,guven.eq.Hayır');
-    if(bas) q=q.gte('created_at',bas+'T00:00:00');
-    if(bit) q=q.lte('created_at',bit+'T23:59:59');
+    if(bas) q=q.gte('created_at',bas+'T00:00:00+03:00');
+    if(bit) q=q.lte('created_at',bit+'T23:59:59+03:00');
     if(izinMy) q=q.in('my_id',izinMy);
     const {data}=await q;
     rows=(data||[]).map(r=>({ncst:r.ncst,my_id:r.my_id,tarih:r.created_at,ozet:_analizOzet(kat.k,r)}));
@@ -868,9 +1103,9 @@ async function _aramaKirilimVeriCek(){
   const bas=ARAMA.analiz?.bas, bit=ARAMA.analiz?.bit;
   const izinMy=await _analizIzinMyList(); // null=TÜM, aksi halde kendi KÇM'sindeki my_id listesi
   let q=sb.from('arama_sonuclari').select('my_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,created_at').not('my_id','is',null).limit(5000);
-  if(bas) q=q.gte('created_at',bas+'T00:00:00');
-  if(bit) q=q.lte('created_at',bit+'T23:59:59');
-  if(!bas && !bit){ const d=new Date(); d.setDate(d.getDate()-90); q=q.gte('created_at', d.toISOString().slice(0,10)+'T00:00:00'); }
+  if(bas) q=q.gte('created_at',bas+'T00:00:00+03:00');
+  if(bit) q=q.lte('created_at',bit+'T23:59:59+03:00');
+  if(!bas && !bit) q=q.gte('created_at', _istanbulTarihEkle(-90)+'T00:00:00+03:00');
   if(izinMy) q=q.in('my_id',izinMy);
   const {data}=await q;
   return data||[];
@@ -944,11 +1179,11 @@ async function _aramaKirilimRender(){
       const top=arr.slice(0,3);
       h+=`<div style="font-weight:600;margin-top:8px;color:var(--text);">${escapeHTML(kcmAdMap[kid]||('KÇM#'+kid))}</div>`;
       h+='<div style="color:var(--green);font-size:11px;margin-top:2px;">En yüksek</div>';
-      h+= top.map(x=>satir(x, x.memnOrt.toFixed(1)+'/5', 'var(--green)')).join('');
+      h+= top.map(x=>satir(x, x.memnOrt.toFixed(1)+'/10', 'var(--green)')).join('');
       if(arr.length>3){
         const bottom=arr.slice(-3).reverse();
         h+='<div style="color:var(--red);font-size:11px;margin-top:4px;">En düşük</div>';
-        h+= bottom.map(x=>satir(x, x.memnOrt.toFixed(1)+'/5', 'var(--red)')).join('');
+        h+= bottom.map(x=>satir(x, x.memnOrt.toFixed(1)+'/10', 'var(--red)')).join('');
       }
     });
   }
