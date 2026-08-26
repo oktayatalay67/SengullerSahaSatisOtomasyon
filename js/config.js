@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.2.76
+// config.js — v1.2.77
 // Son güncelleme: 2026-08-21
 // Değişiklikler:
+//   v1.2.77 — APP_VERSION → V31.35. Veri Yonetimi modulu (M2) + 'portfoy_yukle'
+//             izni 'veri_yonetimi' olarak yeniden adlandirildi; Yonetici panelinde
+//             'Veri Yonetimi' butonu (rapor.js/yetki.js/veriyonetimi.js).
 //   v1.2.76 — APP_VERSION → V31.34. Arama: anket akışı konsolidasyonu
 //             (muhatap/görüşmek gate, ziyaret tarihi dinamik metin, "Gelmedi
 //             ama Telefonla konuştuk"), "bugün" hesabı Europe/Istanbul takvim
@@ -228,7 +231,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.34';
+const APP_VERSION = 'V31.35';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
