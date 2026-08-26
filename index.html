@@ -1,7 +1,7 @@
 <!--
 ============================================================
-  index.html — V31.33
-  Son güncelleme: 2026-08-18
+  index.html — V31.34
+  Son güncelleme: 2026-08-21
 
   Bağımlılıklar:
     admin.js    v1.1.1
@@ -19,6 +19,40 @@
     xlsx.full.min.js  SheetJS 0.18.5 (js/ altında, repo-içi, DB-bağımsız)
 
   Değişiklikler:
+    V31.34 — ARAMA: ANKET KONSOLİDASYONU + FİLTRE DÜZELTMELERİ
+             • Anket akışı sadeleştirildi: "Doğru muhatap mı?" artık gerçek
+               bir kapı (Hayır ise anket direkt kapanır, "Kaydet" hemen
+               çıkar); "Görüşmek için uygun mu?" Hayır ise ara soru olmadan
+               direkt yeni arama tarihi istenip Tekrar Aranacak'a geçiliyor.
+               "Bu tarihte firmadan ziyaret oldu mu?" sorusu ziyaret tarihini
+               içeren dinamik metne taşındı, 3. seçenek "Emin değil" yerine
+               "Gelmedi ama Telefonla konuştuk" oldu (sahte şüphesinden ayrı,
+               mavi etiket). Kaldırılan sorular: yüz yüze mi, ziyaret edenin
+               adı, temsilci güven verdi mi, NPS, takip sözü/tutuldu mu,
+               "emin misiniz" alt-akışı (ziyaret_emin/ziyaret_yok_neden).
+             • BUG FIX: "bugün" hesabı artık UTC değil, her zaman
+               Europe/Istanbul takvim gününe göre yapılıyor — gece
+               00:00-02:59 arası Bekleyen Çağrılar listesi ve SLA otomatik
+               kapama bir önceki günü baz alıyordu. arama_sonuclari.created_at
+               / tasks.tamamlanma_tarihi filtrelerine de +03:00 ofseti
+               eklendi (aynı kökten, Çağrı Analizi ve MY Kırılım panelinde
+               3 saatlik kayma).
+             • BUG FIX: Bekleyen/Tamamlanan sekmelerindeki tarih filtresi
+               artık arama/görev tarihini değil ZİYARET tarihini
+               (visits.tarih_saat) baz alıyor.
+             • YENİ FİLTRELER: Tamamlanan sekmesine durum filtresi (özellikle
+               "Ulaşılamayan — tekrar aranabilir", kartın mevcut "Yeniden
+               Ara" tuşuyla direkt tekrar aranabiliyor), Bekleyen sekmesine
+               durum filtresi (Hiç aranmadı / Tekrar aranacak); her iki
+               sekmeye KÇM → MY/FMY iki kademeli personel filtresi (düz "Tüm
+               personel" listesi kaldırıldı) ve en altta müşteri adı arama
+               kutusu eklendi.
+             • Yan düzeltme: MY Kırılım/Liderlik panelinde memnuniyet
+               ortalaması hâlâ "/5" yazıyordu (skala 1-10'a geçileli beri
+               unutulmuş) — "/10" oldu.
+             • arama.js v1.0.9 → v1.0.14, config.js v1.2.76, ?v= cache-busting
+               v31.34'e alındı.
+
     V31.33 — YENİ: Duyurular modülü canlandırıldı. Fırsat Beyan/Evrak
              adımına her geçtiğinde (js/firsat.js saveOpp) yeni js/duyuru.js
              modülü duyuru_feed tablosuna bir kayıt düşer — Beyan mor, Evrak
@@ -638,12 +672,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Şengüller Saha Satış V31.33</title>
+<title>Şengüller Saha Satış V31.34</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- SheetJS (repo-içi, js/ altında, DB-bağımsız) — Temas Raporu Excel çıktısı için -->
 <script src="js/xlsx.full.min.js?v=v30.79"></script>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/main.css?v=v31.33">
+<link rel="stylesheet" href="css/main.css?v=v31.34">
 </head>
 <body>
 <div class="toast-container" id="toastContainer" style="z-index:10001;"></div>
@@ -657,7 +691,7 @@
 <!-- SETUP -->
 <div class="page auth-bg" id="pageSetup">
   <div class="auth-card">
-    <div class="brand"><div class="brand-dot">Ş</div><div><div class="brand-name">Şengüller Saha Satış</div><div class="brand-sub"><span class="app-ver">V31.33</span></div></div></div>
+    <div class="brand"><div class="brand-dot">Ş</div><div><div class="brand-name">Şengüller Saha Satış</div><div class="brand-sub"><span class="app-ver">V31.35</span></div></div></div>
     <div class="auth-title">⚙️ Sistem Ayarları</div>
     <div class="field"><label>Supabase URL</label><input type="url" id="sbUrl"></div>
     <div class="field"><label>Supabase Key</label><input type="password" id="sbKey"></div>
@@ -668,7 +702,7 @@
 <!-- LOGIN -->
 <div class="page auth-bg" id="pageLogin">
   <div class="auth-card">
-    <div class="brand"><div class="brand-dot">Ş</div><div><div class="brand-name">Şengüller Saha Satış</div><div class="brand-sub"><span class="app-ver">V31.33</span> <span id="dbLedSpan" class="hide" style="margin-left:8px;display:inline-flex;align-items:center;gap:5px;color:var(--green);font-weight:600;"><span class="db-led"></span> Bağlı</span></div></div></div>
+    <div class="brand"><div class="brand-dot">Ş</div><div><div class="brand-name">Şengüller Saha Satış</div><div class="brand-sub"><span class="app-ver">V31.35</span> <span id="dbLedSpan" class="hide" style="margin-left:8px;display:inline-flex;align-items:center;gap:5px;color:var(--green);font-weight:600;"><span class="db-led"></span> Bağlı</span></div></div></div>
     <div class="auth-title">Hoş Geldiniz 👋</div>
     <div class="field"><label>E-Posta</label><input type="email" id="loginEmail" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"></div>
     <div class="field"><label>Şifre</label><input type="password" id="loginPass" onkeydown="if(event.key==='Enter')doLogin()"></div>
@@ -715,9 +749,9 @@
         <div class="menu-box" style="width:100%;" onclick="navTo('pageAdmin')"><div class="menu-box-icon">⚙️</div><div class="menu-box-title">Admin Panel</div></div>
       </div>
     </div>
-    <div class="version-info" id="appVersionInfo"><span class="app-ver">V31.33</span> | Yükleniyor...</div>
+    <div class="version-info" id="appVersionInfo"><span class="app-ver">V31.35</span> | Yükleniyor...</div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span></div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span></div>
 </div>
 
 <!-- DONANIM TAKİP -->
@@ -1084,7 +1118,7 @@
     </div>
     <div id="temasFilteredList"><div class="empty">Yükleniyor...</div></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Kartlara tıklayarak düzenleyin.</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Kartlara tıklayarak düzenleyin.</div>
 </div>
 
 <!-- PİPELINE SAYFASI -->
@@ -1204,7 +1238,7 @@
       <button class="btn" onclick="saveTemas()" id="saveTemasBtn">💾 Teması Kaydet</button>
     </div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Yeni temas kaydedin.</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Yeni temas kaydedin.</div>
 </div>
 
 <!-- RAPORLAR -->
@@ -1218,7 +1252,7 @@
       <div class="action-btn" onclick="navTo('pageMusteriRapor')"><span class="action-icon">👤</span><div class="action-label">Müşteri Raporu</div></div>
     </div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Raporlama</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Raporlama</div>
 </div>
 
 
@@ -1296,7 +1330,7 @@
       <button class="btn" onclick="saveFirsatForm()" style="margin:0 14px 20px;width:calc(100% - 28px);">💾 Fırsatı Kaydet</button>
     </div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Yeni fırsat kaydedin.</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Yeni fırsat kaydedin.</div>
 </div>
 
 <div class="page" id="pagePipeline">
@@ -1397,7 +1431,7 @@
     <!-- Liste -->
     <div id="pipelineList" style="padding:0 14px;"><div class="empty">Yükleniyor...</div></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Fırsat</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Fırsat</div>
 </div>
 
 
@@ -1482,7 +1516,7 @@
     </div>
     <div id="prContent"><div class="empty">Filtreleyin.</div></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Pipeline Raporu</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Pipeline Raporu</div>
 </div>
 
 
@@ -1554,10 +1588,10 @@
     </div>
     <div id="reportListContent"><div class="empty">Filtreleyin.</div></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Temas Raporu</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Temas Raporu</div>
 </div>
 
-<div class="page" id="pageHedefRapor"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Hedef Raporu</div></div><div class="scroll"><div class="empty">Yakında eklenecek.</div></div><div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span></div></div>
+<div class="page" id="pageHedefRapor"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Hedef Raporu</div></div><div class="scroll"><div class="empty">Yakında eklenecek.</div></div><div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span></div></div>
 <div class="page" id="pageMusteriRapor">
   <div class="topbar">
     <button class="topbar-back" onclick="goBack()">←</button>
@@ -1664,7 +1698,7 @@
     <!-- Sonuç Tablosu -->
     <div id="mrContent"></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span></div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span></div>
 </div>
 <div class="page" id="pageMusteri">
   <div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Müşteri</div></div>
@@ -1802,7 +1836,7 @@
     <div id="kontakListesi"></div>
   </div>
 
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Müşteri Yönetimi</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Müşteri Yönetimi</div>
 </div>
 
 <!-- pageMenuSatis kaldırıldı - direkt pagePipeline açılıyor -->
@@ -1820,7 +1854,7 @@
   <div class="scroll">
     <div id="hedefTakipContent"><div class="loader"><div class="spinner"></div></div></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Hedef Takip</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Hedef Takip</div>
 </div>
 
 <!-- ============ TALEP GİR ============ -->
@@ -1910,7 +1944,7 @@
 </div>
 
 
-<div class="page" id="pageDuyuru"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Duyurular</div></div><div class="scroll"><div style="padding:10px 14px 0;font-size:11px;color:var(--text2);">📋 Beyan &nbsp;|&nbsp; 📄 Evrak — fırsat bu adımlara her geçtiğinde burada listelenir, en yeni en üstte.</div><div id="duyuruListesi" style="padding:10px 14px;"><div class="empty">Yükleniyor…</div></div></div><div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Duyurular</div></div>
+<div class="page" id="pageDuyuru"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Duyurular</div></div><div class="scroll"><div style="padding:10px 14px 0;font-size:11px;color:var(--text2);">📋 Beyan &nbsp;|&nbsp; 📄 Evrak — fırsat bu adımlara her geçtiğinde burada listelenir, en yeni en üstte.</div><div id="duyuruListesi" style="padding:10px 14px;"><div class="empty">Yükleniyor…</div></div></div><div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Duyurular</div></div>
 
 <div class="page" id="pageArama"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Ziyaret Teyit Aramaları</div></div><div class="scroll"><div id="aramaListesi"><div class="loader"><div class="spinner"></div></div></div></div></div>
 
@@ -2147,7 +2181,7 @@
     </div>
     <div id="yetkiIcerik"><div class="loader"><div class="spinner"></div></div></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Admin</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Admin</div>
 </div>
 
 <!-- YÖNETİCİ PANELİ -->
@@ -2157,10 +2191,10 @@
     <div class="action-grid">
       <div class="action-btn" onclick="navTo('pageHedefYonetim')"><span class="action-icon">&#127919;</span><div class="action-label">Hedef Yönetimi</div></div>
       <div class="action-btn" onclick="navTo('pageOnayIslemleri')"><span class="action-icon">&#10060;</span><div class="action-label">Onay İşlemleri</div></div>
-      <div class="action-btn" onclick="navTo('pagePortfoyYonetim')"><span class="action-icon">&#128203;</span><div class="action-label">Portföy Yönetim</div></div>
+      <div class="action-btn" onclick="openVeriYonetimi()"><span class="action-icon">&#128229;</span><div class="action-label">Veri Yönetimi</div></div>
     </div>
   </div>
-  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Yönetici Paneli</div>
+  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Yönetici Paneli</div>
 </div>
 
 <div class="page" id="pageHedefYonetim">
@@ -2172,7 +2206,7 @@
       <div class="action-btn" onclick="navTo('pageUrunHedef')"><span class="action-icon">&#128279;</span><div class="action-label">Ürün-Hedef Eşleşme</div></div>
     </div>
   </div>
-  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Hedef Yönetimi</div>
+  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Hedef Yönetimi</div>
 </div>
 
 <div class="page" id="pageHedefKalem">
@@ -2184,7 +2218,7 @@
     <button class="btn btn-green btn-sm" onclick="openAddHedefKalemModal()" style="margin-bottom:14px;width:auto;padding:10px 18px;">+ Yeni Hedef Kalemi</button>
     <div id="yoneticiHedefKalemList"></div>
   </div>
-  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Hedef Kalemleri</div>
+  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Hedef Kalemleri</div>
 </div>
 
 <div class="page" id="pageUrunHedef">
@@ -2195,7 +2229,7 @@
     </div>
     <div id="yoneticiUrunHedefMap"></div>
   </div>
-  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Ürün-Hedef</div>
+  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Ürün-Hedef</div>
 </div>
 
 <div class="page" id="pageHedefGiris">
@@ -2212,7 +2246,7 @@
     <div id="hedefGirisTable"></div>
     <button class="btn btn-green" onclick="saveAllHedefler()" style="margin-top:14px;display:none;" id="hedefSaveBtn">💾 Tümünü Kaydet</button>
   </div>
-  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Hedef Girişi</div>
+  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Hedef Girişi</div>
 </div>
 
 <div class="page" id="pageOnayIslemleri">
@@ -2223,7 +2257,7 @@
     </div>
     <div id="yoneticiIptalList"></div>
   </div>
-  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Onay İşlemleri</div>
+  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Onay İşlemleri</div>
 </div>
 
 <div class="page" id="pagePortfoyYonetim">
@@ -2251,7 +2285,7 @@
       </div>
     </div>
   </div>
-  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Portföy Yönetim</div>
+  <div class="app-footer">&#169; Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Portföy Yönetim</div>
 </div>
 
 
@@ -2962,7 +2996,7 @@
     <button class="btn btn-green" style="width:100%;margin-bottom:14px;" onclick="openYeniGorev()">+ Yeni Görev Oluştur</button>
     <div id="gorevListesi"><div class="loader"><div class="spinner"></div></div></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.33</span> | Görev Yönetimi</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Görev Yönetimi</div>
 </div>
 
 <!-- ===== GÖREV TİPLERİ — adminTab olarak (ayrı sayfa yok) ===== -->
@@ -2992,22 +3026,48 @@
 </div>
 
 <!-- ===== JAVASCRIPT MODÜLLERİ ===== -->
-<script src="js/config.js?v=v31.33"></script>
-<script src="js/yetki.js?v=v31.33"></script>
-<script src="js/veri_kalitesi.js?v=v31.33"></script>
-<script src="js/donanim.js?v=v31.33"></script>
-<script src="js/utils.js?v=v31.33"></script>
-<script src="js/auth.js?v=v31.33"></script>
-<script src="js/gorev.js?v=v31.33"></script>
-<script src="js/talep.js?v=v31.33"></script>
-<script src="js/temas.js?v=v31.33"></script>
-<script src="js/arama.js?v=v31.33"></script>
-<script src="js/firsat.js?v=v31.33"></script>
-<script src="js/duyuru.js?v=v31.33"></script>
-<script src="js/musteri.js?v=v31.33"></script>
-<script src="js/hedef.js?v=v31.33"></script>
-<script src="js/admin.js?v=v31.33"></script>
-<script src="js/rapor.js?v=v31.33"></script>
+<!-- VERİ YÖNETİMİ (M2) — v0.3 -->
+<div class="page" id="pageVeriYonetimi">
+  <div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">📥 Veri Yönetimi</div></div>
+  <div class="scroll">
+    <div style="padding:12px 14px;">
+      <div style="background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;">
+        <div style="font-weight:700;margin-bottom:6px;">Toplu Veri Yükleme</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px;">
+          Excel (.xlsx/.xls) veya CSV yükleyin. <b>İlk kolon ncst</b> olmalı, ilk satır başlık.
+          Analiz aşamasında <b>hiçbir kayıt yapılmaz</b> — sadece ne değişeceği gösterilir.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input type="file" id="vyFile" accept=".xlsx,.xls,.csv" onchange="vyFileSelected()" style="font-size:13px;color:var(--text);"/>
+          <button id="vyOkuBtn" class="btn-primary" onclick="vyOku()" disabled style="padding:8px 16px;font-size:13px;">Dosyayı Oku</button>
+        </div>
+      </div>
+      <div id="vyInfo" style="font-size:13px;margin-bottom:10px;"></div>
+      <div id="vyMapping"></div>
+      <div id="vyAnalizSonuc"></div>
+      <details style="margin-top:12px;"><summary style="cursor:pointer;font-size:12px;color:var(--text2);">Ham önizleme (ilk 50 satır)</summary><div id="vyPreview" style="margin-top:8px;"></div></details>
+    </div>
+  </div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.35</span> | Veri Yönetimi</div>
+</div>
+
+<script src="js/config.js?v=v31.36"></script>
+<script src="js/yetki.js?v=v31.36"></script>
+<script src="js/veri_kalitesi.js?v=v31.34"></script>
+<script src="js/donanim.js?v=v31.34"></script>
+<script src="js/utils.js?v=v31.34"></script>
+<script src="js/auth.js?v=v31.34"></script>
+<script src="js/gorev.js?v=v31.34"></script>
+<script src="js/talep.js?v=v31.34"></script>
+<script src="js/temas.js?v=v31.34"></script>
+<script src="js/arama.js?v=v31.34"></script>
+<script src="js/firsat.js?v=v31.34"></script>
+<script src="js/duyuru.js?v=v31.34"></script>
+<script src="js/musteri.js?v=v31.34"></script>
+<script src="js/hedef.js?v=v31.34"></script>
+<script src="js/admin.js?v=v31.36"></script>
+<script src="js/veriyonetimi.js?v=v31.36"></script>
+<script src="js/rapor.js?v=v31.36"></script>
 
 </body>
 </html>

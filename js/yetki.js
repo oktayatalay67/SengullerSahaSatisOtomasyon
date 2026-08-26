@@ -1,7 +1,10 @@
 // ============================================================
-// yetki.js — v1.2.4
-// Son güncelleme: 2026-07-22
+// yetki.js — v1.2.5
+// Son güncelleme: 2026-08-26
 // Değişiklikler:
+//   v1.2.5 — (V31.35) 'portfoy_yukle' izni 'veri_yonetimi' olarak yeniden
+//            adlandırıldı (Veri Yönetimi modülüne bağlandı). DB tarafında
+//            role_permissions.perm_key migrasyonu ayrı SQL ile yapılır.
 //   v1.2.4 — (V31.04) Satis sureci/IMEI izinleri: donanim_surec_ilerlet,
 //            donanim_imei_eslestir, donanim_sevk, donanim_imei_gor.
 //   v1.2.3 — (V30.95) Stok transfer izinleri: donanim_transfer_talep/onay1/onay2.
@@ -62,7 +65,7 @@ const YETKI_ACTION_GRUP = [
       talep_yonet:'Talepleri yönetir',
       yonetici_tam:'Tam yönetici işlemleri (Admin/Direktör)',
       gorev_tumunu_gor:'Tüm görevleri görür',
-      portfoy_yukle:'Portföy dosyası yükler' } },
+      veri_yonetimi:'Veri Yönetimi ekranını kullanır (toplu güncelleme/yükleme)' } },
   { grup:'Memnuniyet Arama', items:{
       arama_agent:'Ziyaret teyit araması yapar (agent ekranı)',
       arama_rapor:'Çağrı analizi/raporunu görür (yönetici)' } },

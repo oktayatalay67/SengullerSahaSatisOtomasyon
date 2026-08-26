@@ -1,6 +1,7 @@
 // ============================================================
-// rapor.js — v1.2.3
-// Son güncelleme: 2026-07-08
+// rapor.js — v1.2.4
+// Son güncelleme: 2026-08-26
+//   v1.2.4 — (V31.35) parsePortfoyFile yetkisi portfoy_yukle -> veri_yonetimi.
 // Değişiklikler:
 //   v1.2.3 — FIX (V30.68): "Excel kütüphanesi yüklenemedi". Kütüphane artık
 //            index.html'deki statik <script>'e bağımlı değil; ensureXLSX() ile
@@ -481,7 +482,7 @@ async function parsePortfoyFile(input){
   const file = input.files[0];
   if(!file) return;
   const r=(currentUser.yetki_seviyesi||'').toUpperCase();
-  if(!hasPerm('portfoy_yukle')){toast('Bu işlem için yetkiniz yok','error');return;}
+  if(!hasPerm('veri_yonetimi')){toast('Bu işlem için yetkiniz yok','error');return;}
   toast('Dosya okunuyor...','info');
   portfoyData = [];
   const ext = file.name.split('.').pop().toLowerCase();

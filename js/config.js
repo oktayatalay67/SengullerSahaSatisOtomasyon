@@ -1,7 +1,14 @@
 // ============================================================
-// config.js — v1.2.75
-// Son güncelleme: 2026-08-20
+// config.js — v1.2.76
+// Son güncelleme: 2026-08-21
 // Değişiklikler:
+//   v1.2.76 — APP_VERSION → V31.34. Arama: anket akışı konsolidasyonu
+//             (muhatap/görüşmek gate, ziyaret tarihi dinamik metin, "Gelmedi
+//             ama Telefonla konuştuk"), "bugün" hesabı Europe/Istanbul takvim
+//             gününe düzeltildi (UTC gece 00-03 arası bug), Bekleyen/
+//             Tamamlanan tarih filtresi artık ziyaret tarihini baz alıyor,
+//             KÇM→MY/FMY iki kademeli + durum + müşteri adı filtreleri
+//             eklendi. Detay: index.html V31.34 değişiklik notu. (arama.js v1.0.14)
 //   v1.2.75 — APP_VERSION → V31.33. YENİ: Duyurular modülü (js/duyuru.js).
 //             Ek yetki YOK — görünürlük Fırsat modülüyle aynı (applyRBAC).
 //   v1.2.74 — APP_VERSION → V31.32. FIX: İmpersonation bandı yüksek zoom'da
@@ -221,7 +228,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.33';
+const APP_VERSION = 'V31.34';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
