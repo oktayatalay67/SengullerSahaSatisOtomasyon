@@ -1,7 +1,11 @@
 // ============================================================
-// config.js — v1.2.77
+// config.js — v1.2.79
 // Son güncelleme: 2026-08-21
 // Değişiklikler:
+//   v1.2.79 — APP_VERSION → V31.37. Veri Yonetimi v1.1: satir bazli 'Isle'
+//             secimi, sayfali tablolar (100/sayfa), detayli sonuc raporu + Excel.
+//   v1.2.78 — APP_VERSION → V31.36. Veri Yonetimi M3: yazma motoru (Uygula +
+//             UPDATE/INSERT + bos-onay + FK dogrulama + rapor/Excel).
 //   v1.2.77 — APP_VERSION → V31.35. Veri Yonetimi modulu (M2) + 'portfoy_yukle'
 //             izni 'veri_yonetimi' olarak yeniden adlandirildi; Yonetici panelinde
 //             'Veri Yonetimi' butonu (rapor.js/yetki.js/veriyonetimi.js).
@@ -231,7 +235,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.35';
+const APP_VERSION = 'V31.37';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
