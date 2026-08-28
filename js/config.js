@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.2.79
+// config.js — v1.2.80
 // Son güncelleme: 2026-08-21
 // Değişiklikler:
+//   v1.2.80 — APP_VERSION → V31.38. Veri Yonetimi v1.2: KONTAK sekmesi
+//             (contacts, anahtar ncst+ad_soyad, veri_kalitesi kontrolleri).
 //   v1.2.79 — APP_VERSION → V31.37. Veri Yonetimi v1.1: satir bazli 'Isle'
 //             secimi, sayfali tablolar (100/sayfa), detayli sonuc raporu + Excel.
 //   v1.2.78 — APP_VERSION → V31.36. Veri Yonetimi M3: yazma motoru (Uygula +
@@ -235,7 +237,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.37';
+const APP_VERSION = 'V31.38';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
