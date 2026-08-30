@@ -1,7 +1,10 @@
 // ============================================================
-// veriyonetimi.js — v1.2.3  (2 sekme: Musteri + Kontak)
+// veriyonetimi.js — v1.3.0  (2 sekme: Musteri + Kontak)
 // Son güncelleme: 2026-08-26
 // Değişiklikler:
+//   v1.3.0 — (V31.42) B1: MY secici bileseni (isim/EXT ile ara -> my_id) +
+//            3. sekme 'MY'ye Atama' iskeleti. Dosya/mutabakat B2'de gelecek.
+//            (auth.js v1.2.19: window.userSecici saglar.)
 //   v1.2.3 — (V31.41) Kontak: musteri_unvani dropdown'a eklendi (dosyadaki 'Musteri
 //            Unvani'/'Firma Adi' kolonu eslenebilir). Doldurma onceligi: ncst'den
 //            customers.unvan; yoksa dosyadaki deger. Boş birakilmaz. Mevcut kayitta
@@ -55,10 +58,75 @@ function vyReset(mode){
   const btn=document.getElementById('vyOkuBtn'); if(btn) btn.disabled=true;
   const ip=document.getElementById('vyIpucu'); if(ip) ip.innerHTML=vyCfg().ipucu;
 }
-function vyTab(mode){ vyReset(mode); vyTabStyle(); }
+function vyTab(mode){
+  if(mode==='atama'){
+    VY.mode='atama'; vyTabStyle();
+    const np=document.getElementById('vyNormalPanel'); if(np) np.style.display='none';
+    const ap=document.getElementById('vyAtamaPanel'); if(ap){ ap.style.display=''; vyAtamaInit(); }
+    return;
+  }
+  const ap=document.getElementById('vyAtamaPanel'); if(ap) ap.style.display='none';
+  const np=document.getElementById('vyNormalPanel'); if(np) np.style.display='';
+  vyReset(mode); vyTabStyle();
+}
 function vyTabStyle(){
-  ['musteri','kontak'].forEach(m=>{ const b=document.getElementById('vyTab_'+m); if(b){ const on=VY.mode===m; b.style.background=on?'#34d399':'var(--bg2)'; b.style.color=on?'#062':'var(--text2)'; b.style.fontWeight=on?'700':'500'; } });
-  const ip=document.getElementById('vyIpucu'); if(ip) ip.innerHTML=vyCfg().ipucu;
+  ['musteri','kontak','atama'].forEach(m=>{ const b=document.getElementById('vyTab_'+m); if(b){ const on=VY.mode===m; b.style.background=on?'#34d399':'var(--bg2)'; b.style.color=on?'#062':'var(--text2)'; b.style.fontWeight=on?'700':'500'; } });
+  const ip=document.getElementById('vyIpucu'); if(ip && VY.mode!=='atama') ip.innerHTML=vyCfg().ipucu;
+}
+
+// ============================================================
+// MY SECICI — yeniden kullanilabilir (isim veya EXT ile ara -> my_id)
+// ============================================================
+window._vySeciciCb = window._vySeciciCb || {};
+function vyMySeciciRender(containerId, onSelect, placeholder){
+  const box=document.getElementById(containerId); if(!box) return;
+  window._vySeciciCb[containerId]=onSelect;
+  box.innerHTML='<input type="text" id="'+containerId+'_inp" oninput="vyMySeciciFiltre(\''+containerId+'\')" placeholder="'+(placeholder||'MY ara: isim veya EXT...')+'" autocomplete="off" style="width:100%;max-width:420px;padding:9px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:14px;">'
+    +'<div id="'+containerId+'_res" style="max-width:420px;margin-top:4px;"></div>'
+    +'<div id="'+containerId+'_sec" style="margin-top:8px;"></div>';
+}
+function vyMySeciciFiltre(containerId){
+  const inp=document.getElementById(containerId+'_inp'); const res=document.getElementById(containerId+'_res');
+  if(!inp||!res) return;
+  const raw=inp.value.trim(); if(raw.length<2){ res.innerHTML=''; return; }
+  const q=vyNorm(raw); const qLow=raw.toLowerCase();
+  const list=(window.userSecici||[]).filter(u=>{
+    const nad=vyNorm(u.ad_soyad); const ext=(u.ext_kod||'').toLowerCase();
+    return nad.indexOf(q)>=0 || (ext && ext.indexOf(qLow)>=0);
+  }).slice(0,15);
+  if(!list.length){ res.innerHTML='<div style="padding:8px;color:var(--text2);font-size:12px;">Eslesme yok.</div>'; return; }
+  res.innerHTML=list.map(u=>'<div onclick="vyMySeciciPick(\''+containerId+'\','+u.my_id+')" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:4px;cursor:pointer;background:var(--bg2);font-size:13px;">'
+    +'<b>'+escapeHTML(u.ad_soyad)+'</b> <span style="color:var(--text2);font-size:11px;">'+escapeHTML(u.rol||'')+(u.kcm_id?(' · KCM '+u.kcm_id):'')+'</span>'
+    +(u.ext_kod?'<br><span style="color:#60a5fa;font-size:11px;">'+escapeHTML(u.ext_kod)+'</span>':'')+'</div>').join('');
+}
+function vyMySeciciPick(containerId, myId){
+  const u=(window.userSecici||[]).find(x=>x.my_id===myId); if(!u) return;
+  const res=document.getElementById(containerId+'_res'); if(res) res.innerHTML='';
+  const inp=document.getElementById(containerId+'_inp'); if(inp) inp.value='';
+  const sec=document.getElementById(containerId+'_sec');
+  if(sec) sec.innerHTML='<div style="padding:8px 12px;background:rgba(52,211,153,.12);border:1px solid #34d399;border-radius:9px;font-size:13px;">Secildi: <b>'+escapeHTML(u.ad_soyad)+'</b> <span style="color:var(--text2);">('+escapeHTML(u.rol||'')+', my_id='+u.my_id+(u.ext_kod?(', '+escapeHTML(u.ext_kod)):'')+')</span> <button onclick="vyMySeciciClear(\''+containerId+'\')" style="margin-left:8px;font-size:11px;padding:2px 8px;">Degistir</button></div>';
+  const cb=window._vySeciciCb[containerId]; if(cb) cb(u);
+}
+function vyMySeciciClear(containerId){ const sec=document.getElementById(containerId+'_sec'); if(sec) sec.innerHTML=''; const cb=window._vySeciciCb[containerId]; if(cb) cb(null); }
+
+// ============================================================
+// MY'YE ATAMA sekmesi (B1: secici iskeleti — dosya/analiz B2'de)
+// ============================================================
+window.VYATAMA = window.VYATAMA || { selectedMy:null };
+function vyAtamaInit(){
+  const box=document.getElementById('vyAtamaPanel'); if(!box) return;
+  VYATAMA.selectedMy=null;
+  box.innerHTML='<div style="background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;">'
+    +'<div style="font-weight:700;margin-bottom:6px;">1. Adim: MY/FMY Sec</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Isim veya EXT kodu yazarak ara. my_id bilmene gerek yok.</div>'
+    +'<div id="vyAtamaSecici"></div></div>'
+    +'<div id="vyAtamaSonraki"></div>';
+  vyMySeciciRender('vyAtamaSecici', function(u){
+    VYATAMA.selectedMy=u;
+    const nx=document.getElementById('vyAtamaSonraki');
+    if(u){ nx.innerHTML='<div style="background:var(--bg2);border:1px dashed var(--line);border-radius:12px;padding:14px;color:var(--text2);font-size:13px;">2. Adim: <b>'+escapeHTML(u.ad_soyad)+'</b> icin musteri listesi yukleme + mutabakat — sonraki surumde (B2) eklenecek.</div>'; }
+    else { nx.innerHTML=''; }
+  }, 'MY/FMY ara: isim veya EXT...');
 }
 function vyFileSelected(){ const fi=document.getElementById('vyFile'), btn=document.getElementById('vyOkuBtn'); if(btn) btn.disabled=!(fi&&fi.files&&fi.files.length); }
 

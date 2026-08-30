@@ -1,7 +1,9 @@
 // ============================================================
-// auth.js — v1.2.18
-// Son güncelleme: 2026-08-20
+// auth.js — v1.2.19
+// Son güncelleme: 2026-08-26
 // Değişiklikler:
+//   v1.2.19 — (V31.42) loadKcmMyIds ext_kod da yukler; myIdToExt + window.userSecici
+//             (isim/EXT ile MY arama) — Veri Yonetimi Toplu Atama secicisi icin.
 //   v1.2.18 — (V31.33) initApp'te girişte duyuru.js:_duyuruBadgeGuncelle()
 //             çağrılır — Duyurular rozeti (okunmamış sayısı) kullanıcı ekranı
 //             hiç açmasa da ana menüde görünür.
@@ -135,16 +137,23 @@ async function initApp(){
 
 let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)
 let myIdToRol  = {}; // v1.2.4: my_id → yetki_seviyesi (MY/FMY/...)
+let myIdToExt  = {}; // v1.2.19: my_id → ext_kod (EXT kodu)
 
 async function loadKcmMyIds(){
   const r=(currentUser.yetki_seviyesi||'').toUpperCase();
   const kcmRoller=['KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ','TAKIM LİDERİ','SATIŞ DESTEK','ÇÖZÜM SATIŞ TEMSİLCİSİ','ÇÖZÜM SATIŞ UZMANI','TURKCELL BÖLGE YÖNETİCİSİ','MY','USER'];
   // v1.2.2: is_sanal kolonu da çek
-  const{data:allUsers}=await sb.from('users').select('my_id,ad_soyad,kcm_id,aktif,is_sanal,yetki_seviyesi');
+  const{data:allUsers}=await sb.from('users').select('my_id,ad_soyad,kcm_id,aktif,is_sanal,yetki_seviyesi,ext_kod');
   (allUsers||[]).forEach(u=>{
     myIdToName[u.my_id] = u.aktif ? u.ad_soyad : u.ad_soyad+' (Ayrıldı)';
     myIdToRol[u.my_id]  = (u.yetki_seviyesi||'MY').toUpperCase();
+    myIdToExt[u.my_id]  = u.ext_kod||'';
   });
+  // v1.2.19: MY secici verisi (isim/EXT ile arama) — Veri Yonetimi Toplu Atama kullanir
+  window.userSecici = (allUsers||[]).filter(u=>u.aktif).map(u=>({
+    my_id:u.my_id, ad_soyad:u.ad_soyad, ext_kod:u.ext_kod||'',
+    rol:(u.yetki_seviyesi||'MY').toUpperCase(), kcm_id:u.kcm_id
+  }));
   // v1.2.2: Sanal MY'leri global diziye al — portföy hesaplarında hariç tutulacak
   sanalMyIds = (allUsers||[]).filter(u=>u.is_sanal).map(u=>u.my_id);
 
