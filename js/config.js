@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.2.80
+// config.js — v1.2.83
 // Son güncelleme: 2026-08-21
 // Değişiklikler:
+//   v1.2.83 — APP_VERSION → V31.41. Kontak musteri_unvani eslenebilir + oncelikli
+//             doldurma (ncst->customers, yoksa dosya).
+//   v1.2.82 — APP_VERSION → V31.40. Kontak onizlemede 'Musteri Unvani' kolonu.
+//   v1.2.81 — APP_VERSION → V31.39. Kontak musteri_unvani otomatik doldurma:
+//             toplu yukleyici (veriyonetimi v1.2.1) + form emniyet kemeri (temas v2.10.46).
 //   v1.2.80 — APP_VERSION → V31.38. Veri Yonetimi v1.2: KONTAK sekmesi
 //             (contacts, anahtar ncst+ad_soyad, veri_kalitesi kontrolleri).
 //   v1.2.79 — APP_VERSION → V31.37. Veri Yonetimi v1.1: satir bazli 'Isle'
@@ -237,7 +242,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.38';
+const APP_VERSION = 'V31.41';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,7 +1,15 @@
 // ============================================================
-// veriyonetimi.js — v1.2.0  (2 sekme: Musteri + Kontak)
+// veriyonetimi.js — v1.2.3  (2 sekme: Musteri + Kontak)
 // Son güncelleme: 2026-08-26
 // Değişiklikler:
+//   v1.2.3 — (V31.41) Kontak: musteri_unvani dropdown'a eklendi (dosyadaki 'Musteri
+//            Unvani'/'Firma Adi' kolonu eslenebilir). Doldurma onceligi: ncst'den
+//            customers.unvan; yoksa dosyadaki deger. Boş birakilmaz. Mevcut kayitta
+//            yalnizca DB bossa doldurulur (dolu unvan korunur).
+//   v1.2.2 — (V31.40) Kontak 'Yeni Eklenecek' tablosuna 'Musteri Unvani' kolonu
+//            eklendi (otomatik cekilen unvan artik onizlemede gorunur).
+//   v1.2.1 — (V31.39) KONTAK: yeni/guncelleme kayitlarinda musteri_unvani artik
+//            ncst'den customers.unvan ile OTOMATIK dolduruluyor (bossa doldur).
 //   v1.2.0 — (V31.38) KONTAK sekmesi eklendi (contacts tablosu).
 //     • Sekme bar: Musteri / Kontak. Musteri akisi AYNEN korundu.
 //     • Kontak anahtari: ncst + ad_soyad (UNIQUE(ncst,ad_soyad)). Ayni kisi
@@ -27,9 +35,9 @@ window.VY_MODES = {
   },
   kontak: {
     table:'contacts', keyFields:['ncst','ad_soyad'], reqNew:['ad_soyad'], dogrulandiDefault:false, aktifDefault:true,
-    schema:[['ad_soyad','str'],['gorev_unvani','str'],['telefon','str'],['email','str'],['aktif','bool']],
+    schema:[['ad_soyad','str'],['gorev_unvani','str'],['telefon','str'],['email','str'],['aktif','bool'],['musteri_unvani','str']],
     fk:{},
-    dict:{'NCST':'ncst','AD SOYAD':'ad_soyad','ADSOYAD':'ad_soyad','AD-SOYAD':'ad_soyad','YETKILI':'ad_soyad','YETKILI KISI':'ad_soyad','YETKILI ISIM':'ad_soyad','ISIM':'ad_soyad','KISI':'ad_soyad','GOREV':'gorev_unvani','UNVAN':'gorev_unvani','GOREV UNVANI':'gorev_unvani','YETKI TIPI':'gorev_unvani','GOREV TIPI':'gorev_unvani','TELEFON':'telefon','TEL':'telefon','GSM':'telefon','CEP':'telefon','EMAIL':'email','E POSTA':'email','EPOSTA':'email','MAIL':'email'},
+    dict:{'NCST':'ncst','AD SOYAD':'ad_soyad','ADSOYAD':'ad_soyad','AD-SOYAD':'ad_soyad','YETKILI':'ad_soyad','YETKILI KISI':'ad_soyad','YETKILI ISIM':'ad_soyad','ISIM':'ad_soyad','KISI':'ad_soyad','GOREV':'gorev_unvani','UNVAN':'gorev_unvani','GOREV UNVANI':'gorev_unvani','YETKI TIPI':'gorev_unvani','GOREV TIPI':'gorev_unvani','TELEFON':'telefon','TEL':'telefon','GSM':'telefon','CEP':'telefon','EMAIL':'email','E POSTA':'email','EPOSTA':'email','MAIL':'email','MUSTERI UNVANI':'musteri_unvani','MUSTERI UNVAN':'musteri_unvani','FIRMA ADI':'musteri_unvani','FIRMA UNVANI':'musteri_unvani','FIRMA':'musteri_unvani'},
     kontakKurallari:true,
     ipucu:'Ilk kolon <b>ncst</b>, ayrica <b>ad_soyad</b> eslenmeli. Anahtar: ncst+ad_soyad. Telefon zorunlu; email gecersizse bos gecilir.'
   }
@@ -112,6 +120,7 @@ async function vyAnaliz(){
   const prog=document.getElementById('vyAnalizProg'); const sonuc=document.getElementById('vyAnalizSonuc'); sonuc.innerHTML='';
   const fileNcst=[], seen={}; VY.rows.forEach(r=>{ const n=vyNull(r[0]); if(n && !seen[n]){ seen[n]=1; fileNcst.push(n); } });
   const selSet={}; cfg.keyFields.forEach(f=>selSet[f]=1); mapped.forEach(m=>selSet[m.field]=1); selSet['ncst']=1;
+  if(cfg.kontakKurallari) selSet['musteri_unvani']=1; // otomatik unvan icin mevcut deger
   const selStr=Object.keys(selSet).join(',');
   // mevcut kayitlari ncst ile cek
   const dbRows=[], total=fileNcst.length;
@@ -121,6 +130,17 @@ async function vyAnaliz(){
   // anahtar map
   const keyOf=(o)=>cfg.keyFields.map(f=> f==='ad_soyad' ? vyNorm(o.ad_soyad) : String(o.ncst==null?'':o.ncst) ).join('||');
   const dbMap={}; dbRows.forEach(row=>{ dbMap[keyOf(row)]=row; });
+
+  // KONTAK: her ncst icin customers.unvan (otomatik musteri_unvani icin)
+  const custUnvan={};
+  if(cfg.kontakKurallari){
+    if(prog) prog.textContent='Musteri unvanlari cekiliyor...';
+    try{ for(let i=0;i<fileNcst.length;i+=100){ const chunk=fileNcst.slice(i,i+100);
+        const res=await sb.from('customers').select('ncst,unvan').in('ncst',chunk); if(res.error) throw res.error;
+        (res.data||[]).forEach(r=>{ const u=vyNull(r.unvan); if(u) custUnvan[String(r.ncst)]=u; }); } }
+    catch(e){ console.error(e); toast('Musteri unvani cekilemedi: '+(e.message||e),'error'); }
+    if(prog) prog.textContent='';
+  }
 
   const G={guncelle:[], yeni:[], bosonay:[], atla:[], degismez:0};
   const adMap=mapped.filter(m=>m.field==='ad_soyad')[0];
@@ -149,6 +169,7 @@ async function vyAnaliz(){
           if(m.field==='telefon'){ const t=vyTel(r[m.idx]); if(t) obj.telefon=t; }
           else if(m.field==='email'){ if(vyEmailGecerli(r[m.idx])) obj.email=vyNull(r[m.idx]); }
           else { const v=vyCast(m.field,r[m.idx]); if(v!==null) obj[m.field]=v; } });
+        if(ncst && custUnvan[ncst]) obj.musteri_unvani=custUnvan[ncst]; // otomatik unvan
         G.yeni.push({ncst, unvan:obj.ad_soyad, obj});
       } else {
         const uv=unvanMap?vyNull(r[unvanMap.idx]):null;
@@ -161,11 +182,19 @@ async function vyAnaliz(){
     const changes=[], bos=[]; const dbKeyVals={ncst:db.ncst}; if(cfg.kontakKurallari) dbKeyVals.ad_soyad=db.ad_soyad;
     mapped.forEach(m=>{
       if(cfg.kontakKurallari && m.field==='ad_soyad') return; // anahtar, guncellenmez
+      if(cfg.kontakKurallari && m.field==='musteri_unvani') return; // asagida ozel: bossa doldur
       if(cfg.kontakKurallari && m.field==='email'){ if(!vyEmailGecerli(r[m.idx])) return; const fv=vyNull(r[m.idx]); const dv=vyCastDb('email',db.email); if(fv!==dv) changes.push({field:'email',eski:dv,yeni:fv}); return; }
       if(cfg.kontakKurallari && m.field==='telefon'){ const fv=vyTel(r[m.idx]); const dv=vyCastDb('telefon',db.telefon); if(fv!==null && fv!==dv) changes.push({field:'telefon',eski:dv,yeni:fv}); else if(fv===null && dv!==null) bos.push({field:'telefon',eski:dv}); return; }
       const fileV=vyCast(m.field,r[m.idx]); const dbV=vyCastDb(m.field,db[m.field]);
       if(fileV===null){ if(dbV!==null) bos.push({field:m.field, eski:dbV}); } else if(fileV!==dbV){ changes.push({field:m.field, eski:dbV, yeni:fileV}); }
     });
+    // KONTAK: musteri_unvani DB'de bossa doldur — oncelik: ncst(customers) -> dosya
+    if(cfg.kontakKurallari && vyNull(db.musteri_unvani)===null){
+      const muMap=mapped.filter(m=>m.field==='musteri_unvani')[0];
+      const fileMu=muMap?vyNull(r[muMap.idx]):null;
+      const mu=(ncst && custUnvan[ncst]) ? custUnvan[ncst] : fileMu;
+      if(mu) changes.push({field:'musteri_unvani', eski:'(bos)', yeni:mu});
+    }
     if(changes.length) G.guncelle.push({ncst, changes, bos, keyVals:dbKeyVals}); else if(bos.length) G.bosonay.push({ncst, bos, keyVals:dbKeyVals}); else G.degismez++;
   });
 
@@ -198,8 +227,8 @@ function vyRenderPaged(key){
       const c=row.changes.map(ch=>escapeHTML(ch.field)+': <span style="color:var(--text2);">'+escapeHTML(String(ch.eski))+'</span> -> <b>'+escapeHTML(String(ch.yeni))+'</b>').join('<br>');
       let b=''; if(row.bos.length){ b='<div style="margin-top:4px;font-size:11px;">'+row.bos.map(x=>{const k=vyBosKey(row._id,x.field);const o=VY.nullSet.has(k);return '<label style="color:#fbbf24;display:inline-flex;gap:4px;margin-right:10px;"><input type="checkbox" '+(o?'checked':'')+' onchange="vyNullToggle(\''+row._id+'\',\''+x.field+'\',this)"> '+escapeHTML(x.field)+' NULL</label>';}).join('')+'</div>'; }
       return '<td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:center;"><input type="checkbox" '+(on?'checked':'')+' onchange="vySecimToggle(\'guncelle\',\''+row._id+'\',this)"></td><td style="padding:5px 8px;border-bottom:1px solid var(--line);"><b>'+escapeHTML(row.ncst)+'</b>'+(row.keyVals&&row.keyVals.ad_soyad?'<br><span style="font-size:11px;color:var(--text2);">'+escapeHTML(row.keyVals.ad_soyad)+'</span>':'')+'</td><td style="padding:5px 8px;border-bottom:1px solid var(--line);">'+c+b+'</td>'; };
-  } else if(st.type==='yeni'){ cols=['Isle','ncst','ad/unvan'];
-    rowFn=row=>{ const on=VY.secim.yeni.has(row._id); return '<td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:center;"><input type="checkbox" '+(on?'checked':'')+' onchange="vySecimToggle(\'yeni\',\''+row._id+'\',this)"></td><td style="padding:5px 8px;border-bottom:1px solid var(--line);"><b>'+escapeHTML(row.ncst)+'</b></td><td style="padding:5px 8px;border-bottom:1px solid var(--line);">'+escapeHTML(row.unvan)+'</td>'; };
+  } else if(st.type==='yeni'){ cols=['Isle','ncst','ad_soyad','Musteri Unvani'];
+    rowFn=row=>{ const on=VY.secim.yeni.has(row._id); const mu=(row.obj&&row.obj.musteri_unvani)?row.obj.musteri_unvani:''; return '<td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:center;"><input type="checkbox" '+(on?'checked':'')+' onchange="vySecimToggle(\'yeni\',\''+row._id+'\',this)"></td><td style="padding:5px 8px;border-bottom:1px solid var(--line);"><b>'+escapeHTML(row.ncst)+'</b></td><td style="padding:5px 8px;border-bottom:1px solid var(--line);">'+escapeHTML(row.unvan)+'</td><td style="padding:5px 8px;border-bottom:1px solid var(--line);'+(mu?'':'color:#f87171;')+'">'+(mu?escapeHTML(mu):'(bos)')+'</td>'; };
   } else if(st.type==='rapor'){ cols=['ncst','islem','Degisiklik','sonuc'];
     rowFn=row=>{ const renk=row.sonuc==='OK'?'#34d399':(row.islem==='ATLANDI'?'#fbbf24':'#f87171');
       const d=(row.changes||[]).map(ch=>escapeHTML(ch.field)+': '+escapeHTML(String(ch.eski==null?'':ch.eski))+' -> '+escapeHTML(String(ch.yeni==null?'(NULL)':ch.yeni))).join('<br>')||'—';
