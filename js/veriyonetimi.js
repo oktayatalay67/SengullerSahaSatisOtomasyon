@@ -1,7 +1,11 @@
 // ============================================================
-// veriyonetimi.js — v1.3.0  (2 sekme: Musteri + Kontak)
+// veriyonetimi.js — v1.4.0  (2 sekme: Musteri + Kontak)
 // Son güncelleme: 2026-08-26
 // Değişiklikler:
+//   v1.4.0 — (V31.43) B2: MY'ye Atama tam calisir. Secili MY dosyadaki tum
+//            musteriye atanir (my_id enjeksiyon); mevcut portfoyden DUSEN (listede
+//            olmayan) musteriler tespit edilir, istatistik gosterilir, istege bagli
+//            baska MY/FMY'ye tasinir (2. secici). Diger alanlar da guncellenir.
 //   v1.3.0 — (V31.42) B1: MY secici bileseni (isim/EXT ile ara -> my_id) +
 //            3. sekme 'MY'ye Atama' iskeleti. Dosya/mutabakat B2'de gelecek.
 //            (auth.js v1.2.19: window.userSecici saglar.)
@@ -41,8 +45,14 @@ window.VY_MODES = {
     schema:[['ad_soyad','str'],['gorev_unvani','str'],['telefon','str'],['email','str'],['aktif','bool'],['musteri_unvani','str']],
     fk:{},
     dict:{'NCST':'ncst','AD SOYAD':'ad_soyad','ADSOYAD':'ad_soyad','AD-SOYAD':'ad_soyad','YETKILI':'ad_soyad','YETKILI KISI':'ad_soyad','YETKILI ISIM':'ad_soyad','ISIM':'ad_soyad','KISI':'ad_soyad','GOREV':'gorev_unvani','UNVAN':'gorev_unvani','GOREV UNVANI':'gorev_unvani','YETKI TIPI':'gorev_unvani','GOREV TIPI':'gorev_unvani','TELEFON':'telefon','TEL':'telefon','GSM':'telefon','CEP':'telefon','EMAIL':'email','E POSTA':'email','EPOSTA':'email','MAIL':'email','MUSTERI UNVANI':'musteri_unvani','MUSTERI UNVAN':'musteri_unvani','FIRMA ADI':'musteri_unvani','FIRMA UNVANI':'musteri_unvani','FIRMA':'musteri_unvani'},
-    kontakKurallari:true,
-    ipucu:'Ilk kolon <b>ncst</b>, ayrica <b>ad_soyad</b> eslenmeli. Anahtar: ncst+ad_soyad. Telefon zorunlu; email gecersizse bos gecilir.'
+  },
+  atama: {
+    table:'customers', keyFields:['ncst'], reqNew:['unvan'], dogrulandiDefault:null, aktifDefault:true, atamaMode:true,
+    schema:[['unvan','str'],['vergi_no','str'],['kayit_tarihi','ts'],['kcm_id','int'],['sektor','str'],['il','str'],['ilce','str'],['musteri_tipi','str'],['churn_riski','str'],['toplam_hat','int'],['aktif','bool'],['beyaz_yakali_sayi','int'],['sube_lokasyon','bool'],['sube_detay','str'],['sunucu_altyapisi','bool'],['sunucu_detay','str'],['it_ekibi','bool'],['it_ekip_sayisi','int'],['firewall_kullanimi','bool'],['firewall_detay','str'],['profil_tamamlandi','bool'],['adres','str'],['telefon','str'],['enlem','num'],['boylam','num'],['guncelleme_tarihi','ts'],['bolge_id','int']],
+    fk:{ kcm_id:{tbl:'kcm_groups',col:'kcm_id'}, bolge_id:{tbl:'bolgeler',col:'bolge_id'} },
+    dict:{'NCST':'ncst','UNVAN':'unvan','FIRMA ADI':'unvan','FIRMA':'unvan','VERGI NO':'vergi_no','VKN':'vergi_no','SEKTOR':'sektor','IL':'il','SEHIR':'il','ILCE':'ilce','MUSTERI TIPI':'musteri_tipi','ADRES':'adres','TELEFON':'telefon','TEL':'telefon','ENLEM':'enlem','BOYLAM':'boylam','BOLGE':'bolge_id','BOLGE ID':'bolge_id','KOD':'bolge_id'},
+    kontakKurallari:false,
+    ipucu:'Secili MY/FMY icin musteri listesi. Ilk kolon <b>ncst</b>. Listedeki tum musteriler secili MYye atanir; diger alanlar da guncellenir.'
   }
 };
 var VY_PAGE=100;
@@ -88,16 +98,16 @@ function vyMySeciciRender(containerId, onSelect, placeholder){
 function vyMySeciciFiltre(containerId){
   const inp=document.getElementById(containerId+'_inp'); const res=document.getElementById(containerId+'_res');
   if(!inp||!res) return;
-  const raw=inp.value.trim(); if(raw.length<2){ res.innerHTML=''; return; }
+  const raw=inp.value.trim(); if(raw.length<1){ res.innerHTML=''; return; }
   const q=vyNorm(raw); const qLow=raw.toLowerCase();
   const list=(window.userSecici||[]).filter(u=>{
     const nad=vyNorm(u.ad_soyad); const ext=(u.ext_kod||'').toLowerCase();
     return nad.indexOf(q)>=0 || (ext && ext.indexOf(qLow)>=0);
-  }).slice(0,15);
+  }).sort((a,b)=>a.ad_soyad.localeCompare(b.ad_soyad,'tr')).slice(0,25);
   if(!list.length){ res.innerHTML='<div style="padding:8px;color:var(--text2);font-size:12px;">Eslesme yok.</div>'; return; }
-  res.innerHTML=list.map(u=>'<div onclick="vyMySeciciPick(\''+containerId+'\','+u.my_id+')" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:4px;cursor:pointer;background:var(--bg2);font-size:13px;">'
+  res.innerHTML='<div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:9px;">'+list.map(u=>'<div class="vy-sec-row" onclick="vyMySeciciPick(\''+containerId+'\','+u.my_id+')" onmouseover="this.style.background=\'rgba(52,211,153,.15)\'" onmouseout="this.style.background=\'transparent\'" style="padding:9px 11px;cursor:pointer;border-bottom:1px solid var(--line);background:transparent;font-size:13px;">'
     +'<b>'+escapeHTML(u.ad_soyad)+'</b> <span style="color:var(--text2);font-size:11px;">'+escapeHTML(u.rol||'')+(u.kcm_id?(' · KCM '+u.kcm_id):'')+'</span>'
-    +(u.ext_kod?'<br><span style="color:#60a5fa;font-size:11px;">'+escapeHTML(u.ext_kod)+'</span>':'')+'</div>').join('');
+    +(u.ext_kod?'<span style="color:#60a5fa;font-size:11px;float:right;">'+escapeHTML(u.ext_kod)+'</span>':'')+'</div>').join('')+'</div>';
 }
 function vyMySeciciPick(containerId, myId){
   const u=(window.userSecici||[]).find(x=>x.my_id===myId); if(!u) return;
@@ -124,9 +134,22 @@ function vyAtamaInit(){
   vyMySeciciRender('vyAtamaSecici', function(u){
     VYATAMA.selectedMy=u;
     const nx=document.getElementById('vyAtamaSonraki');
-    if(u){ nx.innerHTML='<div style="background:var(--bg2);border:1px dashed var(--line);border-radius:12px;padding:14px;color:var(--text2);font-size:13px;">2. Adim: <b>'+escapeHTML(u.ad_soyad)+'</b> icin musteri listesi yukleme + mutabakat — sonraki surumde (B2) eklenecek.</div>'; }
-    else { nx.innerHTML=''; }
+    const np=document.getElementById('vyNormalPanel');
+    if(u){
+      nx.innerHTML='<div style="background:rgba(52,211,153,.10);border:1px solid #34d399;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;">2. Adim: <b>'+escapeHTML(u.ad_soyad)+'</b> icin musteri listesini yukle. Listedeki tum musteriler bu kisiye atanacak.</div>';
+      // normal dosya akisini atama modunda ac (ayni container'lar)
+      if(np){ np.style.display=''; }
+      vyResetNormalOnly();
+      const ip=document.getElementById('vyIpucu'); if(ip) ip.innerHTML=vyCfg().ipucu;
+    } else { nx.innerHTML=''; if(np) np.style.display='none'; }
   }, 'MY/FMY ara: isim veya EXT...');
+}
+// atama modunda dosya akisini sifirla (mode='atama' korunur)
+function vyResetNormalOnly(){
+  VY.fileName=''; VY.headers=[]; VY.rows=[]; VY.raw=[]; VY.mapping=[]; VY.analiz=null; VY.nullSet=null; VY.secim=null; VY.pagers={};
+  ['vyInfo','vyMapping','vyAnalizSonuc','vyPreview'].forEach(id=>{ const e=document.getElementById(id); if(e) e.innerHTML=''; });
+  const fi=document.getElementById('vyFile'); if(fi) fi.value='';
+  const btn=document.getElementById('vyOkuBtn'); if(btn) btn.disabled=true;
 }
 function vyFileSelected(){ const fi=document.getElementById('vyFile'), btn=document.getElementById('vyOkuBtn'); if(btn) btn.disabled=!(fi&&fi.files&&fi.files.length); }
 
@@ -189,6 +212,7 @@ async function vyAnaliz(){
   const fileNcst=[], seen={}; VY.rows.forEach(r=>{ const n=vyNull(r[0]); if(n && !seen[n]){ seen[n]=1; fileNcst.push(n); } });
   const selSet={}; cfg.keyFields.forEach(f=>selSet[f]=1); mapped.forEach(m=>selSet[m.field]=1); selSet['ncst']=1;
   if(cfg.kontakKurallari) selSet['musteri_unvani']=1; // otomatik unvan icin mevcut deger
+  if(cfg.atamaMode) selSet['my_id']=1; // mevcut MY'yi bilmek icin
   const selStr=Object.keys(selSet).join(',');
   // mevcut kayitlari ncst ile cek
   const dbRows=[], total=fileNcst.length;
@@ -241,7 +265,7 @@ async function vyAnaliz(){
         G.yeni.push({ncst, unvan:obj.ad_soyad, obj});
       } else {
         const uv=unvanMap?vyNull(r[unvanMap.idx]):null;
-        if(uv){ const obj={}; mapped.forEach(m=>{const v=vyCast(m.field,r[m.idx]); if(v!==null) obj[m.field]=v;}); G.yeni.push({ncst, unvan:uv, obj}); }
+        if(uv){ const obj={}; mapped.forEach(m=>{const v=vyCast(m.field,r[m.idx]); if(v!==null) obj[m.field]=v;}); if(cfg.atamaMode && VYATAMA.selectedMy) obj.my_id=VYATAMA.selectedMy.my_id; G.yeni.push({ncst, unvan:uv, obj}); }
         else G.atla.push({ncst:ncst||'-', islem:'ATLANDI', changes:[], sonuc:'Yeni kayit ama unvan bos'});
       }
       return;
@@ -256,6 +280,8 @@ async function vyAnaliz(){
       const fileV=vyCast(m.field,r[m.idx]); const dbV=vyCastDb(m.field,db[m.field]);
       if(fileV===null){ if(dbV!==null) bos.push({field:m.field, eski:dbV}); } else if(fileV!==dbV){ changes.push({field:m.field, eski:dbV, yeni:fileV}); }
     });
+    // ATAMA: secili MY farkliysa my_id degisikligi ekle
+    if(cfg.atamaMode && VYATAMA.selectedMy){ const sel=VYATAMA.selectedMy.my_id; const dbMy=vyCastDb('int',db.my_id); if(dbMy!==sel) changes.push({field:'my_id', eski:dbMy, yeni:sel}); }
     // KONTAK: musteri_unvani DB'de bossa doldur — oncelik: ncst(customers) -> dosya
     if(cfg.kontakKurallari && vyNull(db.musteri_unvani)===null){
       const muMap=mapped.filter(m=>m.field==='musteri_unvani')[0];
@@ -265,6 +291,17 @@ async function vyAnaliz(){
     }
     if(changes.length) G.guncelle.push({ncst, changes, bos, keyVals:dbKeyVals}); else if(bos.length) G.bosonay.push({ncst, bos, keyVals:dbKeyVals}); else G.degismez++;
   });
+
+  // ATAMA: DUSEN musteriler — DB'de secili MY'de olup listede OLMAYANlar
+  if(cfg.atamaMode && VYATAMA.selectedMy){
+    const sel=VYATAMA.selectedMy.my_id; const fset={}; fileNcst.forEach(n=>fset[n]=1); const dusen=[]; let from=0;
+    if(prog) prog.textContent='Dusen musteriler hesaplaniyor...';
+    try{ while(true){ const {data,error}=await sb.from('customers').select('ncst,unvan').eq('my_id',sel).range(from,from+999); if(error) throw error;
+        (data||[]).forEach(rr=>{ if(!fset[String(rr.ncst)]) dusen.push({ncst:String(rr.ncst), unvan:rr.unvan||''}); }); if(!data||data.length<1000) break; from+=1000; } }
+    catch(e){ console.error(e); }
+    G.dusen=dusen; if(prog) prog.textContent='';
+  }
+  VYATAMA.dusenTargetMy=null;
 
   VY.analiz={ G, mapped, toplam:VY.rows.length, cfg };
   VY.nullSet=new Set();
@@ -322,6 +359,29 @@ function vyRenderAnaliz(G, toplam){
   const card=(renk,b,a)=>'<div style="flex:1;min-width:110px;background:var(--bg2);border:1px solid '+renk+';border-radius:10px;padding:10px 12px;"><div style="font-size:22px;font-weight:800;color:'+renk+';">'+a+'</div><div style="font-size:12px;color:var(--text2);">'+b+'</div></div>';
   let h='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px;">'+card('#34d399','Guncellenecek',G.guncelle.length)+card('#60a5fa','Yeni Eklenecek',G.yeni.length)+card('#fbbf24','Bos->Onay',G.bosonay.length)+card('#f87171','Atlanacak',G.atla.length)+card('#94a3b8','Degisiklik Yok',G.degismez)+'</div>';
   h+='<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Toplam '+toplam+' satir. Yalnizca <b>isaretli</b> satirlar yazilir. Tablo: <b>'+vyCfg().table+'</b></div>';
+  // ATAMA istatistik
+  if(VY.mode==='atama' && VYATAMA.selectedMy){
+    const sel=VYATAMA.selectedMy;
+    const cekilen=G.guncelle.filter(r=>r.changes.some(c=>c.field==='my_id')).length;
+    const dusen=(G.dusen||[]).length;
+    const listeMevcut=G.guncelle.length+G.degismez;
+    const toplamAtan=listeMevcut+G.yeni.length;
+    h+='<div style="background:rgba(96,165,250,.08);border:1px solid #60a5fa;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.7;">';
+    h+='<div style="font-weight:700;margin-bottom:4px;">📊 Atama Ozeti — <span style="color:#60a5fa;">'+escapeHTML(sel.ad_soyad)+'</span></div>';
+    h+='• Bu MY\'ye toplam atanacak: <b>'+toplamAtan+'</b> ('+listeMevcut+' mevcut + '+G.yeni.length+' yeni)<br>';
+    h+='• Baska MY\'den cekilen (MY degisen): <b style="color:#fbbf24;">'+cekilen+'</b><br>';
+    h+='• Yeni musteri (customers\'ta yok): <b>'+G.yeni.length+'</b><br>';
+    h+='• Bu MY\'den <u>dusen</u> (listede yok): <b style="color:#f87171;">'+dusen+'</b>';
+    h+='</div>';
+    if(dusen){
+      h+='<div style="background:rgba(248,113,113,.06);border:1px solid #f87171;border-radius:12px;padding:12px 14px;margin-bottom:12px;">';
+      h+='<div style="font-weight:700;margin-bottom:6px;">Dusen '+dusen+' musteri ne olsun?</div>';
+      h+='<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Varsayilan: bu MY\'de kalir. Baska MY/FMY\'ye tasimak istersen sec:</div>';
+      h+='<div id="vyDusenSecici"></div><div id="vyDusenBilgi" style="font-size:12px;color:#fbbf24;margin-top:6px;"></div>';
+      h+='<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--text2);">Dusen musteri listesi</summary><div id="vyPage_dusen" style="margin-top:6px;"></div></details>';
+      h+='</div>';
+    }
+  }
   if(G.guncelle.length){ h+='<div style="font-weight:600;font-size:13px;margin:8px 0 4px;">Guncellenecek <button onclick="vySecimTumu(\'guncelle\',true)" style="font-size:11px;padding:3px 8px;margin-left:6px;">Tumunu sec</button> <button onclick="vySecimTumu(\'guncelle\',false)" style="font-size:11px;padding:3px 8px;">Tumunu kaldir</button></div><div id="vyPage_guncelle"></div>'; }
   if(G.yeni.length){ h+='<div style="font-weight:600;font-size:13px;margin:12px 0 4px;">Yeni Eklenecek <button onclick="vySecimTumu(\'yeni\',true)" style="font-size:11px;padding:3px 8px;margin-left:6px;">Tumunu sec</button> <button onclick="vySecimTumu(\'yeni\',false)" style="font-size:11px;padding:3px 8px;">Tumunu kaldir</button></div><div id="vyPage_yeni"></div>'; }
   if(G.bosonay.length){ h+='<div style="font-weight:600;font-size:13px;margin:12px 0 4px;">Bos -> Onay <button onclick="vyBosTumu(true)" style="font-size:11px;padding:3px 8px;margin-left:6px;">Tum boslari NULL</button> <button onclick="vyBosTumu(false)" style="font-size:11px;padding:3px 8px;">Tumunu tut</button></div><div id="vyPage_bos"></div>'; }
@@ -332,6 +392,11 @@ function vyRenderAnaliz(G, toplam){
   if(G.yeni.length) vyPageInit('yeni',G.yeni,'yeni','vyPage_yeni');
   if(G.bosonay.length){ VY.pagers['bos']={rows:G.bosonay, type:'bos', containerId:'vyPage_bos', page:0}; vyRenderPagedBos(); }
   if(G.atla.length){ VY.pagers['atla']={rows:G.atla.map(a=>({ncst:a.ncst, islem:'ATLANACAK', changes:[], sonuc:a.sonuc})), type:'rapor', containerId:'vyPage_atla', page:0}; vyRenderPaged('atla'); }
+  // ATAMA: dusen secici + liste
+  if(VY.mode==='atama' && (G.dusen||[]).length){
+    vyMySeciciRender('vyDusenSecici', function(u){ VYATAMA.dusenTargetMy=u?u.my_id:null; const inf=document.getElementById('vyDusenBilgi'); if(inf) inf.textContent=u?('Dusenler -> '+u.ad_soyad+' (my_id='+u.my_id+') tasinacak'):'(Dusenler bu MY\'de kalacak)'; }, 'Dusenleri atamak icin MY/FMY ara...');
+    VY.pagers['dusen']={rows:G.dusen.map(d=>({ncst:d.ncst, islem:'DUSEN', changes:[], sonuc:d.unvan||''})), type:'rapor', containerId:'vyPage_dusen', page:0}; vyRenderPaged('dusen');
+  }
 }
 
 // ---------- UYGULA ----------
@@ -359,9 +424,16 @@ async function vyUygula(){
     if(obj.aktif===undefined) obj.aktif=cfg.aktifDefault;
     const detay=Object.keys(row.obj).map(f=>({field:f, eski:'', yeni:row.obj[f]})); inserts.push({obj, ncst:row.ncst, detay}); });
 
+  // ATAMA: dusen musteriler secili hedefe tasinsin (sadece hedef secildiyse)
+  if(cfg.atamaMode && VYATAMA.dusenTargetMy && A.G.dusen && A.G.dusen.length){
+    const t=VYATAMA.dusenTargetMy, kaynak=VYATAMA.selectedMy.my_id;
+    A.G.dusen.forEach(d=>{ updates.push({keyVals:{ncst:d.ncst}, obj:{my_id:t, guncelleme_tarihi:now}, detay:[{field:'my_id', eski:kaynak, yeni:t}], ncst:d.ncst}); });
+  }
+
   window._vyPending={updates, inserts, fkAtla, cfg};
+  const dusenTasin=(cfg.atamaMode && VYATAMA.dusenTargetMy && A.G.dusen)?A.G.dusen.length:0;
   const kutu=document.getElementById('vyOnayKutu');
-  kutu.innerHTML='<div style="margin-top:12px;background:rgba(52,211,153,.08);border:1px solid #34d399;border-radius:10px;padding:14px;"><div style="font-weight:700;margin-bottom:6px;">Son Onay ('+cfg.table+')</div><div style="font-size:13px;line-height:1.6;">• <b>'+updates.length+'</b> secili kayit GUNCELLENECEK<br>• <b>'+inserts.length+'</b> secili kayit YENI EKLENECEK<br>'+(fkAtla.length?('• <b style="color:#f87171;">'+fkAtla.length+'</b> gecersiz -> atlanacak<br>'):'')+'</div><div style="margin-top:10px;"><button class="btn-primary" onclick="vyUygulaExec()" style="padding:8px 18px;background:#34d399;font-weight:700;">Onayla ve Yaz</button><button onclick="document.getElementById(\'vyOnayKutu\').innerHTML=\'\'" style="padding:8px 14px;margin-left:8px;">Iptal</button></div></div>';
+  kutu.innerHTML='<div style="margin-top:12px;background:rgba(52,211,153,.08);border:1px solid #34d399;border-radius:10px;padding:14px;"><div style="font-weight:700;margin-bottom:6px;">Son Onay ('+cfg.table+')</div><div style="font-size:13px;line-height:1.6;">• <b>'+updates.length+'</b> secili kayit GUNCELLENECEK'+(dusenTasin?(' ('+dusenTasin+' dusen musteri tasima dahil)'):'')+'<br>• <b>'+inserts.length+'</b> secili kayit YENI EKLENECEK<br>'+(fkAtla.length?('• <b style="color:#f87171;">'+fkAtla.length+'</b> gecersiz -> atlanacak<br>'):'')+'</div><div style="margin-top:10px;"><button class="btn-primary" onclick="vyUygulaExec()" style="padding:8px 18px;background:#34d399;font-weight:700;">Onayla ve Yaz</button><button onclick="document.getElementById(\'vyOnayKutu\').innerHTML=\'\'" style="padding:8px 14px;margin-left:8px;">Iptal</button></div></div>';
   kutu.scrollIntoView({behavior:'smooth', block:'center'});
 }
 

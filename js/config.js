@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.2.84
+// config.js — v1.2.85
 // Son güncelleme: 2026-08-21
 // Değişiklikler:
+//   v1.2.85 — APP_VERSION → V31.43. Veri Yonetimi B2: MY'ye Atama tam (dosya +
+//             mutabakat + dusen tespiti + istatistik + onay).
 //   v1.2.84 — APP_VERSION → V31.42. Veri Yonetimi B1: MY secici + 'MY'ye Atama'
 //             sekmesi iskeleti (auth.js ext_kod/userSecici).
 //   v1.2.83 — APP_VERSION → V31.41. Kontak musteri_unvani eslenebilir + oncelikli
@@ -244,7 +246,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.42';
+const APP_VERSION = 'V31.43';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
