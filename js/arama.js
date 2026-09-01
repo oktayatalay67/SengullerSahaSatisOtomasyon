@@ -1,5 +1,18 @@
 // ============================================================
-// arama.js — v1.0.15
+// arama.js — v1.0.16
+//   v1.0.16 (01.09.2026, V31.48 — anket kayit guvenligi):
+//     - KRITIK: araAnketKaydet / araAnketTekrar / araAnketUlasilamiyor /
+//       araAnketBilgiGuncelle fonksiyonlarinin DORDU DE Supabase cagrilarinin
+//       `error` degerini yok sayiyordu. Insert basarisiz olsa bile kod devam edip
+//       yesil "kaydedildi" mesaji veriyor, gorevi kapatiyor, anket verisi sessizce
+//       kayboluyordu. Artik her adim kontrol ediliyor; hata varsa gercek mesaj
+//       gosteriliyor, modal KAPANMIYOR, gorev durumu DEGISMIYOR.
+//     - araAnketBilgiGuncelle SIRA DEGISIKLIGI: once anket kaydi + alt gorev,
+//       gorev ancak ikisi de basariliysa kapatilir (eskiden gorev once kapaniyordu).
+//     - araAnketBilgiGuncelle YEDEK MY: ziyarette my_id yoksa musterinin portfoy
+//       sahibinden (customers.my_id) alinir. Eskiden sessizce gorev acilmiyordu.
+//     - Acilan goreve deadline yaziliyor (+3 is gunu). Deadline'siz gorevler
+//       gorev listesinde gorunmuyordu (bkz. gorev.js v1.2.11).
 //   v1.0.15 (01.09.2026, V31.46 — arama ekrani iyilestirmeleri):
 //     - YENI: "Aranacak numara" kutusu. Agent "Ara" tusuna basip anket modali
 //       acildiginda, Firma gecmisi panelinin ALTINDA numarayi gosteren bir kutu
@@ -1040,53 +1053,140 @@ async function _anketLog(aksiyon,detay){
   try{ await sb.from('task_logs').insert({task_id:window._anket.taskId,user_id:currentUser.my_id,user_ad:currentUser.ad_soyad,aksiyon,detay}); }catch(e){}
 }
 
+// ============================================================
+// V31.48: ANKET KAYIT FONKSIYONLARI — HATA YAKALAMA
+// Dort fonksiyonun tamami Supabase cagrilarinin `error` degerini YOK SAYIYORDU.
+// Insert/update basarisiz olsa bile kod devam edip yesil "kaydedildi" mesaji
+// veriyor, gorevi kapatiyor ve anket verisi sessizce kayboluyordu.
+// Artik: her adimin hatasi okunuyor, gercek mesaj gosteriliyor, hata varsa
+// modal KAPANMIYOR ve gorev durumu DEGISMIYOR.
+// ============================================================
+
+// Ortak yardimci: hatayi kullaniciya goster, false don.
+function _anketHata(nerede, err){
+  console.error('[arama] '+nerede, err);
+  toast(nerede+' basarisiz: '+(err?.message || err?.hint || 'bilinmeyen hata'), 'error');
+  return false;
+}
+
+// Anket satirini yazar. Basarisizsa false doner — cagiran islemi durdurur.
+async function _anketSatirYaz(extra){
+  const { error } = await sb.from('arama_sonuclari').insert(_anketSatir(extra));
+  if(error) return _anketHata('Arama kaydi', error);
+  return true;
+}
+
+// Gorev durumunu gunceller. Basarisizsa false doner.
+async function _anketGorevGuncelle(taskId, alanlar){
+  const { error } = await sb.from('tasks').update(alanlar).eq('task_id', taskId);
+  if(error) return _anketHata('Gorev durumu guncelleme', error);
+  return true;
+}
+
+// V31.48: is gunu ekleyerek deadline uretir (hafta sonu atlanir), 'YYYY-MM-DD'.
+function _isGunuEkle(gunSayisi){
+  const d = new Date();
+  let kalan = gunSayisi;
+  while(kalan > 0){
+    d.setDate(d.getDate() + 1);
+    const g = d.getDay();               // 0 Pazar, 6 Cumartesi
+    if(g !== 0 && g !== 6) kalan--;
+  }
+  // Europe/Istanbul takvim gunu — yerel bilesenlerden kuruluyor, toISOString degil
+  // (toISOString UTC'ye cevirir ve gece yarisi civari bir gun geri kayabilir).
+  const ay = String(d.getMonth()+1).padStart(2,'0');
+  const gn = String(d.getDate()).padStart(2,'0');
+  return d.getFullYear()+'-'+ay+'-'+gn;
+}
+
 async function araAnketKaydet(){
   const c=window._anket.c;
   if(!c.ulasildi){ toast('Ulaşıldı mı? seçin','error'); return; }
-  await sb.from('arama_sonuclari').insert(_anketSatir());
-  await sb.from('tasks').update({durum:'Tamamlandı',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()}).eq('task_id',window._anket.taskId);
-  await _anketLog('Arama Tamamlandı','Teyit araması dolduruldu');
-  toast('Arama kaydedildi','success');
-  closeModal('aramaAnketModal'); loadAramaListesi();
+  try{
+    if(!await _anketSatirYaz()) return;
+    if(!await _anketGorevGuncelle(window._anket.taskId,{durum:'Tamamlandı',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()})) return;
+    await _anketLog('Arama Tamamlandı','Teyit araması dolduruldu');
+    toast('Arama kaydedildi','success');
+    closeModal('aramaAnketModal'); loadAramaListesi();
+  }catch(e){ _anketHata('Arama kaydi', e); }
 }
+
 async function araAnketTekrar(){
   const c=window._anket.c;
   const tar=document.getElementById('anketTekrarTarih')?.value || c.sonraki_arama_tarihi;
   if(!tar){ toast('Tekrar arama tarihi seçin','error'); return; }
   const dl=tar.slice(0,10);
-  await sb.from('arama_sonuclari').insert(_anketSatir({sonraki_arama_tarihi:tar}));
-  await sb.from('tasks').update({durum:'Tekrar Aranacak',deadline:dl,tamamlanma_tarihi:null,guncelleme_tarihi:new Date().toISOString()}).eq('task_id',window._anket.taskId);
-  await _anketLog('Tekrar Aranacak','Yeni arama: '+fmtDate(tar)+(c.ulasilamama_neden?(' · '+c.ulasilamama_neden):''));
-  toast('Tekrar aranacak olarak işaretlendi','info');
-  closeModal('aramaAnketModal'); loadAramaListesi();
+  try{
+    if(!await _anketSatirYaz({sonraki_arama_tarihi:tar})) return;
+    if(!await _anketGorevGuncelle(window._anket.taskId,{durum:'Tekrar Aranacak',deadline:dl,tamamlanma_tarihi:null,guncelleme_tarihi:new Date().toISOString()})) return;
+    await _anketLog('Tekrar Aranacak','Yeni arama: '+fmtDate(tar)+(c.ulasilamama_neden?(' · '+c.ulasilamama_neden):''));
+    toast('Tekrar aranacak olarak işaretlendi','info');
+    closeModal('aramaAnketModal'); loadAramaListesi();
+  }catch(e){ _anketHata('Tekrar aranacak', e); }
 }
+
 async function araAnketUlasilamiyor(){
-  await sb.from('arama_sonuclari').insert(_anketSatir());
-  await sb.from('tasks').update({durum:'Ulaşılamıyor',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()}).eq('task_id',window._anket.taskId);
-  await _anketLog('Ulaşılamıyor','Ulaşılamama: '+(window._anket.c.ulasilamama_neden||'-'));
-  toast('Ulaşılamıyor olarak kapatıldı','info');
-  closeModal('aramaAnketModal'); loadAramaListesi();
+  try{
+    if(!await _anketSatirYaz()) return;
+    if(!await _anketGorevGuncelle(window._anket.taskId,{durum:'Ulaşılamıyor',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()})) return;
+    await _anketLog('Ulaşılamıyor','Ulaşılamama: '+(window._anket.c.ulasilamama_neden||'-'));
+    toast('Ulaşılamıyor olarak kapatıldı','info');
+    closeModal('aramaAnketModal'); loadAramaListesi();
+  }catch(e){ _anketHata('Ulasilamiyor kapatma', e); }
 }
+
 // Yanlış numara / tekrar ulaşılamadı → MY'ye "Müşteri Bilgileri Güncelleme" görevi
+// V31.48 SIRA DEGISIKLIGI: once anket kaydi + alt gorev acilir, gorev ancak
+// ikisi de basariliysa kapatilir. Eskiden gorev once 'Ulasilamiyor'a cekiliyordu;
+// alt gorev acilamasa bile kayit kapanmis oluyordu ve kullanici fark etmiyordu.
 async function araAnketBilgiGuncelle(sebep){
   const st=window._anket;
-  await sb.from('arama_sonuclari').insert(_anketSatir());
-  await sb.from('tasks').update({durum:'Ulaşılamıyor',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()}).eq('task_id',st.taskId);
-  // task_type: Müşteri Bilgileri Güncelleme
-  const {data:tt}=await sb.from('task_types').select('type_id').eq('tip_adi','Müşteri Bilgileri Güncelleme').maybeSingle();
-  if(tt?.type_id && st.my_id){
-    await sb.from('tasks').insert({
+  try{
+    if(!await _anketSatirYaz()) return;
+
+    // Atanacak MY: once ziyaretten, yoksa musterinin portfoy sahibinden.
+    // V31.48: eskiden sadece ziyaretten aliniyordu; ziyaret yoksa/my_id bossa
+    // gorev sessizce acilmiyordu.
+    let atananId = st.my_id || null;
+    let kaynak = 'ziyaret';
+    if(!atananId && st.ncst){
+      const {data:cst} = await sb.from('customers').select('my_id').eq('ncst',st.ncst).maybeSingle();
+      if(cst?.my_id){ atananId = cst.my_id; kaynak = 'portföy sahibi'; }
+    }
+
+    const {data:tt, error:ttErr} = await sb.from('task_types')
+      .select('type_id').eq('tip_adi','Müşteri Bilgileri Güncelleme').maybeSingle();
+    if(ttErr) return _anketHata('Gorev tipi okuma', ttErr);
+
+    if(!tt?.type_id){
+      toast('Görev tipi bulunamadı: "Müşteri Bilgileri Güncelleme". Görev açılamadı, kayıt kapatılmadı.','error');
+      return;
+    }
+    if(!atananId){
+      toast('Bu müşterinin MY\'si bulunamadı (ne ziyarette ne portföyde). Görev açılamadı, kayıt kapatılmadı.','error');
+      return;
+    }
+
+    const {error:insErr} = await sb.from('tasks').insert({
       type_id:tt.type_id, baslik:'Müşteri Bilgileri Güncelleme — '+(st.unvan||st.ncst),
       aciklama:'Teyit aramasında ulaşılamadı ('+sebep+'). Kontak/telefon güncellenmeli. Kontak: '+(st.contactAd||'-')+' · Tel: '+(st.telefon||'-'),
-      ncst:st.ncst, parent_task_id:st.taskId, atayan_id:currentUser.my_id, atanan_id:st.my_id,
-      durum:'Atandı', baslama_tarihi:new Date().toISOString(), olusturma_tarihi:new Date().toISOString()
+      ncst:st.ncst, parent_task_id:st.taskId, atayan_id:currentUser.my_id, atanan_id:atananId,
+      durum:'Atandı', baslama_tarihi:new Date().toISOString(), olusturma_tarihi:new Date().toISOString(),
+      // V31.48: deadline eklendi (+3 is gunu). Eskiden bos birakiliyordu; bos
+      // deadline'li gorevler gorev listesinde siralamanin dibinde kalip
+      // yoneticilere hic gorunmuyordu (bkz. gorev.js v1.2.11).
+      deadline:_isGunuEkle(3),
+      guncelleme_tarihi:new Date().toISOString()
     });
-    await _anketLog('Bilgi Güncelleme Görevi','MY #'+st.my_id+' → Müşteri Bilgileri Güncelleme ('+sebep+')');
+    if(insErr) return _anketHata('Bilgi guncelleme gorevi acma', insErr);
+
+    // Alt gorev acildi — ancak simdi teyit gorevi kapatilir.
+    if(!await _anketGorevGuncelle(st.taskId,{durum:'Ulaşılamıyor',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()})) return;
+
+    await _anketLog('Bilgi Güncelleme Görevi','MY #'+atananId+' ('+kaynak+') → Müşteri Bilgileri Güncelleme ('+sebep+')');
     toast('Kapatıldı, MY\'ye bilgi güncelleme görevi açıldı','success');
-  } else {
-    toast('Kapatıldı (bilgi güncelleme görevi açılamadı: MY/görev tipi yok)','info');
-  }
-  closeModal('aramaAnketModal'); loadAramaListesi();
+    closeModal('aramaAnketModal'); loadAramaListesi();
+  }catch(e){ _anketHata('Bilgi guncelleme gorevi', e); }
 }
 
 // ============================================================

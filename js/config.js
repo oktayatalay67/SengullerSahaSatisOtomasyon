@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.2.87
+// config.js — v1.2.89
 // Son güncelleme: 2026-09-01
 // Değişiklikler:
+//   v1.2.89 — APP_VERSION → V31.48. Gorev listesi veri kaybi duzeltmesi
+//             (gorev.js v1.2.11) + anket kayit hata yakalama (arama.js v1.0.16).
+//   v1.2.88 — APP_VERSION → V31.47. Telefon format korumasi (Faz A): tum yazma
+//             yollari veri_kalitesi.js dogrulamasindan geciyor. normalizeTel
+//             artik TEK ayristirma kaynagi — telefonNormalize() ona delege eder.
 //   v1.2.87 — APP_VERSION → V31.46. Telefon normalizasyonu: normalizeTel() +
 //             telKopyala() yardimcilari eklendi (Arama modulu telefon kutusu).
 //             NOT: V31.45 atlandi — index.html'de config.js?v=v31.45 zaten
@@ -251,7 +256,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.46';
+const APP_VERSION = 'V31.48';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

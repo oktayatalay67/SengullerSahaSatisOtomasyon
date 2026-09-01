@@ -1,7 +1,23 @@
 // ============================================================
-// gorev.js — v1.2.10
-// Son güncelleme: 2026-06-24
+// gorev.js — v1.2.11
+// Son güncelleme: 2026-09-01
 // Değişiklikler:
+//   v1.2.11 — (V31.48) GOREV LISTESI VERI KAYBI DUZELTMESI. Uc ayri kusur:
+//             (1) .order('deadline',asc).limit(200): PostgreSQL NULL'lari sona
+//                 attigi icin, deadline'i BOS gorevler 200'luk pencereye hic
+//                 giremiyordu (945 gorevin 938'inin deadline'i dolu). Arama
+//                 modulunun actigi gorevler deadline'siz oldugu icin yoneticilere
+//                 sistematik olarak gorunmuyordu. -> limit kaldirildi, sinirsiz
+//                 sayfalama + olusturma_tarihi DESC siralama.
+//             (2) 'Ziyaret Teyit Aramasi' gorevleri sunucudan cekilip istemcide
+//                 gizleniyordu; 200'luk pencereyi gorunmeyen kayitlar harciyordu.
+//                 -> sunucu tarafinda .neq('type_id',...) ile dislaniyor.
+//             (3) 'gorev_tumunu_gor' yetkisi olan ve kcm_id'si dolu yonetici
+//                 `else if (kcm_id)` dalina dusup kendi KCM'ine hapsoluyordu —
+//                 yetki, kisit gibi davraniyordu. -> yetki varsa kapsam filtresi yok.
+//             Ayrica: sorgu hatasi artik liste alaninda gosteriliyor (eskiden
+//             sadece console.error) ve .in(...) lookup'lari 200'luk parcalara
+//             bolundu (limit kalkinca URL uzunlugu tasabilirdi).
 //   v1.2.10 — Şikayet kapanış reddi terminal değil: gorevReddet, bagli_form='sikayet'
 //             görevini 'Devam'a döndürür (yeniden açar), onay/tamamlanma izlerini temizler.
 //   v1.2.9 — Saat takibi eklendi: (1) Görev Geçmişi'ndeki (timeline) saatler
@@ -113,58 +129,108 @@ async function loadGorevler(silent) {
   try {
 
   const mid = currentUser.my_id;
-  // v30.36: Basit select, join yok - KÇM yöneticisi için ayrı user/customer çekimi
-  let q = sb.from('tasks')
-    .select('task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,olusturma_tarihi,guncelleme_tarihi')
-    .order('deadline', { ascending: true })
-    .limit(200);
 
-  // Yönetici tümünü görür, diğerleri sadece ilgili olanları
-  const r = (currentUser.yetki_seviyesi || '').toUpperCase();
-  if (!hasPerm('gorev_tumunu_gor')) {
-    // v1.2.8: ncst listesi önbelleğe alındı — her loadGorevler çağrısında (60sn'de bir
-    // sessiz yenileme dahil) tekrar sorgulanmıyor, sadece bu oturumda bir kez çekiliyor.
-    const ownNcstList = await _getOwnNcstCached(mid);
-    if (ownNcstList.length) {
-      const ncstFilter = ownNcstList.map(n => '"' + String(n).replace(/"/g,'') + '"').join(',');
-      q = q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid + ',ncst.in.(' + ncstFilter + ')');
-    } else {
-      q = q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid);
-    }
-  } else if (currentUser.kcm_id) {
-    // KÇM yöneticisi: kendi KÇM'indeki görevler
-    const { data: kcmUsers } = await sb.from('users')
-      .select('my_id').eq('kcm_id', currentUser.kcm_id).eq('aktif', true);
-    const ids = (kcmUsers || []).map(u => u.my_id);
-    if (ids.length) q = q.or('atayan_id.in.(' + ids.join(',') + '),atanan_id.in.(' + ids.join(',') + ')');
-  }
-
-  const { data, error } = await q;
-  if (error) { console.error('Görev yükleme hatası:', error); return; }
-
-  const tasks = data || [];
-
-  // Tip bilgisi çek
+  // v1.2.11 (V31.48): Tip bilgisi ARTIK SORGUDAN ÖNCE çekiliyor — 'Ziyaret Teyit
+  // Araması' görevlerini sunucu tarafında dışlayabilmek için type_id'si gerekiyor.
   await loadTaskTypes();
   const tipMap = {};
   GOREV.taskTypes.forEach(function(t) { tipMap[t.type_id] = t; });
+  const teyitTip = GOREV.taskTypes.find(function(t){ return t.tip_adi === 'Ziyaret Teyit Araması'; });
+
+  // v1.2.8: ncst listesi önbelleğe alındı — her loadGorevler çağrısında (60sn'de bir
+  // sessiz yenileme dahil) tekrar sorgulanmıyor, sadece bu oturumda bir kez çekiliyor.
+  let _ownNcstList = null;
+  if (!hasPerm('gorev_tumunu_gor')) _ownNcstList = await _getOwnNcstCached(mid);
+
+  const SELECT_KOLONLAR =
+    'task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,' +
+    'onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,olusturma_tarihi,guncelleme_tarihi';
+
+  // v1.2.11 (V31.48): Sorguyu her sayfa icin yeniden kurar.
+  // ÖNEMLİ — eski hali `.order('deadline',{ascending:true}).limit(200)` idi ve iki
+  // ayrı şekilde veri kaybettiriyordu:
+  //   1) PostgreSQL'de 'ORDER BY deadline ASC' NULL'ları EN SONA atar. 945 görevin
+  //      938'inin deadline'ı dolu olduğu için, deadline'ı boş 7 görev 939-945.
+  //      sıralarda kalıyordu ve 200'lük pencereye HİÇ giremiyordu. Arama modülünün
+  //      açtığı "Müşteri Bilgileri Güncelleme" görevleri deadline'sız oluştuğu için
+  //      yöneticilere sistematik olarak görünmez oluyordu.
+  //   2) 'Ziyaret Teyit Araması' görevleri sunucudan çekilip İSTEMCİDE gizleniyordu;
+  //      yani 200'lük pencerenin büyük kısmını ekranda hiç görünmeyen kayıtlar
+  //      harcıyordu.
+  // Yeni hali: teyit araması sunucuda dışlanır, sıralama olusturma_tarihi DESC
+  // (NULL sıralaması kimseyi elemez), limit yerine sınırsız sayfalama.
+  function _gorevQuery() {
+    let q = sb.from('tasks').select(SELECT_KOLONLAR)
+      .order('olusturma_tarihi', { ascending: false });
+
+    if (teyitTip) q = q.neq('type_id', teyitTip.type_id);
+
+    // v1.2.11: 'gorev_tumunu_gor' bir İZİNDİR, kısıt değil. Eski kodda bu yetkiye
+    // sahip ve kcm_id'si dolu bir yönetici `else if (currentUser.kcm_id)` dalına
+    // düşüp kendi KÇM'ine hapsoluyordu — yorum satırı "Yönetici tümünü görür"
+    // derken kod tam tersini yapıyordu. Artık yetki varsa hiçbir kapsam filtresi
+    // uygulanmaz.
+    if (hasPerm('gorev_tumunu_gor')) return q;
+
+    if (_ownNcstList && _ownNcstList.length) {
+      const ncstFilter = _ownNcstList.map(n => '"' + String(n).replace(/"/g,'') + '"').join(',');
+      return q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid + ',ncst.in.(' + ncstFilter + ')');
+    }
+    return q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid);
+  }
+
+  // Sınırsız sayfalama — 1000'lik parçalar, gelen parça dolu olduğu sürece devam.
+  const SAYFA = 1000, TAVAN = 20000;   // TAVAN: sonsuz döngüye karşı emniyet
+  let tasks = [], bas = 0;
+  while (true) {
+    const { data, error } = await _gorevQuery().range(bas, bas + SAYFA - 1);
+    if (error) {
+      // v1.2.11: Hata artık kullanıcıya gösteriliyor. Eskiden yalnızca
+      // console.error'a yazılıp sessizce return ediliyordu — kullanıcı boş bir
+      // liste görüyor, sebebini asla öğrenemiyordu.
+      console.error('Görev yükleme hatası:', error);
+      if (listEl) listEl.innerHTML =
+        '<div class="empty" style="color:var(--red);">Görevler yüklenemedi: ' +
+        escapeHTML(error.message || 'Bilinmeyen hata') + '</div>';
+      return;
+    }
+    const parca = data || [];
+    tasks = tasks.concat(parca);
+    if (parca.length < SAYFA || tasks.length >= TAVAN) break;
+    bas += SAYFA;
+  }
 
   // Kullanıcı ve müşteri bilgilerini batch çek
+  // v1.2.11 (V31.48): .limit(200) kalktığı için bu listeler artık binlerce eleman
+  // olabiliyor. Tek bir .in(...) çağrısı URL uzunluk sınırını aşıp sorguyu
+  // patlatırdı — 200'lük parçalara bölünüyor.
   const allUserIds = [...new Set(tasks.flatMap(function(t) { return [t.atayan_id, t.atanan_id].filter(Boolean); }))];
   const allNcst    = [...new Set(tasks.map(function(t) { return t.ncst; }).filter(Boolean))];
 
+  function _parcala(arr, n) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+    return out;
+  }
+
   let userMap = {}, musteriMap = {};
   if (allUserIds.length) {
-    const { data: users } = await sb.from('users').select('my_id,ad_soyad').in('my_id', allUserIds);
-    (users||[]).forEach(function(u) { userMap[u.my_id] = u; });
+    await Promise.all(_parcala(allUserIds, 200).map(async function(ids) {
+      const { data: users } = await sb.from('users').select('my_id,ad_soyad').in('my_id', ids);
+      (users||[]).forEach(function(u) { userMap[u.my_id] = u; });
+    }));
   }
   if (allNcst.length) {
-    const { data: custs } = await sb.from('customers').select('ncst,unvan').in('ncst', allNcst);
-    (custs||[]).forEach(function(c) { musteriMap[c.ncst] = c; });
+    await Promise.all(_parcala(allNcst, 200).map(async function(ns) {
+      const { data: custs } = await sb.from('customers').select('ncst,unvan').in('ncst', ns);
+      (custs||[]).forEach(function(c) { musteriMap[c.ncst] = c; });
+    }));
   }
 
   // Task'lara ilişkili verileri ekle
   // v31.12: 'Ziyaret Teyit Araması' görevleri agent ekranına özeldir — normal listeden gizle
+  // v1.2.11 (V31.48): Bu filtre artık YEDEK — asıl dışlama sunucu tarafında
+  // (.neq('type_id', ...)) yapılıyor. Görev tipi bulunamazsa diye burada bırakıldı.
   GOREV.tasks = tasks.filter(function(t){ const tt=tipMap[t.type_id]; return !tt || tt.tip_adi!=='Ziyaret Teyit Araması'; }).map(function(t) {
     return Object.assign({}, t, {
       task_types: tipMap[t.type_id] || null,
