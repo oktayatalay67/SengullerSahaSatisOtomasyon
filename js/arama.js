@@ -1,5 +1,26 @@
 // ============================================================
-// arama.js — v1.0.14
+// arama.js — v1.0.15
+//   v1.0.15 (01.09.2026, V31.46 — arama ekrani iyilestirmeleri):
+//     - YENI: "Aranacak numara" kutusu. Agent "Ara" tusuna basip anket modali
+//       acildiginda, Firma gecmisi panelinin ALTINDA numarayi gosteren bir kutu
+//       cikar. Kutu govdesine dokunmak numarayi panoya kopyalar ve "Telefon
+//       numarasi kopyalandi" bildirimi verir; sagindaki telefon ikonu ise tel:
+//       linkiyle aramayi baslatir (mobilde cevirici acilir, masaustunde etkisiz).
+//       Kopyalama ile arama AYRI tuslara verildi — tek tusa toplansaydi liste
+//       karistirilirken kazara musteri aranabilirdi.
+//     - YENI: Numaralar +90 XXX XXX XX XX bicinde gosteriliyor (normalizeTel,
+//       config.js v1.2.87). VERITABANI DEGISMEDI — normalizasyon okuma aninda.
+//       Bilinen kaliplara uymayan numarada uydurma +90 URETILMEZ: ham deger
+//       gosterilir, "format supheli" uyarisi cikar, arama tusu pasiflesir.
+//     - YENI: Memnuniyet (1-10) skalasina "Degerlendirmek istemiyor" secenegi.
+//       Bu secildiginde arama_sonuclari.memnuniyet NULL kalir ve yeni
+//       memnuniyet_ret kolonu true olur. Boylece MY ortalama memnuniyet skoru
+//       (memnSum/memnCount) ve "Memnuniyetsiz" kategorisi (memnuniyet.lte.4)
+//       HIC DEGISMEDEN dogru calisir — sentinel deger (0/-1) kullanilsaydi
+//       ikisi de sessizce bozulacakti.
+//       GEREKLI MIGRASYON (koddan ONCE calistirilmali):
+//         ALTER TABLE public.arama_sonuclari
+//           ADD COLUMN IF NOT EXISTS memnuniyet_ret boolean NOT NULL DEFAULT false;
 //   v1.0.14 (21.08.2026, filtre paneli yeniden yapilandirildi):
 //     - BUG FIX (talep edilen): Tarih filtresi ARAMA/gorev tarihini degil,
 //       artik ZIYARET tarihini (visits.tarih_saat, Europe/Istanbul takvim
@@ -272,6 +293,7 @@ function _aramaSonucOzet(s){
   const p=[];
   if(s.ziyaret_dogrulandi) p.push('Ziyaret teyit: '+s.ziyaret_dogrulandi);
   if(s.memnuniyet) p.push('Memnuniyet '+s.memnuniyet+'/10');
+  else if(s.memnuniyet_ret) p.push('Değerlendirmek istemedi');
   if(s.nps!=null) p.push('NPS '+s.nps+'/10');
   if(s.guven==='Hayır') p.push('güven yok');
   if(!p.length) p.push('Görüşüldü');
@@ -497,7 +519,7 @@ async function loadAramaTamamlanan(){
   ARAMA.tasks=tasksRaw||[];
   if(!tasksRaw||!tasksRaw.length){ g.innerHTML='<div class="empty">Tamamlanan kayıt yok.</div>'; return; }
   const ids=tasksRaw.map(t=>t.task_id);
-  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,nps,guven,ulasilamama_neden,muhatap_dogru,ziyaret_dogrulandi,sikayet_var,sikayet_metni,created_at').in('task_id',ids).order('created_at',{ascending:false});
+  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,memnuniyet_ret,nps,guven,ulasilamama_neden,muhatap_dogru,ziyaret_dogrulandi,sikayet_var,sikayet_metni,created_at').in('task_id',ids).order('created_at',{ascending:false});
   const sMap={}; (sonuclar||[]).forEach(s=>{ if(!sMap[s.task_id]) sMap[s.task_id]=s; }); // desc: ilk gelen = en son deneme
   tasksRaw.forEach(t=>{
     const s=sMap[t.task_id];
@@ -584,7 +606,7 @@ async function araSonucDetayAc(taskId){
     gov+=blok('Görüşme süresi', s.gorusme_suresi);
     gov+=blok('Temsilci güven verdi mi', s.guven);
     gov+=blok('İhtiyaç anlaşıldı mı', s.ihtiyac_anlasildi);
-    gov+=blok('Memnuniyet', s.memnuniyet?(s.memnuniyet+'/10'):'');
+    gov+=blok('Memnuniyet', s.memnuniyet?(s.memnuniyet+'/10'):(s.memnuniyet_ret?'Değerlendirmek istemedi':''));
     gov+=blok('NPS (tavsiye)', s.nps!=null?(s.nps+'/10'):'');
     gov+=blok('Takip sözü verildi mi', boolTxt(s.takip_sozu));
     gov+=blok('Takip sözü tutuldu mu', boolTxt(s.takip_tutuldu));
@@ -692,7 +714,7 @@ async function araModalAc(taskId){
   window._anket={ taskId, ncst:t.ncst, visit_id:t.visit_id||null, my_id:v.my_id||null, contact_id:v.contact_id||null,
                   telefon, unvan, contactAd, ziyaretTarih:v.tarih_saat, deneme, oncedenUlasilamadi, c:{} };
   document.getElementById('aramaAnketKunye').innerHTML =
-    `<b>${escapeHTML(unvan)}</b> · ☎ ${escapeHTML(telefon||'telefon yok')}<br>Kontak: ${escapeHTML(contactAd)} · Ziyaret: ${escapeHTML(myAd)} · ${v.tarih_saat?fmtDate(v.tarih_saat):'—'} · ${deneme}. arama`+
+    `<b>${escapeHTML(unvan)}</b> · ☎ ${escapeHTML(_telGoster(telefon))}<br>Kontak: ${escapeHTML(contactAd)} · Ziyaret: ${escapeHTML(myAd)} · ${v.tarih_saat?fmtDate(v.tarih_saat):'—'} · ${deneme}. arama`+
     (oncedenUlasilamadi?'<br><span style="color:var(--amber);">⚠ Bu numaraya daha önce ulaşılamamış.</span>':'')+
     `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;color:var(--text2);">`+
     `<div><b>Ziyaret amacı:</b> ${escapeHTML(v.ziyaret_amaci||'—')}${v.ziyaret_amaci_detay?(' — '+escapeHTML(v.ziyaret_amaci_detay)):''}</div>`+
@@ -703,9 +725,81 @@ async function araModalAc(taskId){
 
   // v31.19: Firma geçmişi — tüm ziyaretler + daha önceki teyit aramaları (istihbarat)
   _aramaGecmisYukle(t.ncst, t.visit_id);
+  // V31.46: Firma geçmişinin altındaki "Aranacak numara" kutusu
+  _aramaTelKutuRender(telefon, contactAd);
 
   _anketRender();
   openModal('aramaAnketModal');
+}
+
+// ============================================================
+// V31.46: ARANACAK NUMARA KUTUSU
+// Kutu gövdesi → panoya kopyalar + bildirim. Sağdaki 📞 → tel: ile arar.
+// İki eylem bilinçli olarak ayrı tuşlarda: tek tuşta birleştirilseydi agent
+// listeyi karıştırırken kazara müşteriyi arayabilirdi.
+// ============================================================
+function _telGoster(raw){
+  const n=normalizeTel(raw);
+  if(!raw) return 'telefon yok';
+  return n.gecerli ? n.goster : n.ham;
+}
+
+function _aramaTelKutuRender(telefon, contactAd){
+  const box=document.getElementById('aramaAnketTel');
+  if(!box) return;
+
+  if(!telefon || !String(telefon).trim()){
+    box.innerHTML=`<div style="background:var(--navy3);border:1px dashed var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text3);">
+      ☎ Bu kontakta kayıtlı telefon yok. Numarayı müşteri kartından alın.
+    </div>`;
+    return;
+  }
+
+  const n=normalizeTel(telefon);
+  const kopyalanacak = n.gecerli ? n.e164 : n.ham;
+  const yazi         = n.gecerli ? n.goster : n.ham;
+
+  const uyari = n.gecerli ? '' :
+    `<div style="font-size:11px;color:var(--amber);margin-top:6px;">
+       ⚠ Format şüpheli — kayıt bilinen bir Türkiye numarası kalıbına uymuyor.
+       Numara ham haliyle gösteriliyor, arama tuşu kapalı. Doğruysa MY'den güncelletin.
+     </div>`;
+
+  const araTus = n.gecerli
+    ? `<a href="tel:${n.e164}" class="btn btn-sm" style="background:var(--green);text-decoration:none;
+         display:flex;align-items:center;justify-content:center;min-width:52px;font-size:18px;"
+         title="Aramayı başlat">📞</a>`
+    : `<div class="btn btn-sm" style="background:var(--navy3);color:var(--text3);min-width:52px;
+         display:flex;align-items:center;justify-content:center;font-size:18px;cursor:not-allowed;"
+         title="Geçersiz format — arama başlatılamaz">📞</div>`;
+
+  box.innerHTML=`
+    <div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">
+        Aranacak numara${contactAd&&contactAd!=='—'?' · '+escapeHTML(contactAd):''}
+      </div>
+      <div style="display:flex;gap:8px;align-items:stretch;">
+        <div onclick="_aramaTelKopyala()" title="Dokun → numarayı kopyala"
+             style="flex:1;background:var(--navy2,var(--navy3));border:1px solid var(--border);
+                    border-radius:8px;padding:10px 12px;cursor:pointer;
+                    font-size:17px;font-weight:700;letter-spacing:.5px;color:var(--text);
+                    user-select:all;display:flex;align-items:center;">
+          ${escapeHTML(yazi)}
+        </div>
+        ${araTus}
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;">
+        Numaraya dokun → panoya kopyalanır &nbsp;·&nbsp; 📞 → aramayı başlatır
+      </div>
+      ${uyari}
+    </div>`;
+  box.dataset.tel=kopyalanacak;
+}
+
+function _aramaTelKopyala(){
+  const box=document.getElementById('aramaAnketTel');
+  const s=box?.dataset?.tel||'';
+  telKopyala(s, s);
 }
 
 // v31.19: bu ncst'ye ait TÜM ziyaretleri (visits) + TÜM önceki teyit aramalarını
@@ -720,7 +814,7 @@ async function _aramaGecmisYukle(ncst, guncelVisitId){
   const [{data:ziyaretler}, {data:aramalar}] = await Promise.all([
     sb.from('visits').select('visit_id,tarih_saat,my_id,temas_turu,durum,ziyaret_amaci,ziyaret_sonucu')
       .eq('ncst',ncst).order('tarih_saat',{ascending:false}).limit(20),
-    sb.from('arama_sonuclari').select('created_at,agent_id,ulasildi,ulasilamama_neden,muhatap_dogru,ziyaret_dogrulandi,memnuniyet,guven,sikayet_var,agent_notu')
+    sb.from('arama_sonuclari').select('created_at,agent_id,ulasildi,ulasilamama_neden,muhatap_dogru,ziyaret_dogrulandi,memnuniyet,memnuniyet_ret,guven,sikayet_var,agent_notu')
       .eq('ncst',ncst).order('created_at',{ascending:false}).limit(20)
   ]);
   // SLA'nın otomatik kapattığı "aranmadı" kayıtları gürültü — istihbaratta gösterilmez
@@ -756,6 +850,7 @@ function _aramaGecmisRender(ziyaretler, aramalar, guncelVisitId){
       if(s.muhatap_dogru==='Hayır') p.push('Yanlış/yetkisiz kişi');
       if(s.ziyaret_dogrulandi) p.push('Ziyaret: '+s.ziyaret_dogrulandi);
       if(s.memnuniyet!=null) p.push('Memnuniyet '+s.memnuniyet+'/10');
+      else if(s.memnuniyet_ret) p.push('Değerlendirmek istemedi');
       if(s.guven==='Hayır') p.push('Güven yok');
       if(s.sikayet_var) p.push('Şikayet var');
       ozet=p.join(' · ')||'Ulaşıldı';
@@ -806,10 +901,17 @@ function _chips(key,label,opts){
     opts.map(o=>`<div class="chip-btn${c[key]===o?' selected':''}" onclick="_anketSec('${key}','${escapeHTML(o)}')">${escapeHTML(o)}</div>`).join('')+
     `</div></div>`;
 }
-function _scale(key,label,min,max){
+// V31.46: opts.ret=true ise skalanın altına tam genişlikte "Değerlendirmek
+// istemiyor" seçeneği eklenir ve değer 'RET' olarak tutulur. _anketSatir bunu
+// memnuniyet=NULL + memnuniyet_ret=true'ya çevirir — puan olarak KAYDEDİLMEZ.
+function _scale(key,label,min,max,opts){
   const c=window._anket.c; let s='';
   for(let i=min;i<=max;i++){ s+=`<div class="chip-btn${String(c[key])===String(i)?' selected':''}" onclick="_anketSec('${key}','${i}')" style="min-width:36px;text-align:center;">${i}</div>`; }
-  return `<div class="field" style="margin-bottom:10px;"><label>${label}</label><div class="chip-grid-box">${s}</div></div>`;
+  const ret = (opts&&opts.ret)
+    ? `<div class="chip-btn${c[key]==='RET'?' selected':''}" onclick="_anketSec('${key}','RET')"
+         style="width:100%;text-align:center;margin-top:-6px;">Değerlendirmek istemiyor</div>`
+    : '';
+  return `<div class="field" style="margin-bottom:10px;"><label>${label}</label><div class="chip-grid-box">${s}</div>${ret}</div>`;
 }
 
 // v1.0.12: Anket akışı konsolide edildi (20.08.2026 talebi) — soru sayısı azaltıldı,
@@ -859,7 +961,7 @@ function _anketRender(){
         if(gorusmeOldu){
           h+=_chips('gorusme_suresi','Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
           h+=_chips('ihtiyac_anlasildi','Temsilcimiz ihtiyacınızı anladı ve çözüm üretebildi mi?',['Evet','Kısmen','Hayır']);
-          h+=_scale('memnuniyet','Memnuniyet (1-10)',1,10);
+          h+=_scale('memnuniyet','Memnuniyet (1-10)',1,10,{ret:true});
         }
 
         if(c.ziyaret_dogrulandi){
@@ -924,7 +1026,11 @@ function _anketSatir(extra){
     ziyaret_dogrulandi:c.ziyaret_dogrulandi||null, yuzyuze_uyusmazlik:(c.yuzyuze==='Telefonla')?true:(c.yuzyuze?false:null),
     isim_dogru:c.isim_dogru||null, ziyaret_yok_neden:c.ziyaret_yok_neden||null,
     gorusme_suresi:c.gorusme_suresi||null, guven:c.guven||null, ihtiyac_anlasildi:c.ihtiyac_anlasildi||null,
-    memnuniyet:c.memnuniyet?parseInt(c.memnuniyet):null, nps:(c.nps!=null&&c.nps!=='')?parseInt(c.nps):null,
+    // V31.46: 'RET' = müşteri değerlendirmek istemedi → puan NULL, ret bayrağı true.
+    // Sayısal puan olarak kaydedilmez ki ortalama ve "memnuniyetsiz" filtresi bozulmasın.
+    memnuniyet:(c.memnuniyet&&c.memnuniyet!=='RET')?parseInt(c.memnuniyet):null,
+    memnuniyet_ret:(c.memnuniyet==='RET'),
+    nps:(c.nps!=null&&c.nps!=='')?parseInt(c.nps):null,
     takip_sozu:c.takip_sozu==null?null:(c.takip_sozu==='Evet'), takip_tutuldu:c.takip_tutuldu==null?null:(c.takip_tutuldu==='Evet'),
     sikayet_var:c.sikayet_var==null?null:(c.sikayet_var==='Evet'), sikayet_metni:c.sikayet_metni||null,
     agent_notu:c.agent_notu||null
@@ -1009,7 +1115,7 @@ function _analizOzet(k,r){
   if(k==='ulasilamayan') return 'Ulaşılamadı'+(r.ulasilamama_neden?(' ('+r.ulasilamama_neden+')'):'');
   if(k==='sahte')        return 'Sahte ziyaret şüphesi';
   if(k==='supheli')      return 'Ziyaret: Emin değil';
-  if(k==='memnuniyetsiz')return 'Memnuniyet '+(r.memnuniyet??'-')+'/10'+(r.guven==='Hayır'?' · güven yok':'');
+  if(k==='memnuniyetsiz')return (r.memnuniyet!=null?('Memnuniyet '+r.memnuniyet+'/10'):(r.memnuniyet_ret?'Değerlendirmek istemedi':'Memnuniyet -'))+(r.guven==='Hayır'?' · güven yok':'');
   if(k==='sikayet')      return 'Şikayet var';
   if(k==='yuzyuze')      return 'Yüz yüze uyuşmazlık';
   return '';
@@ -1048,7 +1154,7 @@ async function loadAramaAnaliz(){
   let rows=[];
 
   if(kat.kaynak==='sonuc'){
-    let q=sb.from('arama_sonuclari').select('task_id,ncst,my_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,guven,sikayet_var,yuzyuze_uyusmazlik,created_at').order('created_at',{ascending:false}).limit(500);
+    let q=sb.from('arama_sonuclari').select('task_id,ncst,my_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,memnuniyet_ret,guven,sikayet_var,yuzyuze_uyusmazlik,created_at').order('created_at',{ascending:false}).limit(500);
     if(kat.k==='ulasilamayan') q=q.eq('ulasildi',false);
     else if(kat.k==='sahte')   q=q.eq('ziyaret_dogrulandi','Hayır');
     else if(kat.k==='supheli') q=q.eq('ziyaret_dogrulandi','Emin değil');

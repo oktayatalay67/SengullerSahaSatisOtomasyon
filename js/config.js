@@ -1,7 +1,11 @@
 // ============================================================
-// config.js — v1.2.86
-// Son güncelleme: 2026-08-21
+// config.js — v1.2.87
+// Son güncelleme: 2026-09-01
 // Değişiklikler:
+//   v1.2.87 — APP_VERSION → V31.46. Telefon normalizasyonu: normalizeTel() +
+//             telKopyala() yardimcilari eklendi (Arama modulu telefon kutusu).
+//             NOT: V31.45 atlandi — index.html'de config.js?v=v31.45 zaten
+//             kullanilmisti, ayni etiketle farkli icerik cache tuzagi olurdu.
 //   v1.2.86 — APP_VERSION → V31.44. Portfoy Devri sekmesi + secici cerceve gorunum.
 //   v1.2.85 — APP_VERSION → V31.43. Veri Yonetimi B2: MY'ye Atama tam (dosya +
 //             mutabakat + dusen tespiti + istatistik + onay).
@@ -247,7 +251,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.44';
+const APP_VERSION = 'V31.46';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
@@ -267,6 +271,61 @@ function escapeHTML(s){if(!s)return '';return String(s).replace(/[&<>'"]/g,t=>({
 function csvCell(v){const s=String(v||'').replace(/"/g,'""');return(s.includes(',')||s.includes('"')||s.includes('\n'))?'"'+s+'"':s;}
 function fmtTL(n){if(!n&&n!==0)return '—';return new Intl.NumberFormat('tr-TR',{minimumFractionDigits:0}).format(n)+' ₺';}
 function fmtDate(d){if(!d)return '—';try{return new Date(d).toLocaleDateString('tr-TR');}catch{return d;}}
+
+/* ===== TELEFON NORMALIZASYONU (v1.2.87) =====
+   DB'deki telefon verisine DOKUNULMAZ. Normalizasyon sadece goruntu ve
+   tel: linki uretimi icin, okuma aninda yapilir.
+
+   Veri denetimi (01.09.2026, contacts 30.625 kayit) sonucu tanimlanan kaliplar:
+     +90XXXXXXXXXX / 90XXXXXXXXXX (12 hane)  → dokunma, sadece + ekle
+     5XXXXXXXXX          (10 hane)           → basina +90
+     0XXXXXXXXXX         (11 hane, 0 ile)    → bastaki 0 at, +90
+   Bunlarin DISINDA kalan ~4.784 kayit (eksik haneli, TC no girilmis, coklu
+   numara vb.) icin KASITLI OLARAK +90 URETILMEZ — gecerli:false doner,
+   cagiran taraf ham degeri gosterir ve arama butonunu pasif birakir.
+   Gerekce: yanlis numara cevirmek, numara cevirememekten kotudur.        */
+function normalizeTel(raw){
+  const bos={ham:'',d:'',ulusal:'',e164:'',goster:'',gecerli:false,tip:''};
+  if(raw==null) return bos;
+  const ham=String(raw).trim();
+  if(!ham) return bos;
+  // Excel float artigi: "5379569026.0" → ".0" kuyrugunu at
+  const temiz=ham.replace(/[.,]0+$/,'');
+  const d=temiz.replace(/\D/g,'');
+  let ulusal='';
+  if(d.length===12 && d.startsWith('90'))      ulusal=d.slice(2);
+  else if(d.length===10 && d.startsWith('5'))  ulusal=d;
+  else if(d.length===11 && d.startsWith('0'))  ulusal=d.slice(1);
+  // Turkiye alan/operator kodlari: sabit 2/3/4, mobil 5. Digerleri gecersiz.
+  if(ulusal.length!==10 || !/^[2345]/.test(ulusal))
+    return {ham,d,ulusal:'',e164:'',goster:ham,gecerli:false,tip:''};
+  const e164='+90'+ulusal;
+  const goster='+90 '+ulusal.slice(0,3)+' '+ulusal.slice(3,6)+' '+ulusal.slice(6,8)+' '+ulusal.slice(8,10);
+  return {ham,d,ulusal,e164,goster,gecerli:true,tip:ulusal.startsWith('5')?'GSM':'SABIT'};
+}
+
+/* Panoya kopyala — Clipboard API + eski tarayici fallback. */
+async function telKopyala(metin,etiket){
+  const s=String(metin||'').trim();
+  if(!s){ toast('Kopyalanacak numara yok','error'); return false; }
+  try{
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(s);
+    }else{
+      const ta=document.createElement('textarea');
+      ta.value=s; ta.setAttribute('readonly','');
+      ta.style.cssText='position:fixed;top:-1000px;left:-1000px;opacity:0;';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0,s.length);
+      const ok=document.execCommand('copy'); document.body.removeChild(ta);
+      if(!ok) throw new Error('execCommand basarisiz');
+    }
+    toast('Telefon numarası kopyalandı: '+escapeHTML(etiket||s),'success');
+    return true;
+  }catch(e){
+    toast('Kopyalanamadı — numarayı elle alın: '+escapeHTML(etiket||s),'error');
+    return false;
+  }
+}
 
 /* ===== STATE ===== */
 let sb=null, currentUser=null, selectedCustomer=null;
