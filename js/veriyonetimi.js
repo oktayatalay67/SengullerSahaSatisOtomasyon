@@ -1,7 +1,10 @@
 // ============================================================
-// veriyonetimi.js — v1.4.0  (2 sekme: Musteri + Kontak)
+// veriyonetimi.js — v1.5.0  (2 sekme: Musteri + Kontak)
 // Son güncelleme: 2026-08-26
 // Değişiklikler:
+//   v1.5.0 — (V31.44) Portfoy Devri sekmesi (dosyasiz): Kaynak(B)->Hedef(A);
+//            hedefin eskileri C'ye tasinir. Ozet + onay + dogrulama. MY secici
+//            gorunumu cerceveli karta cevrildi.
 //   v1.4.0 — (V31.43) B2: MY'ye Atama tam calisir. Secili MY dosyadaki tum
 //            musteriye atanir (my_id enjeksiyon); mevcut portfoyden DUSEN (listede
 //            olmayan) musteriler tespit edilir, istatistik gosterilir, istege bagli
@@ -69,19 +72,16 @@ function vyReset(mode){
   const ip=document.getElementById('vyIpucu'); if(ip) ip.innerHTML=vyCfg().ipucu;
 }
 function vyTab(mode){
-  if(mode==='atama'){
-    VY.mode='atama'; vyTabStyle();
-    const np=document.getElementById('vyNormalPanel'); if(np) np.style.display='none';
-    const ap=document.getElementById('vyAtamaPanel'); if(ap){ ap.style.display=''; vyAtamaInit(); }
-    return;
-  }
-  const ap=document.getElementById('vyAtamaPanel'); if(ap) ap.style.display='none';
-  const np=document.getElementById('vyNormalPanel'); if(np) np.style.display='';
+  ['vyAtamaPanel','vyDevirPanel'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
+  const np=document.getElementById('vyNormalPanel');
+  if(mode==='atama'){ VY.mode='atama'; vyTabStyle(); if(np) np.style.display='none'; const ap=document.getElementById('vyAtamaPanel'); if(ap){ ap.style.display=''; vyAtamaInit(); } return; }
+  if(mode==='devir'){ VY.mode='devir'; vyTabStyle(); if(np) np.style.display='none'; const dp=document.getElementById('vyDevirPanel'); if(dp){ dp.style.display=''; vyDevirInit(); } return; }
+  if(np) np.style.display='';
   vyReset(mode); vyTabStyle();
 }
 function vyTabStyle(){
-  ['musteri','kontak','atama'].forEach(m=>{ const b=document.getElementById('vyTab_'+m); if(b){ const on=VY.mode===m; b.style.background=on?'#34d399':'var(--bg2)'; b.style.color=on?'#062':'var(--text2)'; b.style.fontWeight=on?'700':'500'; } });
-  const ip=document.getElementById('vyIpucu'); if(ip && VY.mode!=='atama') ip.innerHTML=vyCfg().ipucu;
+  ['musteri','kontak','atama','devir'].forEach(m=>{ const b=document.getElementById('vyTab_'+m); if(b){ const on=VY.mode===m; b.style.background=on?'#34d399':'var(--bg2)'; b.style.color=on?'#062':'var(--text2)'; b.style.fontWeight=on?'700':'500'; } });
+  const ip=document.getElementById('vyIpucu'); if(ip && VY.mode!=='atama' && VY.mode!=='devir') ip.innerHTML=vyCfg().ipucu;
 }
 
 // ============================================================
@@ -105,9 +105,9 @@ function vyMySeciciFiltre(containerId){
     return nad.indexOf(q)>=0 || (ext && ext.indexOf(qLow)>=0);
   }).sort((a,b)=>a.ad_soyad.localeCompare(b.ad_soyad,'tr')).slice(0,25);
   if(!list.length){ res.innerHTML='<div style="padding:8px;color:var(--text2);font-size:12px;">Eslesme yok.</div>'; return; }
-  res.innerHTML='<div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:9px;">'+list.map(u=>'<div class="vy-sec-row" onclick="vyMySeciciPick(\''+containerId+'\','+u.my_id+')" onmouseover="this.style.background=\'rgba(52,211,153,.15)\'" onmouseout="this.style.background=\'transparent\'" style="padding:9px 11px;cursor:pointer;border-bottom:1px solid var(--line);background:transparent;font-size:13px;">'
-    +'<b>'+escapeHTML(u.ad_soyad)+'</b> <span style="color:var(--text2);font-size:11px;">'+escapeHTML(u.rol||'')+(u.kcm_id?(' · KCM '+u.kcm_id):'')+'</span>'
-    +(u.ext_kod?'<span style="color:#60a5fa;font-size:11px;float:right;">'+escapeHTML(u.ext_kod)+'</span>':'')+'</div>').join('')+'</div>';
+  res.innerHTML='<div style="max-height:340px;overflow:auto;padding:2px;">'+list.map(u=>'<div class="vy-sec-row" onclick="vyMySeciciPick(\''+containerId+'\','+u.my_id+')" onmouseover="this.style.borderColor=\'#34d399\';this.style.background=\'rgba(52,211,153,.10)\'" onmouseout="this.style.borderColor=\'var(--line)\';this.style.background=\'var(--bg2)\'" style="padding:10px 12px;cursor:pointer;border:1px solid var(--line);border-radius:9px;background:var(--bg2);font-size:13px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+    +'<span><b>'+escapeHTML(u.ad_soyad)+'</b> <span style="color:var(--text2);font-size:11px;">'+escapeHTML(u.rol||'')+(u.kcm_id?(' · KCM '+u.kcm_id):'')+'</span></span>'
+    +(u.ext_kod?'<span style="color:#60a5fa;font-size:11px;white-space:nowrap;">'+escapeHTML(u.ext_kod)+'</span>':'')+'</div>').join('')+'</div>';
 }
 function vyMySeciciPick(containerId, myId){
   const u=(window.userSecici||[]).find(x=>x.my_id===myId); if(!u) return;
@@ -150,6 +150,93 @@ function vyResetNormalOnly(){
   ['vyInfo','vyMapping','vyAnalizSonuc','vyPreview'].forEach(id=>{ const e=document.getElementById(id); if(e) e.innerHTML=''; });
   const fi=document.getElementById('vyFile'); if(fi) fi.value='';
   const btn=document.getElementById('vyOkuBtn'); if(btn) btn.disabled=true;
+}
+
+// ============================================================
+// PORTFOY DEVRI — B (kaynak) -> A (hedef); A'nin eskileri C'ye. Dosyasiz.
+// ============================================================
+window.VYDEVIR = window.VYDEVIR || {};
+async function vyMusteriSayisi(myId){ try{ const {count}=await sb.from('customers').select('*',{count:'exact',head:true}).eq('my_id',myId); return count||0; }catch(e){ console.error(e); return 0; } }
+
+function vyDevirInit(){
+  window.VYDEVIR={kaynak:null,hedef:null,cTarget:null,kaynakSayi:0,hedefSayi:0};
+  const box=document.getElementById('vyDevirPanel'); if(!box) return;
+  box.innerHTML=
+    '<div style="background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;">'
+   +'<div style="font-weight:700;margin-bottom:6px;">1. Kaynak MY/FMY</div>'
+   +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Musterileri devredilecek ve <b>bosalacak</b> kisi.</div>'
+   +'<div id="vyDevirKaynak"></div></div>'
+   +'<div style="background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;">'
+   +'<div style="font-weight:700;margin-bottom:6px;">2. Hedef MY/FMY</div>'
+   +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Kaynaktaki musterileri alacak kisi.</div>'
+   +'<div id="vyDevirHedef"></div></div>'
+   +'<div id="vyDevirSonuc"></div>';
+  vyMySeciciRender('vyDevirKaynak', async function(u){ VYDEVIR.kaynak=u; VYDEVIR.kaynakSayi=u?await vyMusteriSayisi(u.my_id):0; vyDevirRefresh(); }, 'Kaynak ara: isim veya EXT...');
+  vyMySeciciRender('vyDevirHedef', async function(u){ VYDEVIR.hedef=u; VYDEVIR.hedefSayi=u?await vyMusteriSayisi(u.my_id):0; VYDEVIR.cTarget=null; vyDevirRefresh(); }, 'Hedef ara: isim veya EXT...');
+}
+
+function vyDevirRefresh(){
+  const el=document.getElementById('vyDevirSonuc'); if(!el) return;
+  const K=VYDEVIR.kaynak, H=VYDEVIR.hedef;
+  if(!K||!H){ el.innerHTML=''; return; }
+  if(K.my_id===H.my_id){ el.innerHTML='<div style="background:rgba(248,113,113,.1);border:1px solid #f87171;border-radius:10px;padding:12px;color:#f87171;font-size:13px;">Kaynak ve hedef ayni kisi olamaz.</div>'; return; }
+  let h='<div style="background:rgba(96,165,250,.08);border:1px solid #60a5fa;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.7;">';
+  h+='Kaynak <b>'+escapeHTML(K.ad_soyad)+'</b>: <b>'+VYDEVIR.kaynakSayi+'</b> musteri<br>';
+  h+='Hedef <b>'+escapeHTML(H.ad_soyad)+'</b>: <b>'+VYDEVIR.hedefSayi+'</b> musteri</div>';
+  if(VYDEVIR.hedefSayi>0){
+    h+='<div style="background:rgba(248,113,113,.06);border:1px solid #f87171;border-radius:12px;padding:12px 14px;margin-bottom:12px;">';
+    h+='<div style="font-weight:700;margin-bottom:6px;">Hedefin mevcut '+VYDEVIR.hedefSayi+' musterisi nereye?</div>';
+    h+='<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Kaynaktakiler eklenmeden ONCE bu kisilere tasinacak. Gercek MY veya "MY TANIMSIZ" secebilirsin.</div>';
+    h+='<div id="vyDevirC"></div><div id="vyDevirCbilgi" style="font-size:12px;color:#fbbf24;margin-top:6px;"></div></div>';
+  }
+  h+='<div id="vyDevirOnayKutu"></div>';
+  h+='<button class="btn-primary" onclick="vyDevirOzet()" style="padding:10px 20px;font-size:14px;font-weight:700;background:#34d399;">Ozet ve Onay</button>';
+  el.innerHTML=h;
+  if(VYDEVIR.hedefSayi>0){ vyMySeciciRender('vyDevirC', function(u){ VYDEVIR.cTarget=u; const inf=document.getElementById('vyDevirCbilgi'); if(inf) inf.textContent=u?('Hedefin eskileri -> '+u.ad_soyad+' (my_id='+u.my_id+')'):''; }, 'Hedefin eskileri icin ara...'); }
+}
+
+function vyDevirOzet(){
+  const K=VYDEVIR.kaynak, H=VYDEVIR.hedef, C=VYDEVIR.cTarget;
+  const kutu=document.getElementById('vyDevirOnayKutu'); if(!kutu) return;
+  if(!K||!H){ toast('Kaynak ve hedef sec','error'); return; }
+  if(K.my_id===H.my_id){ toast('Kaynak ve hedef ayni olamaz','error'); return; }
+  if(VYDEVIR.hedefSayi>0 && !C){ toast('Hedefin mevcut musterileri icin bir kisi sec','error'); return; }
+  if(C && (C.my_id===K.my_id || C.my_id===H.my_id)){ toast('Hedefin eskileri icin farkli bir kisi sec (kaynak/hedef olamaz)','error'); return; }
+  let h='<div style="background:rgba(52,211,153,.08);border:1px solid #34d399;border-radius:10px;padding:14px;margin-bottom:12px;"><div style="font-weight:700;margin-bottom:8px;">Devir Ozeti</div><div style="font-size:13px;line-height:1.8;">';
+  h+='• <b>'+escapeHTML(K.ad_soyad)+'</b> in <b>'+VYDEVIR.kaynakSayi+'</b> musterisi -> <b>'+escapeHTML(H.ad_soyad)+'</b> e tasiniyor<br>';
+  if(VYDEVIR.hedefSayi>0) h+='• <b>'+escapeHTML(H.ad_soyad)+'</b> in eski <b>'+VYDEVIR.hedefSayi+'</b> musterisi -> <b>'+escapeHTML(C.ad_soyad)+'</b> e tasiniyor<br>';
+  h+='• <b>'+escapeHTML(K.ad_soyad)+'</b> bosalacak<br>';
+  h+='</div><div style="margin-top:10px;"><button class="btn-primary" onclick="vyDevirExec()" style="padding:8px 18px;background:#34d399;font-weight:700;">Onayla ve Tasi</button><button onclick="document.getElementById(\'vyDevirOnayKutu\').innerHTML=\'\'" style="padding:8px 14px;margin-left:8px;">Iptal</button></div></div>';
+  kutu.innerHTML=h; kutu.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+async function vyDevirExec(){
+  const K=VYDEVIR.kaynak, H=VYDEVIR.hedef, C=VYDEVIR.cTarget;
+  const kutu=document.getElementById('vyDevirOnayKutu'); if(kutu) kutu.innerHTML='<div style="padding:10px;color:var(--text2);">Tasiniyor...</div>';
+  const now=new Date().toISOString();
+  let hataMsg=null, cMoved=0, kMoved=0;
+  try{
+    // 1) Hedefin eskileri -> C (once, karismasin)
+    if(VYDEVIR.hedefSayi>0 && C){
+      const {error}=await sb.from('customers').update({my_id:C.my_id, guncelleme_tarihi:now}).eq('my_id',H.my_id);
+      if(error) throw error; cMoved=VYDEVIR.hedefSayi;
+    }
+    // 2) Kaynak -> Hedef
+    const {error:e2}=await sb.from('customers').update({my_id:H.my_id, guncelleme_tarihi:now}).eq('my_id',K.my_id);
+    if(e2) throw e2; kMoved=VYDEVIR.kaynakSayi;
+  }catch(e){ console.error(e); hataMsg=e.message||String(e); }
+  // dogrulama
+  let hSonra=0, kSonra=0;
+  try{ hSonra=await vyMusteriSayisi(H.my_id); kSonra=await vyMusteriSayisi(K.my_id); }catch(e){}
+  if(kutu){
+    if(hataMsg){ kutu.innerHTML='<div style="background:rgba(248,113,113,.1);border:1px solid #f87171;border-radius:10px;padding:14px;color:#f87171;font-size:13px;">Hata: '+escapeHTML(hataMsg)+'<br>Islem yarim kalmis olabilir; sayilari kontrol edin.</div>'; return; }
+    kutu.innerHTML='<div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:13px;line-height:1.8;">'
+      +'<div style="font-weight:700;margin-bottom:6px;">✅ Devir Tamamlandi</div>'
+      +'• '+kMoved+' musteri '+escapeHTML(K.ad_soyad)+' -> '+escapeHTML(H.ad_soyad)+'<br>'
+      +(cMoved?('• '+cMoved+' musteri '+escapeHTML(H.ad_soyad)+' (eski) -> '+escapeHTML(C.ad_soyad)+'<br>'):'')
+      +'<br>Simdi: <b>'+escapeHTML(H.ad_soyad)+'</b> = '+hSonra+' musteri, <b>'+escapeHTML(K.ad_soyad)+'</b> = '+kSonra+' musteri'
+      +'</div>';
+  }
 }
 function vyFileSelected(){ const fi=document.getElementById('vyFile'), btn=document.getElementById('vyOkuBtn'); if(btn) btn.disabled=!(fi&&fi.files&&fi.files.length); }
 
