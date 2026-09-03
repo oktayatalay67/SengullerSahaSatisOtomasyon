@@ -1,5 +1,37 @@
 // ============================================================
-// arama.js — v1.0.17
+// arama.js — v1.0.19
+//   v1.0.19 (03.09.2026, V31.53 — sekme yapisi, filtre kaliciligi, aranmak istemiyor):
+//     1) SEKMELER 3 -> 4: "Bekleyen" ikiye ayrildi. "Yeni" (hic aranmamis) ve
+//        "Tekrar Aranacak" ayri sekmeler. Kutular 2x2 izgara.
+//     2) BUG: _analizIzinMyList currentUser.kcm_id null iken .eq('kcm_id',null)
+//        uretiyordu -> PostgREST 'eq.null' kabul etmez -> 400. Hata yutuluyor,
+//        BOS DIZI donuyordu. Cagiran taraflar `if(izinMy)` diye bakiyordu ve
+//        JS'te bos dizi TRUTHY oldugu icin: Cagri Analizi sessizce bos kaliyor,
+//        MY/FMY filtresi bosaliyordu ("Tum FMY'ler calismiyor"). Etkilenen:
+//        kcm_id'si null olan herkes — tum ADMIN'ler, Satis Direktoru, Cagri
+//        Merkezi Uzmani. Duzeltildi: kcm_id yoksa kisit yok (null doner).
+//     3) FILTRE KALICILIGI: filtreler artik ARAMA.filtre state'inde. Arama
+//        modalindan donunce KORUNUR; sekme degisince veya ekrandan cikinca
+//        sifirlanir. Kutulardaki rakamlar FILTRELENMIS adetleri gosterir.
+//        Bunun icin acik gorevler tek sorguda cekilip dort kovaya boluniyor;
+//        filtre degisimi sunucuya gitmiyor (aninda tepki).
+//     4) YENI: "Aranmak istemiyor". Gorusmek icin uygun degil + bir daha
+//        aranmak istemiyorsa isaretlenir -> contacts.aranmak_istemiyor=true,
+//        gorev Tamamlandi olarak kapanir. Ayni kontak sonraki ziyaretlerde
+//        kirmizi "BU KONTAK ARANMAK ISTEMIYOR" bandiyla gorunur.
+//        MIGRASYON: ALTER TABLE contacts ADD COLUMN aranmak_istemiyor boolean
+//        NOT NULL DEFAULT false, ADD COLUMN aranmak_istemiyor_tarih timestamptz;
+//     5) "Gorusme suresi" sorusu kaldirildi (DB kolonu duruyor).
+//   v1.0.18 (03.09.2026, V31.52 — PAYLASILAN HAT DUZELTMESI):
+//     SORUN: v1.0.17 telefon eslesmesini "ayni kisi" kaniti sayiyordu. Veri
+//     incelemesi bunun yanlis oldugunu gosterdi: ayni numarayi paylasan 50
+//     gruptan 34'unde (%68) birden fazla GERCEK kisi var. Ornek 5415907001 ->
+//     Haktan / Muzaffer / Hakki / Omer / Faruk (muhasebeci gibi paylasilan hat).
+//     RISK: agent bir kisiyle konusup, o kisinin ilgisi olmayan bir firmanin
+//     ziyaretini de teyit edebiliyordu -> sahte teyit verisi.
+//     DUZELTME: isimler tutmuyorsa (a) serit amber "AYNI NUMARA — isimler
+//     farkli" der ve tum isimleri listeler, (b) onay ekraninda her kaydin kendi
+//     kontak adi gorunur, (c) ikincil kutular ISARETSIZ gelir.
 //   v1.0.17 (01.09.2026, V31.49 — ayni kisi tespiti + birlesik arama):
 //     - YENI: Ayni kisi tespiti. Farkli NCST/unvandaki musteriler ayni kisi
 //       tarafindan yonetiliyorsa ve MY ayni gun ikisini de ziyaret ettiyse, iki
@@ -174,7 +206,8 @@
 // ============================================================
 'use strict';
 
-const ARAMA = { teyitTypeId:null, tasks:[], unvanMap:{}, vMap:{}, kMap:{}, gruplar:{}, grupKisi:{} };
+const ARAMA = { teyitTypeId:null, tasks:[], unvanMap:{}, vMap:{}, kMap:{}, gruplar:{}, grupKisi:{}, grupAd:{},
+                filtre:{bas:'',bit:'',kcm:'',my:'',q:'',tamDurum:''}, veri:null, aktifSekme:null };
 
 // v1.0.13: BUG FIX — "bugün" hesabı cihazın saat dilimine/UTC'ye değil, her zaman
 // Europe/Istanbul takvim gününe göre yapılmalı. new Date().toISOString().slice(0,10)
@@ -213,9 +246,10 @@ async function initAramaEkrani(){
   if(!typeId){ if(listEl) listEl.innerHTML='<div class="empty">Arama görev tipi bulunamadı.</div>'; return; }
   const agent=hasPerm('arama_agent');
   if(agent) await _aramaSlaOtomatikKapat(typeId);   // SLA yalnız agent ekranında
-  ARAMA.aktifSekme = ARAMA.aktifSekme || (agent?'bugun':'analiz');
+  ARAMA.aktifSekme = agent ? 'yeni' : 'analiz';       // V31.53: ekrana her giriste 'Yeni'
+  ARAMA.filtre = {bas:'',bit:'',kcm:'',my:'',q:'',tamDurum:''};  // ekrandan cikip donunce filtre sifir
+  ARAMA.veri = null;                                   // taze veri cek
   _aramaShellRender();
-  if(agent) _aramaSayaclariYukle();
   _aramaSekmeGoster(ARAMA.aktifSekme);
 }
 
@@ -227,10 +261,18 @@ function _aramaShellRender(){
   const agent=hasPerm('arama_agent'), rapor=hasPerm('arama_rapor');
   let h='';
   if(agent){
-    h+=`<div id="aramaSekmeler" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
-      <div class="summary-box" data-sekme="bugun" style="cursor:pointer;" onclick="_aramaSekmeGoster('bugun')">
-        <div class="summary-val lg" id="aramaStatBugun" style="color:var(--amber);">—</div>
-        <div class="summary-label lg">Bekleyen</div>
+    // V31.53: 3 sekme -> 4 sekme. "Bekleyen" ikiye ayrildi: hic aranmamislar
+    // ("Yeni") ve tekrar aranacaklar ayri sekmelerde. 4 kutu tek sirada dar
+    // ekranda sigmadigi icin 2x2 izgara.
+    // Kutulardaki rakamlar FILTRELENMIS adetleri gosterir (V31.53).
+    h+=`<div id="aramaSekmeler" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px;">
+      <div class="summary-box" data-sekme="yeni" style="cursor:pointer;" onclick="_aramaSekmeGoster('yeni')">
+        <div class="summary-val lg" id="aramaStatYeni" style="color:var(--amber);">—</div>
+        <div class="summary-label lg">Yeni</div>
+      </div>
+      <div class="summary-box" data-sekme="tekrar" style="cursor:pointer;" onclick="_aramaSekmeGoster('tekrar')">
+        <div class="summary-val lg" id="aramaStatTekrar" style="color:var(--orange);">—</div>
+        <div class="summary-label lg">Tekrar Aranacak</div>
       </div>
       <div class="summary-box" data-sekme="gelecek" style="cursor:pointer;" onclick="_aramaSekmeGoster('gelecek')">
         <div class="summary-val lg" id="aramaStatGelecek" style="color:var(--blue);">—</div>
@@ -248,31 +290,46 @@ function _aramaShellRender(){
   el.innerHTML=h;
 }
 
-async function _aramaSayaclariYukle(){
-  const typeId=await _aramaTeyitTypeId();
-  const bugun=_istanbulBugun();
-  const [bek,gel,tam]=await Promise.all([
-    sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).lte('deadline',bugun).then(r=>r.count||0),
-    sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).gt('deadline',bugun).then(r=>r.count||0),
-    sb.from('tasks').select('*',{count:'exact',head:true}).eq('type_id',typeId).eq('durum','Tamamlandı').gte('tamamlanma_tarihi',bugun+'T00:00:00+03:00').then(r=>r.count||0)
-  ]);
-  const b=document.getElementById('aramaStatBugun'); if(b) b.textContent=bek;
-  const g=document.getElementById('aramaStatGelecek'); if(g) g.textContent=gel;
-  const t=document.getElementById('aramaStatTamamlanan'); if(t) t.textContent=tam;
+// V31.53: Sayaclar artik ayri COUNT sorgulariyla degil, ekranda gosterilen
+// FILTRELENMIS veriden hesaplanir. Boylece "1 gun filtreledim ama kutuda hala
+// toplam yaziyor" tutarsizligi ortadan kalkar.
+function _aramaSayaclariYaz(kova){
+  const yaz=(id,deger)=>{ const e=document.getElementById(id); if(e) e.textContent=deger; };
+  yaz('aramaStatYeni',       kova.yeni.length);
+  yaz('aramaStatTekrar',     kova.tekrar.length);
+  yaz('aramaStatGelecek',    kova.gelecek.length);
+  // Tamamlanan sunucuda 300 ile sinirli cekiliyor; tavana degdiyse "300+" yaz.
+  yaz('aramaStatTamamlanan', kova.tamamlanan.length + (ARAMA._tamamTavan?'+':''));
 }
 
 function _aramaSekmeGoster(sekme){
+  const oncekiSekme=ARAMA.aktifSekme;
   ARAMA.aktifSekme=sekme;
   document.querySelectorAll('#aramaListesi [data-sekme]').forEach(c=>c.classList.toggle('active', c.getAttribute('data-sekme')===sekme));
+  // V31.53: SEKME DEGISINCE filtre sifirlanir (talep edilen davranis).
+  // Arama modalindan donuste sekme degismedigi icin filtre KORUNUR.
+  if(oncekiSekme && oncekiSekme!==sekme) _aramaFiltreSifirla();
+  if(sekme==='analiz'){
+    const f=document.getElementById('aramaFiltre'); if(f){ f.innerHTML=''; delete f.dataset.ready; }
+    loadAramaAnaliz(); return;
+  }
+  loadAramaListe(true);
+}
+
+// V31.53: Filtre durumu ARAMA.filtre icinde yasar; panel bu state'ten kurulur.
+// Eskiden panel her _aramaSekmeGoster cagrisinda silinip sifirdan yaratiliyordu —
+// arama modalindan donuste (loadAramaListesi -> _aramaSekmeGoster) tum filtreler
+// kayboluyordu.
+function _aramaFiltreSifirla(){
+  ARAMA.filtre={bas:'',bit:'',kcm:'',my:'',q:'',tamDurum:''};
   const f=document.getElementById('aramaFiltre'); if(f){ f.innerHTML=''; delete f.dataset.ready; }
-  if(sekme==='bugun') loadAramaBugun();
-  else if(sekme==='gelecek') loadAramaGelecek();
-  else if(sekme==='analiz') loadAramaAnaliz();
-  else loadAramaTamamlanan();
 }
 
 // Eski çağrı noktaları (kaydet/kapat sonrası): aktif sekmeyi + sayaçları yenile
-function loadAramaListesi(){ _aramaSayaclariYukle(); _aramaSekmeGoster(ARAMA.aktifSekme||'bugun'); }
+// V31.53: Modal kaydi/kapanisi sonrasi cagrilir. Sekme ve FILTRE korunur —
+// sadece veri yeniden cekilir. Eskiden _aramaSekmeGoster cagirip paneli
+// sifirdan kuruyordu ve tum filtreler kayboluyordu.
+function loadAramaListesi(){ if(ARAMA.aktifSekme==='analiz') return loadAramaAnaliz(); loadAramaListe(true); }
 
 async function _aramaEnrich(tasks){
   const ncstList=[...new Set(tasks.map(t=>t.ncst).filter(Boolean))];
@@ -286,7 +343,7 @@ async function _aramaEnrich(tasks){
   const kMap={};   // visit_id -> {ad_soyad, telefon}
   if(cIds.length){
     const kByCid={};
-    const {data}=await sb.from('contacts').select('contact_id,ad_soyad,telefon').in('contact_id',cIds);
+    const {data}=await sb.from('contacts').select('contact_id,ad_soyad,telefon,aranmak_istemiyor').in('contact_id',cIds);   // V31.53
     (data||[]).forEach(k=>kByCid[k.contact_id]=k);
     Object.values(vMap).forEach(v=>{ if(v.contact_id && kByCid[v.contact_id]) kMap[v.visit_id]=kByCid[v.contact_id]; });
   }
@@ -321,6 +378,35 @@ function _kisiAdNorm(s){
     .replace(/[^A-ZÇĞİÖŞÜ]/g,' ').replace(/\s+/g,' ').trim();
 }
 function _aramaGun(ts){ return ts?String(ts).slice(0,10):''; }
+
+// V31.51: Isim "kok"u — unvan kelimeleri atilir, Turkce harfler sadelestirilir,
+// ilk kelimenin ilk 4 harfi alinir. Aytekin/Aytekib ve Kursad/Kursat ayni koke
+// duser; Nurdan/Koray dusmez.
+const _UNVAN_KELIME=['bey','bay','hanim','hn','hanin','beyy','beyyy','sayin','sn'];
+function _kisiAdKok(s){
+  const t=String(s||'').toLocaleLowerCase('tr')
+    .replace(/ı/g,'i').replace(/ş/g,'s').replace(/ğ/g,'g')
+    .replace(/ü/g,'u').replace(/ö/g,'o').replace(/ç/g,'c')
+    .replace(/[^a-z ]/g,' ');
+  const kel=t.split(/\s+/).filter(w=>w && !_UNVAN_KELIME.includes(w));
+  return kel.length?kel[0].slice(0,4):'';
+}
+
+// V31.51: Gruptaki isimler gercekten ayni kisiye mi ait?
+// PAYLASILAN HAT GERCEGI: ayni numarayi paylasan 50 gruptan 34'unde (%68)
+// birden fazla GERCEK kisi cikti. Telefon eslesmesi tek basina "ayni kisi"
+// KANITI DEGIL — isimler tutmuyorsa kullanici uyarilir ve birlestirme
+// varsayilan olarak SECILMEZ.
+function _grupIsimAnaliz(uyeler){
+  const kokler=[], isimler=[];
+  uyeler.forEach(u=>{
+    const k=_kisiAdKok(u.ad);
+    const ad=(u.ad||'').trim();
+    if(ad && !isimler.some(x=>x.toLocaleLowerCase('tr')===ad.toLocaleLowerCase('tr'))) isimler.push(ad);
+    if(k && !kokler.includes(k)) kokler.push(k);
+  });
+  return { isimler, farkli: kokler.length>1 };
+}
 
 function _aramaAyniKisiGrupla(tasks,vMap,kMap){
   ARAMA.gruplar={}; ARAMA.grupKisi={};
@@ -361,12 +447,31 @@ function _aramaAyniKisiGrupla(tasks,vMap,kMap){
   Object.values(kok).forEach(uyeler=>{
     if(uyeler.length<2) return;                    // tek başınaysa grup değil
     const ids=uyeler.map(u=>u.t.task_id);
-    const kisi={ad:uyeler[0].ad, tel:uyeler[0].tel};
+    const analiz=_grupIsimAnaliz(uyeler);                                   // V31.51
+    const kisi={ad:uyeler[0].ad, tel:uyeler[0].tel, isimler:analiz.isimler, farkli:analiz.farkli};
+    const adMap={}; uyeler.forEach(u=>{ adMap[u.t.task_id]=u.ad||''; });    // gorev -> kendi kontak adi
     ids.forEach(id=>{ ARAMA.gruplar[id]=ids; ARAMA.grupKisi[id]=kisi; });
+    ARAMA.grupAd=Object.assign(ARAMA.grupAd||{},adMap);
   });
 }
 
 // Kart ve modal için ortak uyarı şeridi HTML'i
+// V31.53: "Aranmak istemiyor" uyari bandi. Kontak daha once bir aramada bu
+// sekilde isaretlendiyse, AYNI KONTAK sonraki ziyaret gorevlerinde de bu bantla
+// gorunur — agent bosuna aramasin, musteri rahatsiz olmasin.
+function _aramaIstemiyorBant(taskId,mod){
+  const t=(ARAMA.tasks||[]).find(x=>x.task_id===taskId);
+  const v=t?((ARAMA.vMap||{})[t.visit_id]):null;
+  const k=v?((ARAMA.kMap||{})[v.visit_id]):null;
+  if(!k || !k.aranmak_istemiyor) return '';
+  return '<div style="background:rgba(224,4,42,.15);border:1px solid var(--red);border-radius:8px;'+
+    'padding:8px 10px;margin:'+(mod==='modal'?'0 0 10px':'8px 0 0')+';font-size:12px;">'+
+      '<div style="color:var(--red);font-weight:700;">&#9940; BU KONTAK ARANMAK İSTEMİYOR</div>'+
+      '<div style="color:var(--text2);margin-top:2px;">'+escapeHTML(k.ad_soyad||'—')+
+        ' daha önceki bir aramada bir daha aranmak istemediğini belirtti.</div>'+
+    '</div>';
+}
+
 function _aramaAyniKisiSerit(taskId,mod){
   const ids=ARAMA.gruplar?ARAMA.gruplar[taskId]:null;
   if(!ids||ids.length<2) return '';
@@ -377,17 +482,38 @@ function _aramaAyniKisiSerit(taskId,mod){
   });
   const tel=(typeof normalizeTel==='function')?normalizeTel(kisi.tel):{gecerli:false};
   const telYazi=tel.gecerli?tel.goster:(kisi.tel||'');
+
+  // V31.51: isimler tutmuyorsa bu bir "ayni kisi" iddiasi DEGIL, sadece "ayni
+  // numara" gozlemidir. Paylasilan hatlarda ayni numarada gercekten farkli
+  // kisiler bulunuyor — agent'i yaniltmamak icin renk, baslik ve buton degisir.
+  const farkli=!!kisi.farkli;
+  const renk  = farkli ? 'var(--amber)' : 'var(--purple)';
+  const zemin = farkli ? 'rgba(255,180,0,.12)' : 'rgba(168,85,247,.12)';
+  const baslik = farkli
+    ? '&#9888; AYNI NUMARA — isimler farkl\u0131, kontrol edin'
+    : '\uD83D\uDD17 AYNI K\u0130\u015E\u0130 — '+ids.length+' firma i\u00e7in aranacak';
+  const kisiSatir = farkli
+    ? '<div style="color:var(--text2);margin-top:2px;">Kay\u0131tl\u0131 isimler: <b>'+
+        escapeHTML((kisi.isimler||[]).join(' / '))+'</b></div>'+
+      (telYazi?'<div style="color:var(--text3);margin-top:2px;">'+escapeHTML(telYazi)+'</div>':'')+
+      '<div style="color:var(--text3);margin-top:2px;">Ayn\u0131 numara, farkl\u0131 isimler — payla\u015f\u0131lan hat olabilir. '+
+        'Birle\u015ftirmeden \u00f6nce do\u011fru ki\u015fi oldu\u011funu teyit edin.</div>'
+    : '<div style="color:var(--text2);margin-top:2px;">'+escapeHTML(kisi.ad||'—')+
+        (telYazi?(' · '+escapeHTML(telYazi)):'')+'</div>';
+  const butonMetni = farkli
+    ? '\uD83D\uDD0D Birle\u015ftirmeyi incele ('+ids.length+' ziyaret)'
+    : '\uD83D\uDD17 Bu '+ids.length+' ziyareti tek g\u00f6r\u00fc\u015fmede teyit et';
   const buton=(mod==='modal')
-    ? `<button class="btn btn-sm" style="width:100%;margin-top:8px;background:var(--purple);"
-         onclick="araBirlesikAc(${taskId})">🔗 Bu ${ids.length} ziyareti tek görüşmede teyit et</button>`
+    ? '<button class="btn btn-sm" style="width:100%;margin-top:8px;background:'+renk+
+      (farkli?';color:#000':'')+'" onclick="araBirlesikAc('+taskId+')">'+butonMetni+'</button>'
     : '';
-  return `<div style="background:rgba(168,85,247,.12);border:1px solid var(--purple);border-radius:8px;
-            padding:8px 10px;margin:${mod==='modal'?'0 0 10px':'8px 0 0'};font-size:12px;">
-      <div style="color:var(--purple);font-weight:700;">🔗 AYNI KİŞİ — ${ids.length} firma için aranacak</div>
-      <div style="color:var(--text2);margin-top:2px;">${escapeHTML(kisi.ad||'—')}${telYazi?(' · '+escapeHTML(telYazi)):''}</div>
-      <div style="color:var(--text3);margin-top:2px;">Diğer: ${escapeHTML(digerUnvan.join(' · '))}</div>
-      ${buton}
-    </div>`;
+  return '<div style="background:'+zemin+';border:1px solid '+renk+';border-radius:8px;'+
+    'padding:8px 10px;margin:'+(mod==='modal'?'0 0 10px':'8px 0 0')+';font-size:12px;">'+
+      '<div style="color:'+renk+';font-weight:700;">'+baslik+'</div>'+
+      kisiSatir+
+      '<div style="color:var(--text3);margin-top:2px;">Di\u011fer: '+escapeHTML(digerUnvan.join(' · '))+'</div>'+
+      buton+
+    '</div>';
 }
 // v1.0.12: kart çerçeve rengi — durum + son arama sonucuna göre görsel önceliklendirme.
 //   Kırmızı: yanlış numara veya şikayet kaydı var (en yüksek öncelik)
@@ -472,8 +598,10 @@ function _aramaKart(t,unvanMap,vMap,mod){
   const tiklaAttr=(mod==='tamamlanan')?` onclick="araSonucDetayAc(${t.task_id})"`:'';
   // V31.49: aynı kişi uyarısı — sadece aktif (aranacak) kartlarda anlamlı
   const ayniKisi=(mod==='aktif')?_aramaAyniKisiSerit(t.task_id,'kart'):'';
+  // V31.53: "aranmak istemiyor" uyarısı — açık çağrılarda gösterilir
+  const istemiyor=(mod==='aktif'||mod==='gelecek')?_aramaIstemiyorBant(t.task_id,'kart'):'';
   return `<div class="visit-card"${tiklaAttr}${cerceve}><div class="visit-firm">${escapeHTML(unvan)}</div>
-    <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${ozetSatir}${ayniKisi}${alt}</div>`;
+    <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${ozetSatir}${istemiyor}${ayniKisi}${alt}</div>`;
 }
 
 // v1.0.14: KÇM -> MY/FMY iki kademeli filtre. Düz "Tüm personel" listesi çok
@@ -499,17 +627,17 @@ async function _aramaMySecenekleriHTML(seciliMy, seciliKcm){
   const izinMy = await _analizIzinMyList(); // null = TÜM
   const kcmMap = await _aramaMyKcmMap();
   let ids = Object.keys(myIdToName).map(Number);
-  if(izinMy) ids = ids.filter(id=>izinMy.includes(id));
+  if(Array.isArray(izinMy) && izinMy.length) ids = ids.filter(id=>izinMy.includes(id));   // V31.53: boş dizi listeyi boşaltmasın
   if(seciliKcm) ids = ids.filter(id=>String(kcmMap[id])===String(seciliKcm));
   ids.sort((a,b)=>(myIdToName[a]||'').localeCompare(myIdToName[b]||'','tr'));
   return '<option value="">Tüm MY/FMY</option>'+ids.map(id=>`<option value="${id}"${String(seciliMy)===String(id)?' selected':''}>${escapeHTML(myIdToName[id]||('#'+id))}</option>`).join('');
 }
 // KÇM değişince bağlı MY/FMY listesini yeniden kurup ekranı yeniler.
-async function _aramaKcmDegisti(prefix){
-  const kcmVal=document.getElementById('arama'+prefix+'Kcm')?.value||'';
-  const myEl=document.getElementById('arama'+prefix+'My');
-  if(myEl) myEl.innerHTML=await _aramaMySecenekleriHTML('',kcmVal);
-  if(prefix==='Bek') loadAramaBugun(); else loadAramaTamamlanan();
+async function _aramaKcmDegisti(){
+  _aramaFiltreOku();
+  const myEl=document.getElementById('aramaFMy');
+  if(myEl){ ARAMA.filtre.my=''; myEl.innerHTML=await _aramaMySecenekleriHTML('',ARAMA.filtre.kcm); }
+  loadAramaListe(false);
 }
 // Firma adı arama kutusu her tuş vuruşunda sorgu atmasın diye basit debounce.
 let _aramaAramaDebounceTimer=null;
@@ -552,87 +680,40 @@ function _aramaClientFiltre(tasks, unvanMap, vMap, opts){
   return list;
 }
 
-async function loadAramaBugun(){
-  const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
-  const bugun=_istanbulBugun();
-  // v1.0.14: filtre sırası — Ziyaret tarihi → Durum → KÇM → MY/FMY → (en altta)
-  // Müşteri adı. Tarih filtresi artık arama/görev tarihini değil ZİYARET
-  // tarihini baz alıyor (bkz. _aramaClientFiltre notu). Sekme adı 'Bekleyen Çağrılar'.
-  const fEl=document.getElementById('aramaFiltre');
-  if(fEl && !fEl.dataset.ready){
-    fEl.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Ziyaret tarihi aralığı</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-      <input type="date" id="aramaBekBas" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-      <input type="date" id="aramaBekBit" max="${bugun}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-      <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaBugun()">Filtrele</button></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-      <select id="aramaBekDurum" onchange="loadAramaBugun()" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-        <option value="">Tüm durumlar</option>
-        <option value="Aranacak">Hiç aranmadı</option>
-        <option value="Tekrar Aranacak">Tekrar aranacak</option>
-      </select>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-      <select id="aramaBekKcm" onchange="_aramaKcmDegisti('Bek')" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
-      <select id="aramaBekMy" onchange="loadAramaBugun()" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-      <input type="text" id="aramaBekArama" placeholder="Müşteri adı ara…" oninput="_aramaAramaDebounce(loadAramaBugun)" style="flex:1;min-width:140px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-      </div>`;
-    fEl.dataset.ready='1';
-    const kcmEl=document.getElementById('aramaBekKcm'); if(kcmEl) kcmEl.innerHTML=await _aramaKcmSecenekleriHTML('');
-    const myEl=document.getElementById('aramaBekMy'); if(myEl) myEl.innerHTML=await _aramaMySecenekleriHTML('','');
-  }
-  const bas=document.getElementById('aramaBekBas')?.value;
-  const bit=document.getElementById('aramaBekBit')?.value;
-  const durumSecili=document.getElementById('aramaBekDurum')?.value;
-  const kcmFiltre=document.getElementById('aramaBekKcm')?.value;
-  const myFiltre=document.getElementById('aramaBekMy')?.value;
-  const aramaText=document.getElementById('aramaBekArama')?.value;
-  let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).lte('deadline',bugun).order('deadline',{ascending:true}).limit(500);
-  q = durumSecili ? q.eq('durum',durumSecili) : q.in('durum',['Aranacak','Tekrar Aranacak']);
-  const {data:tasksRaw}=await q;
-  ARAMA.tasks=tasksRaw||[];
-  if(!tasksRaw||!tasksRaw.length){ g.innerHTML='<div class="empty">Bekleyen çağrı yok.</div>'; return; }
-  await _aramaKartRenkYukle(tasksRaw);
-  const {unvanMap,vMap}=await _aramaEnrich(tasksRaw);
-  const tasks=_aramaClientFiltre(tasksRaw,unvanMap,vMap,{aramaText,myFiltre,kcmFiltre,bas,bit});
-  if(!tasks.length){ g.innerHTML='<div class="empty">Filtreye uyan çağrı yok.</div>'; return; }
-  g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'aktif')).join('');
+// ============================================================
+// V31.53: ARAMA LISTESI BORU HATTI
+// Eskiden loadAramaBugun/Gelecek/Tamamlanan her biri kendi filtre panelini
+// kurar, kendi sorgusunu atardi. Bu üç sorunu doguruyordu:
+//   • Sekme degisince veya modaldan donunce panel sifirdan kuruluyor, filtreler
+//     kayboluyordu.
+//   • Kutulardaki sayaclar ayri COUNT sorgularindan geliyordu; filtreyle
+//     ilgisi yoktu (1 gun filtrelesen bile kutuda toplam yaziyordu).
+//   • Bir sekmenin verisi digerinin sayacini hesaplayamiyordu.
+// Yeni yapi: acik gorevler TEK sorguda cekilir, bir kez zenginlestirilir,
+// filtre bir kez uygulanir, sonra dort kovaya bolunur. Filtre degisimi
+// sunucuya gitmez (yenidenYukle=false) — aninda tepki verir.
+// ============================================================
+function _aramaFiltreOku(){
+  const g=id=>document.getElementById(id)?.value||'';
+  ARAMA.filtre={
+    bas:g('aramaFBas'), bit:g('aramaFBit'), kcm:g('aramaFKcm'),
+    my:g('aramaFMy'),   q:g('aramaFQ'),     tamDurum:g('aramaFTamDurum')
+  };
 }
 
-async function loadAramaGelecek(){
-  const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
-  const bugun=_istanbulBugun();
-  const {data:tasks}=await sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline').eq('type_id',typeId).in('durum',['Aranacak','Tekrar Aranacak']).gt('deadline',bugun).order('deadline',{ascending:true}).limit(1000);
-  ARAMA.tasks=tasks||[];
-  if(!tasks||!tasks.length){ g.innerHTML='<div class="empty">Gelecek çağrı yok.</div>'; return; }
-  await _aramaKartRenkYukle(tasks);
-  const {unvanMap,vMap}=await _aramaEnrich(tasks);
-  const gruplar={}; tasks.forEach(t=>{ (gruplar[t.deadline]=gruplar[t.deadline]||[]).push(t); });
-  let h='';
-  Object.keys(gruplar).sort().forEach(d=>{
-    h+=`<div style="font-weight:700;font-size:13px;margin:12px 0 6px;color:var(--text);">${d} <span style="color:var(--text3);font-weight:400;">(${gruplar[d].length})</span></div>`;
-    h+=gruplar[d].map(t=>_aramaKart(t,unvanMap,vMap,'gelecek')).join('');
-  });
-  g.innerHTML=h;
-}
-
-async function loadAramaTamamlanan(){
-  const typeId=await _aramaTeyitTypeId(); const g=document.getElementById('aramaListeGovde'); if(!g)return;
-  const bugun=_istanbulBugun();
-  // v1.0.14: filtre sırası — Ziyaret tarihi → Durum → KÇM → MY/FMY → (en altta)
-  // Müşteri adı. Tarih filtresi artık arama/tamamlanma tarihini değil ZİYARET
-  // tarihini baz alıyor.
-  const fEl=document.getElementById('aramaFiltre');
-  if(fEl && !fEl.dataset.ready){
+async function _aramaFiltrePanel(){
+  const fEl=document.getElementById('aramaFiltre'); if(!fEl) return;
+  const F=ARAMA.filtre||(ARAMA.filtre={bas:'',bit:'',kcm:'',my:'',q:'',tamDurum:''});
+  const tamamSekme=(ARAMA.aktifSekme==='tamamlanan');
+  if(!fEl.dataset.ready){
+    const bugun=_istanbulBugun();
     fEl.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Ziyaret tarihi aralığı</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-      <input type="date" id="aramaTamBas" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-      <input type="date" id="aramaTamBit" max="${bugun}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-      <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaTamamlanan()">Filtrele</button></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-      <select id="aramaTamDurum" onchange="loadAramaTamamlanan()" style="flex:1;min-width:150px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <input type="date" id="aramaFBas" value="${escapeHTML(F.bas)}" onchange="_aramaFiltreDegisti()" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <input type="date" id="aramaFBit" value="${escapeHTML(F.bit)}" max="${bugun}" onchange="_aramaFiltreDegisti()" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <button class="btn btn-sm btn-ghost" onclick="_aramaFiltreTemizle()">Temizle</button></div>
+      <div id="aramaFTamDurumSatir" class="${tamamSekme?'':'hide'}" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+      <select id="aramaFTamDurum" onchange="_aramaFiltreDegisti()" style="flex:1;min-width:150px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
         <option value="">Tüm durumlar</option>
         <option value="Tamamlandı">Tamamlandı</option>
         <option value="Ulaşılamıyor">Ulaşılamayan (tekrar aranabilir)</option>
@@ -641,42 +722,122 @@ async function loadAramaTamamlanan(){
       </select>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-      <select id="aramaTamKcm" onchange="_aramaKcmDegisti('Tam')" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
-      <select id="aramaTamMy" onchange="loadAramaTamamlanan()" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
+      <select id="aramaFKcm" onchange="_aramaKcmDegisti()" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
+      <select id="aramaFMy" onchange="_aramaFiltreDegisti()" style="flex:1;min-width:130px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></select>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-      <input type="text" id="aramaTamArama" placeholder="Müşteri adı ara…" oninput="_aramaAramaDebounce(loadAramaTamamlanan)" style="flex:1;min-width:140px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
+      <input type="text" id="aramaFQ" value="${escapeHTML(F.q)}" placeholder="Müşteri adı ara…" oninput="_aramaAramaDebounce(_aramaFiltreDegisti)" style="flex:1;min-width:140px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
       </div>`;
     fEl.dataset.ready='1';
-    const kcmEl=document.getElementById('aramaTamKcm'); if(kcmEl) kcmEl.innerHTML=await _aramaKcmSecenekleriHTML('');
-    const myEl=document.getElementById('aramaTamMy'); if(myEl) myEl.innerHTML=await _aramaMySecenekleriHTML('','');
+    const kcmEl=document.getElementById('aramaFKcm'); if(kcmEl) kcmEl.innerHTML=await _aramaKcmSecenekleriHTML(F.kcm);
+    const myEl=document.getElementById('aramaFMy');  if(myEl)  myEl.innerHTML =await _aramaMySecenekleriHTML(F.my,F.kcm);
+    const tdEl=document.getElementById('aramaFTamDurum'); if(tdEl) tdEl.value=F.tamDurum||'';
+  }else{
+    // Panel duruyor — sadece "Tamamlanan" durum satirinin gorunurlugu degisir
+    const satir=document.getElementById('aramaFTamDurumSatir');
+    if(satir) satir.classList.toggle('hide', !tamamSekme);
   }
-  const bas=document.getElementById('aramaTamBas')?.value;
-  const bit=document.getElementById('aramaTamBit')?.value;
-  const durumSecili=document.getElementById('aramaTamDurum')?.value;
-  const kcmFiltre=document.getElementById('aramaTamKcm')?.value;
-  const myFiltre=document.getElementById('aramaTamMy')?.value;
-  const aramaText=document.getElementById('aramaTamArama')?.value;
-  let q=sb.from('tasks').select('task_id,ncst,visit_id,durum,deadline,tamamlanma_tarihi').eq('type_id',typeId).order('tamamlanma_tarihi',{ascending:false}).limit(300);
-  q = durumSecili ? q.eq('durum',durumSecili) : q.in('durum',['Tamamlandı','Ulaşılamıyor','Aramadan Kapatıldı','Arama Yapılmadı']);
-  const {data:tasksRaw}=await q;
-  ARAMA.tasks=tasksRaw||[];
-  if(!tasksRaw||!tasksRaw.length){ g.innerHTML='<div class="empty">Tamamlanan kayıt yok.</div>'; return; }
-  const ids=tasksRaw.map(t=>t.task_id);
-  const {data:sonuclar}=await sb.from('arama_sonuclari').select('task_id,ulasildi,memnuniyet,memnuniyet_ret,nps,guven,ulasilamama_neden,muhatap_dogru,ziyaret_dogrulandi,sikayet_var,sikayet_metni,created_at').in('task_id',ids).order('created_at',{ascending:false});
-  const sMap={}; (sonuclar||[]).forEach(s=>{ if(!sMap[s.task_id]) sMap[s.task_id]=s; }); // desc: ilk gelen = en son deneme
-  tasksRaw.forEach(t=>{
-    const s=sMap[t.task_id];
-    if(s){
-      t._sonucRaw=s;
-      t._sonuc = _aramaSonucOzet(s);
-    }
-  });
-  const {unvanMap,vMap}=await _aramaEnrich(tasksRaw);
-  const tasks=_aramaClientFiltre(tasksRaw,unvanMap,vMap,{aramaText,myFiltre,kcmFiltre,bas,bit});
-  if(!tasks.length){ g.innerHTML='<div class="empty">Filtreye uyan kayıt yok.</div>'; return; }
-  g.innerHTML=tasks.map(t=>_aramaKart(t,unvanMap,vMap,'tamamlanan')).join('');
 }
+
+function _aramaFiltreDegisti(){ _aramaFiltreOku(); loadAramaListe(false); }
+function _aramaFiltreTemizle(){ _aramaFiltreSifirla(); loadAramaListe(false); }
+
+// Acik gorevler (tum deadline'lar) + tamamlananlar TEK seferde cekilir.
+async function _aramaVeriYukle(){
+  const typeId=await _aramaTeyitTypeId();
+  const ACIK=['Aranacak','Tekrar Aranacak'];
+  const TAMAM=['Tamamlandı','Ulaşılamıyor','Aramadan Kapatıldı','Arama Yapılmadı'];
+
+  // Acik gorevler — sinirsiz sayfalama (deadline sinirlamasi YOK, kovalar ayirir)
+  const SAYFA=1000; let acik=[], bas=0;
+  while(true){
+    const {data,error}=await sb.from('tasks')
+      .select('task_id,ncst,visit_id,durum,deadline')
+      .eq('type_id',typeId).in('durum',ACIK)
+      .order('deadline',{ascending:true}).range(bas,bas+SAYFA-1);
+    if(error){ console.error('[arama] açık görevler:',error); break; }
+    const parca=data||[]; acik=acik.concat(parca);
+    if(parca.length<SAYFA || acik.length>=20000) break;
+    bas+=SAYFA;
+  }
+
+  const {data:tamamRaw,error:tErr}=await sb.from('tasks')
+    .select('task_id,ncst,visit_id,durum,deadline,tamamlanma_tarihi')
+    .eq('type_id',typeId).in('durum',TAMAM)
+    .order('tamamlanma_tarihi',{ascending:false}).limit(300);
+  if(tErr) console.error('[arama] tamamlananlar:',tErr);
+  const tamam=tamamRaw||[];
+  ARAMA._tamamTavan=(tamam.length>=300);   // sayacta "300+" gostermek icin
+
+  const hepsi=acik.concat(tamam);
+  ARAMA.tasks=hepsi;                        // aynı kişi tespiti ve kart render bunu okur
+  await _aramaKartRenkYukle(hepsi);         // 'Tekrar Aranacak' kartlarinin cerceve rengi
+
+  // Tamamlananlarin son arama sonucu ozeti
+  if(tamam.length){
+    const ids=tamam.map(t=>t.task_id);
+    const {data:sonuclar}=await sb.from('arama_sonuclari')
+      .select('task_id,ulasildi,memnuniyet,memnuniyet_ret,nps,guven,ulasilamama_neden,muhatap_dogru,ziyaret_dogrulandi,sikayet_var,sikayet_metni,created_at')
+      .in('task_id',ids).order('created_at',{ascending:false});
+    const sMap={}; (sonuclar||[]).forEach(x=>{ if(!sMap[x.task_id]) sMap[x.task_id]=x; });
+    tamam.forEach(t=>{ const x=sMap[t.task_id]; if(x){ t._sonucRaw=x; t._sonuc=_aramaSonucOzet(x); } });
+  }
+
+  const {unvanMap,vMap}=await _aramaEnrich(hepsi);
+  ARAMA.veri={acik,tamam,unvanMap,vMap};
+}
+
+// Filtreyi uygular, dort kovaya boler.
+function _aramaKovala(){
+  const V=ARAMA.veri||{acik:[],tamam:[],unvanMap:{},vMap:{}};
+  const F=ARAMA.filtre||{};
+  const bugun=_istanbulBugun();
+  const opt={aramaText:F.q,myFiltre:F.my,kcmFiltre:F.kcm,bas:F.bas,bit:F.bit};
+  const acik =_aramaClientFiltre(V.acik ,V.unvanMap,V.vMap,opt);
+  let  tamam =_aramaClientFiltre(V.tamam,V.unvanMap,V.vMap,opt);
+  if(F.tamDurum) tamam=tamam.filter(t=>t.durum===F.tamDurum);
+  return {
+    yeni:       acik.filter(t=>t.durum==='Aranacak'        && t.deadline && t.deadline<=bugun),
+    tekrar:     acik.filter(t=>t.durum==='Tekrar Aranacak' && t.deadline && t.deadline<=bugun),
+    gelecek:    acik.filter(t=>t.deadline && t.deadline>bugun),
+    tamamlanan: tamam
+  };
+}
+
+async function loadAramaListe(yenidenYukle){
+  const g=document.getElementById('aramaListeGovde'); if(!g) return;
+  await _aramaFiltrePanel();
+  if(yenidenYukle || !ARAMA.veri){
+    g.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+    await _aramaVeriYukle();
+  }
+  const kova=_aramaKovala();
+  _aramaSayaclariYaz(kova);
+  const sekme=ARAMA.aktifSekme||'yeni';
+  const V=ARAMA.veri;
+  const bosMetin={yeni:'Yeni (hiç aranmamış) çağrı yok.',tekrar:'Tekrar aranacak çağrı yok.',
+                  gelecek:'Gelecek çağrı yok.',tamamlanan:'Tamamlanan kayıt yok.'}[sekme]||'Kayıt yok.';
+  const liste=kova[sekme]||[];
+  if(!liste.length){ g.innerHTML='<div class="empty">'+bosMetin+'</div>'; return; }
+
+  if(sekme==='gelecek'){
+    // Gelecek sekmesi deadline'a gore gruplu gosterilir (eski davranis korundu)
+    const gruplar={}; liste.forEach(t=>{ (gruplar[t.deadline]=gruplar[t.deadline]||[]).push(t); });
+    let h='';
+    Object.keys(gruplar).sort().forEach(d=>{
+      h+=`<div style="font-weight:700;font-size:13px;margin:12px 0 6px;color:var(--text);">${d} <span style="color:var(--text3);font-weight:400;">(${gruplar[d].length})</span></div>`;
+      h+=gruplar[d].map(t=>_aramaKart(t,V.unvanMap,V.vMap,'gelecek')).join('');
+    });
+    g.innerHTML=h; return;
+  }
+  const mod=(sekme==='tamamlanan')?'tamamlanan':'aktif';
+  g.innerHTML=liste.map(t=>_aramaKart(t,V.unvanMap,V.vMap,mod)).join('');
+}
+
+// V31.53: loadAramaGelecek / loadAramaTamamlanan kaldirildi — ikisinin de isi
+// artik loadAramaListe() icinde, tek veri kaynagi + tek filtre uzerinden yapiliyor.
+
+
 
 // ============================================================
 // v31.23: Tamamlanan arama kaydı — DETAY modalı. Bir göreve ait TÜM
@@ -875,7 +1036,7 @@ async function araModalAc(taskId){
   // V31.49: aynı kişi uyarısı + "tek görüşmede teyit et" butonu
   window._anket.birlesik=null;
   const uyariEl=document.getElementById('aramaAnketUyari');
-  if(uyariEl) uyariEl.innerHTML=_aramaAyniKisiSerit(taskId,'modal');
+  if(uyariEl) uyariEl.innerHTML=_aramaIstemiyorBant(taskId,'modal')+_aramaAyniKisiSerit(taskId,'modal');   // V31.53
 
   _anketRender();
   openModal('aramaAnketModal');
@@ -920,15 +1081,38 @@ async function araBirlesikAc(taskId){
 
   // Onay ekranı — otomatik birleştirme yok, agent hangilerini dahil edeceğini seçer
   window._birlesikAday=hedefler;
-  const satirlar=hedefler.map((hd,i)=>`
+  const kisi=(ARAMA.grupKisi||{})[taskId]||{};
+  const farkli=!!kisi.farkli;                       // V31.51: isimler tutmuyor mu?
+
+  const satirlar=hedefler.map((hd,i)=>{
+    // V31.51: her kaydin KENDI kontak adi gosteriliyor. Onceden sadece unvan ve
+    // tarih vardi; agent isimlerin farkli oldugunu goremiyordu.
+    const kontakAd=(ARAMA.grupAd||{})[hd.taskId]||'—';
+    // V31.51: isimler farkliysa ikincil kayitlar ISARETSIZ gelir.
+    const isaret=(i===0)?'checked disabled':(farkli?'':'checked');
+    return `
     <label style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">
-      <input type="checkbox" class="birlesikChk" value="${i}" ${i===0?'checked disabled':'checked'} style="margin-top:3px;">
+      <input type="checkbox" class="birlesikChk" value="${i}" ${isaret} style="margin-top:3px;">
       <div style="flex:1;">
         <div style="font-weight:600;">${escapeHTML(hd.unvan)}</div>
+        <div style="font-size:12px;color:${farkli?'var(--amber)':'var(--text2)'};">👤 ${escapeHTML(kontakAd)}</div>
         <div style="font-size:11px;color:var(--text3);">Ziyaret: ${hd.ziyaretTarih?fmtDate(hd.ziyaretTarih):'—'} · ${hd.deneme}. arama</div>
       </div>
-    </label>`).join('');
+    </label>`;
+  }).join('');
+
+  const uyari = farkli
+    ? `<div style="background:rgba(255,180,0,.12);border:1px solid var(--amber);border-radius:8px;
+          padding:8px 10px;margin-bottom:10px;font-size:12px;color:var(--amber);">
+         &#9888; <b>Bu kayıtlarda isimler farklı.</b> Aynı numara birden fazla kişi tarafından
+         kullanılıyor olabilir (paylaşılan hat, muhasebeci vb.). Yanlış birleştirme, konuşmadığınız
+         bir kişinin ziyaretini teyit edilmiş gösterir.<br>
+         Telefonda <b>hangi firmalar için yetkili olduğunu doğrulayın</b>, sonra işaretleyin.
+       </div>`
+    : '';
+
   document.getElementById('birlesikGovde').innerHTML=
+    uyari+
     `<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">
        Tek görüşmede teyit edilecek ziyaretleri seçin. Her ziyaret için <b>ayrı kayıt</b>
        yazılır; ortak cevaplar hepsine kopyalanır, ziyaret teyidi ayrı sorulur.
@@ -945,11 +1129,14 @@ function araBirlesikBasla(){
   window._anket.c={};                       // birleşik akış baştan doldurulur
   closeModal('birlesikOnayModal');
   const uyariEl=document.getElementById('aramaAnketUyari');
+  const _k=(ARAMA.grupKisi||{})[ana.taskId]||{}; const _f=!!_k.farkli;      // V31.51
   if(uyariEl) uyariEl.innerHTML=
-    `<div style="background:rgba(168,85,247,.12);border:1px solid var(--purple);border-radius:8px;
+    `<div style="background:${_f?'rgba(255,180,0,.12)':'rgba(168,85,247,.12)'};
+          border:1px solid ${_f?'var(--amber)':'var(--purple)'};border-radius:8px;
           padding:8px 10px;margin-bottom:10px;font-size:12px;">
-       <div style="color:var(--purple);font-weight:700;">🔗 BİRLEŞİK ARAMA — ${hedefler.length} ziyaret</div>
-       <div style="color:var(--text2);margin-top:2px;">${hedefler.map(h=>escapeHTML(h.unvan)).join(' · ')}</div>
+       <div style="color:${_f?'var(--amber)':'var(--purple)'};font-weight:700;">🔗 BİRLEŞİK ARAMA — ${hedefler.length} ziyaret</div>
+       <div style="color:var(--text2);margin-top:2px;">${hedefler.map(h=>escapeHTML(h.unvan)+' ('+escapeHTML((ARAMA.grupAd||{})[h.taskId]||'—')+')').join(' · ')}</div>
+       ${_f?`<div style="color:var(--amber);margin-top:2px;">&#9888; İsimler farklı — doğru kişiyle konuştuğunuzdan emin olun.</div>`:''}
        <div style="color:var(--text3);margin-top:2px;">Her ziyaret için ayrı kayıt yazılacak.</div>
        <button class="btn btn-sm btn-ghost" style="width:100%;margin-top:8px;" onclick="araBirlesikIptal()">Birleştirmeyi iptal et</button>
      </div>`;
@@ -1179,7 +1366,19 @@ function _anketRender(){
       h+=_chips('gorusmek_istedi','Görüşmek için uygun mu?',['Evet','Hayır']);
 
       if(c.gorusmek_istedi==='Hayır'){
-        h+=`<div class="field" style="margin-bottom:10px;"><label>Ne zaman tekrar aranacak?</label><input type="datetime-local" id="anketTekrarTarih" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;"></div>`;
+        // V31.53: Musteri bir daha aranmak istemiyorsa tarih vermek anlamsiz.
+        // Isaretlenirse contacts.aranmak_istemiyor=true yazilir ve bu kontak
+        // sonraki ziyaretlerde kirmizi bantla uyarilir.
+        h+=_chips('aranmak_istemiyor','Tekrar aranmak istiyor mu?',['Evet, sonra aransın','Hayır, aranmak istemiyor']);
+        if(c.aranmak_istemiyor!=='Hayır, aranmak istemiyor'){
+          h+=`<div class="field" style="margin-bottom:10px;"><label>Ne zaman tekrar aranacak?</label><input type="datetime-local" id="anketTekrarTarih" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;"></div>`;
+        }else{
+          h+=`<div style="background:rgba(224,4,42,.12);border:1px solid var(--red);border-radius:8px;
+                padding:8px 10px;margin-bottom:10px;font-size:12px;color:var(--red);">
+                &#9940; Bu kontak <b>bir daha aranmak istemiyor</b> olarak işaretlenecek.
+                Kayıt kapanacak ve bu kişi sonraki ziyaretlerde kırmızı uyarıyla görünecek.
+              </div>`;
+        }
       }
 
       if(c.gorusmek_istedi==='Evet'){
@@ -1196,7 +1395,7 @@ function _anketRender(){
             h+=_chips('ziyaret_dogrulandi_'+i, ztM+" sizi Turkcell'den arkadaşımız ziyarete geldi mi?",['Evet','Hayır','Gelmedi ama Telefonla konuştuk']);
             const zd=c['ziyaret_dogrulandi_'+i];
             if(zd==='Evet' || zd==='Gelmedi ama Telefonla konuştuk'){
-              h+=_chips('gorusme_suresi_'+i,'Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
+              // V31.53: "Görüşme süresi" kaldırıldı
               h+=_chips('ihtiyac_anlasildi_'+i,'Temsilcimiz ihtiyacınızı anladı ve çözüm üretebildi mi?',['Evet','Kısmen','Hayır']);
             }
             h+=`</div>`;
@@ -1227,7 +1426,7 @@ function _anketRender(){
           // sahte şüphesi) doğrudan şikayet sorusuna geçer.
           const gorusmeOldu = (c.ziyaret_dogrulandi==='Evet' || c.ziyaret_dogrulandi==='Gelmedi ama Telefonla konuştuk');
           if(gorusmeOldu){
-            h+=_chips('gorusme_suresi','Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
+            // V31.53: "Görüşme süresi" sorusu kaldırıldı (DB kolonu duruyor, geçmiş veri korunuyor)
             h+=_chips('ihtiyac_anlasildi','Temsilcimiz ihtiyacınızı anladı ve çözüm üretebildi mi?',['Evet','Kısmen','Hayır']);
             h+=_scale('memnuniyet','Memnuniyet (1-10)',1,10,{ret:true});
           }
@@ -1261,8 +1460,13 @@ function _anketAksiyonRender(){
     // Yanlış/yetkisiz kişiyle görüşüldü — anket burada kapanır.
     h=`<button class="btn" style="width:100%;background:var(--orange);" onclick="araAnketKaydet()">Kaydet (Tamamlandı — Yanlış/Yetkisiz Kişi)</button>`;
   } else if(c.ulasildi==='Evet' && c.muhatap_dogru==='Evet' && c.gorusmek_istedi==='Hayır'){
-    // Doğru kişi ama şu an uygun değil — yeni arama tarihiyle "Tekrar Aranacak" kapat.
-    h=`<button class="btn" style="width:100%;background:var(--blue);" onclick="araAnketTekrar()">Tekrar Aranacak</button>`;
+    // V31.53: "Aranmak istemiyor" secildiyse tarih istenmez, kayit kapatilir.
+    if(c.aranmak_istemiyor==='Hayır, aranmak istemiyor'){
+      h=`<button class="btn" style="width:100%;background:var(--red);" onclick="araAnketAranmakIstemiyor()">Kapat — Aranmak İstemiyor</button>`;
+    }else{
+      // Doğru kişi ama şu an uygun değil — yeni arama tarihiyle "Tekrar Aranacak" kapat.
+      h=`<button class="btn" style="width:100%;background:var(--blue);" onclick="araAnketTekrar()">Tekrar Aranacak</button>`;
+    }
   } else if(c.ulasildi==='Evet' && c.muhatap_dogru==='Evet' && c.gorusmek_istedi==='Evet' &&
             (st.birlesik && st.birlesik.length>1
                ? st.birlesik.every((hd,i)=>!!c['ziyaret_dogrulandi_'+i])   // V31.49: hepsi cevaplanmalı
@@ -1384,7 +1588,7 @@ async function araAnketKaydet(){
           task_id:hd.taskId, visit_id:hd.visit_id, ncst:hd.ncst, my_id:hd.my_id,
           contact_id:hd.contact_id, telefon:hd.telefon||null, deneme_no:hd.deneme,
           ziyaret_dogrulandi:zd,
-          gorusme_suresi: gorusmeOldu ? (c['gorusme_suresi_'+i]||null) : null,
+          gorusme_suresi: null,                       // V31.53: soru kaldırıldı
           ihtiyac_anlasildi: gorusmeOldu ? (c['ihtiyac_anlasildi_'+i]||null) : null,
           agent_notu: [c.agent_notu, birlesikNot].filter(Boolean).join('\n')
         });
@@ -1430,6 +1634,27 @@ async function araAnketTekrar(){
     toast('Tekrar aranacak olarak işaretlendi','info');
     closeModal('aramaAnketModal'); loadAramaListesi();
   }catch(e){ _anketHata('Tekrar aranacak', e); }
+}
+
+// V31.53: Musteri bir daha aranmak istemiyor.
+// contacts.aranmak_istemiyor = true  -> sonraki ziyaretlerde uyari bandi
+// arama_sonuclari.sonra_aranmak_istedi = false (bu kolon zaten vardi, kullanilmiyordu)
+// gorev -> Tamamlandi (kisiye ulasildi, cevap alindi; is bitti)
+async function araAnketAranmakIstemiyor(){
+  const st=window._anket;
+  try{
+    if(!await _anketSatirYaz({sonra_aranmak_istedi:false})) return;
+    if(st.contact_id){
+      const {error}=await sb.from('contacts')
+        .update({aranmak_istemiyor:true, aranmak_istemiyor_tarih:new Date().toISOString()})
+        .eq('contact_id',st.contact_id);
+      if(error) return _anketHata('Kontak "aranmak istemiyor" isareti', error);
+    }
+    if(!await _anketGorevGuncelle(st.taskId,{durum:'Tamamlandı',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()})) return;
+    await _anketLog('Aranmak İstemiyor','Kontak: '+(st.contactAd||'-')+' — bir daha aranmak istemiyor olarak işaretlendi');
+    toast('Kapatıldı — kontak aranmak istemiyor olarak işaretlendi','info');
+    closeModal('aramaAnketModal'); loadAramaListesi();
+  }catch(e){ _anketHata('Aranmak istemiyor', e); }
 }
 
 async function araAnketUlasilamiyor(){
@@ -1512,10 +1737,25 @@ const ANALIZ_KAT = [
   {k:'aramadan',     ad:'Aramadan kapatılan', kaynak:'task'}
 ];
 
+// V31.53 — İKİ BUG BİRDEN DÜZELTİLDİ (kök neden aynı):
+//   (1) currentUser.kcm_id null olduğunda .eq('kcm_id', null) üretiliyordu.
+//       PostgREST null karşılaştırmasında 'eq.null' kabul etmez ('is.null' ister)
+//       → 400 Bad Request. Hata yutuluyordu, data undefined kalıyordu.
+//   (2) Hata sonucu BOŞ DİZİ dönüyordu ve çağıran taraflar `if(izinMy)` diye
+//       kontrol ediyordu — JavaScript'te boş dizi TRUTHY'dir. Sonuç:
+//         • Çağrı Analizi ve MY performans ekranları sessizce BOŞ görünüyordu
+//         • MY/FMY filtre açılır listesi boşalıyordu ("Tüm FMY'ler çalışmıyor")
+//       Etkilenenler: kcm_id'si null olan HERKES — tüm ADMIN'ler, Satış
+//       Direktörü, Çağrı Merkezi Uzmanı. Yani raporlara en çok ihtiyacı olanlar.
+// KARAR: kcm_id yoksa kısıtlanacak bir KÇM de yoktur → null döner (tümünü gör).
+// Not: getScope('arama_rapor') PERM.scope'ta tanımlı olmadığı için herkese 'PRT'
+// dönüyor; kök çözüm için o tanımın eklenmesi gerekir (ayrı iş).
 async function _analizIzinMyList(){
   const scope=(typeof getScope==='function')?getScope('arama_rapor'):'TÜM';
   if(scope==='TÜM') return null;               // tüm veri
-  const {data}=await sb.from('users').select('my_id').eq('kcm_id',currentUser.kcm_id);
+  if(!currentUser.kcm_id) return null;         // V31.53: KÇM yok → kısıt yok (400 üretme)
+  const {data,error}=await sb.from('users').select('my_id').eq('kcm_id',currentUser.kcm_id);
+  if(error){ console.error('[arama] izinli MY listesi alınamadı:', error); return null; }
   return (data||[]).map(u=>u.my_id);
 }
 function _analizOzet(k,r){

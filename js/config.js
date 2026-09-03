@@ -1,7 +1,17 @@
 // ============================================================
-// config.js — v1.2.91
-// Son güncelleme: 2026-09-02
+// config.js — v1.2.94
+// Son güncelleme: 2026-09-03
 // Değişiklikler:
+//   v1.2.94 — APP_VERSION → V31.53. Arama modulu: 4 sekme (Yeni/Tekrar/Gelecek/
+//             Tamamlanan), filtre kaliciligi + filtreli sayaclar, "aranmak
+//             istemiyor" isareti, gorusme suresi sorusu kaldirildi,
+//             _analizIzinMyList eq.null 400 bugu duzeltildi (arama.js v1.0.19).
+//             MIGRASYON: contacts.aranmak_istemiyor + _tarih kolonlari.
+//   v1.2.93 — APP_VERSION → V31.52. V31.51 paketi HATALIYDI: arama.js'te serit
+//             fonksiyonu degistirilirken 14 fonksiyon (loadAramaBugun dahil)
+//             yanlislikla silinmisti, arama ekrani acilmiyordu. Dosya git'ten
+//             geri alinip degisiklikler yeniden uygulandi. V31.51 etiketi
+//             yakildigi icin atlandi.
 //   v1.2.91 — APP_VERSION → V31.50. _telG() ortak telefon gosterim yardimcisi:
 //             kontak/kullanici listelerinde ham telefon basilan 5 nokta bu
 //             fonksiyondan geciyor (Excel '.0' artiklari ekranda gorunuyordu).
@@ -261,7 +271,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.50';
+const APP_VERSION = 'V31.53';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
