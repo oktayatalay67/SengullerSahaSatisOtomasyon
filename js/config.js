@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.2.89
-// Son güncelleme: 2026-09-01
+// config.js — v1.2.91
+// Son güncelleme: 2026-09-02
 // Değişiklikler:
+//   v1.2.91 — APP_VERSION → V31.50. _telG() ortak telefon gosterim yardimcisi:
+//             kontak/kullanici listelerinde ham telefon basilan 5 nokta bu
+//             fonksiyondan geciyor (Excel '.0' artiklari ekranda gorunuyordu).
+//   v1.2.90 — APP_VERSION → V31.49. Ayni kisi tespiti + birlesik arama
+//             (arama.js v1.0.17). Sema degisikligi yok.
 //   v1.2.89 — APP_VERSION → V31.48. Gorev listesi veri kaybi duzeltmesi
 //             (gorev.js v1.2.11) + anket kayit hata yakalama (arama.js v1.0.16).
 //   v1.2.88 — APP_VERSION → V31.47. Telefon format korumasi (Faz A): tum yazma
@@ -256,7 +261,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.48';
+const APP_VERSION = 'V31.50';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
@@ -307,6 +312,20 @@ function normalizeTel(raw){
   const e164='+90'+ulusal;
   const goster='+90 '+ulusal.slice(0,3)+' '+ulusal.slice(3,6)+' '+ulusal.slice(6,8)+' '+ulusal.slice(8,10);
   return {ham,d,ulusal,e164,goster,gecerli:true,tip:ulusal.startsWith('5')?'GSM':'SABIT'};
+}
+
+/* V31.50: TEK NOKTADAN TELEFON GOSTERIMI.
+   Listelerde/kartlarda telefon basarken bunu kullan — asla ham `.telefon` yazma.
+   Ayristirilabilen numara '+90 5xx xxx xx xx' olur; ayristirilamayan HAM haliyle
+   dondurulur (uydurma bicimlendirme yapilmaz).
+   Gerekce: DB'deki Excel import artiklari (ornek '5339381058.0') listelerde
+   oldugu gibi gorunuyordu. Veri 02.09.2026'da temizlendi, ama bu katman ileride
+   gelecek baska bir bozuk kayitta da ekranin duzgun kalmasini garantiler. */
+function _telG(raw){
+  if(raw==null || String(raw).trim()==='') return '';
+  if(typeof telefonMaskele==='function') return telefonMaskele(raw);   // veri_kalitesi.js
+  if(typeof normalizeTel==='function'){ const n=normalizeTel(raw); return n.gecerli?n.goster:n.ham; }
+  return String(raw);
 }
 
 /* Panoya kopyala — Clipboard API + eski tarayici fallback. */

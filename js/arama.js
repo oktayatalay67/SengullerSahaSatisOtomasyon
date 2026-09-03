@@ -1,5 +1,26 @@
 // ============================================================
-// arama.js — v1.0.16
+// arama.js — v1.0.17
+//   v1.0.17 (01.09.2026, V31.49 — ayni kisi tespiti + birlesik arama):
+//     - YENI: Ayni kisi tespiti. Farkli NCST/unvandaki musteriler ayni kisi
+//       tarafindan yonetiliyorsa ve MY ayni gun ikisini de ziyaret ettiyse, iki
+//       ayri teyit gorevi dogar ve agent ayni kisiyi iki kez arardi.
+//       ESLESME SARTI (ucu birden): ayni ziyaret gunu + ayni MY + (ayni telefon
+//       VEYA ayni kontak adi). Ayni gun + ayni MY sarti, isim eslesmesindeki
+//       yanlis pozitifleri (farkli firmalarda iki "MEHMET YILMAZ") engeller.
+//       Tek kelimelik/kisa adlar eslestirmeye alinmaz.
+//     - YENI: Liste kartinda ve anket modalinda mor uyari seridi.
+//     - YENI: Birlesik arama. Agent TEK gorusme yapar, TEK anket doldurur.
+//       KAYITLAR BIRLESMEZ — her ziyaret kendi arama_sonuclari satirini alir.
+//       Birlesseydi ikinci ziyaret raporlarda teyit edilmemis gorunur, ziyaret
+//       teyit orani ve MY memnuniyet ortalamasi bozulurdu.
+//       Ortak cevaplar (ulasildi/muhatap_dogru/gorusmek_istedi/memnuniyet/
+//       sikayet/agent_notu) tum satirlara kopyalanir; ziyarete ozel cevaplar
+//       (ziyaret_dogrulandi/gorusme_suresi/ihtiyac_anlasildi) her firma icin
+//       AYRI sorulur ve kendi satirina yazilir.
+//       Her iki kayda da '[Birlesik arama] ...' notu dusulur.
+//     - Otomatik birlestirme YOK: agent onay ekraninda hangi kayitlari dahil
+//       edecegini kendi secer. Yarim kapanma yok: bir satir bile yazilamazsa
+//       HICBIR gorev kapatilmaz.
 //   v1.0.16 (01.09.2026, V31.48 — anket kayit guvenligi):
 //     - KRITIK: araAnketKaydet / araAnketTekrar / araAnketUlasilamiyor /
 //       araAnketBilgiGuncelle fonksiyonlarinin DORDU DE Supabase cagrilarinin
@@ -153,7 +174,7 @@
 // ============================================================
 'use strict';
 
-const ARAMA = { teyitTypeId:null, tasks:[] };
+const ARAMA = { teyitTypeId:null, tasks:[], unvanMap:{}, vMap:{}, kMap:{}, gruplar:{}, grupKisi:{} };
 
 // v1.0.13: BUG FIX — "bugün" hesabı cihazın saat dilimine/UTC'ye değil, her zaman
 // Europe/Istanbul takvim gününe göre yapılmalı. new Date().toISOString().slice(0,10)
@@ -257,8 +278,116 @@ async function _aramaEnrich(tasks){
   const ncstList=[...new Set(tasks.map(t=>t.ncst).filter(Boolean))];
   const unvanMap={}; if(ncstList.length){ const {data}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList); (data||[]).forEach(c=>unvanMap[c.ncst]=c.unvan); }
   const vIds=[...new Set(tasks.map(t=>t.visit_id).filter(Boolean))];
-  const vMap={}; if(vIds.length){ const {data}=await sb.from('visits').select('visit_id,my_id,kcm_id,tarih_saat,ziyaret_amaci,urun_gruplari,ziyaret_sonucu').in('visit_id',vIds); (data||[]).forEach(v=>vMap[v.visit_id]=v); }
-  return {unvanMap,vMap};
+  const vMap={}; if(vIds.length){ const {data}=await sb.from('visits').select('visit_id,my_id,kcm_id,tarih_saat,ziyaret_amaci,urun_gruplari,ziyaret_sonucu,contact_id').in('visit_id',vIds); (data||[]).forEach(v=>vMap[v.visit_id]=v); }
+
+  // V31.49: Aynı kişi tespiti için kontak bilgisi (ad_soyad + telefon).
+  // visit.contact_id -> contacts. Kontağı olmayan ziyaret gruplamaya girmez.
+  const cIds=[...new Set(Object.values(vMap).map(v=>v.contact_id).filter(Boolean))];
+  const kMap={};   // visit_id -> {ad_soyad, telefon}
+  if(cIds.length){
+    const kByCid={};
+    const {data}=await sb.from('contacts').select('contact_id,ad_soyad,telefon').in('contact_id',cIds);
+    (data||[]).forEach(k=>kByCid[k.contact_id]=k);
+    Object.values(vMap).forEach(v=>{ if(v.contact_id && kByCid[v.contact_id]) kMap[v.visit_id]=kByCid[v.contact_id]; });
+  }
+
+  // Modal ve kart render'ı liste kapsamı dışından da erişebilsin diye global'e yaz
+  ARAMA.unvanMap=Object.assign(ARAMA.unvanMap||{},unvanMap);
+  ARAMA.vMap=Object.assign(ARAMA.vMap||{},vMap);
+  ARAMA.kMap=Object.assign(ARAMA.kMap||{},kMap);
+  _aramaAyniKisiGrupla(tasks,vMap,kMap);
+  return {unvanMap,vMap,kMap};
+}
+
+// ============================================================
+// V31.49: AYNI KİŞİ TESPİTİ
+// ------------------------------------------------------------
+// Bazı müşteriler farklı NCST ve farklı ünvanda olsa da aynı kişi tarafından
+// yönetiliyor. MY aynı gün her iki firmayı da ziyaret ettiğinde iki ayrı teyit
+// görevi doğuyor ve agent aynı kişiyi iki kez arıyor.
+//
+// EŞLEŞME ŞARTI (üçü birden):
+//   • aynı ziyaret günü      (visits.tarih_saat gün bileşeni)
+//   • aynı MY                (visits.my_id)
+//   • aynı telefon VEYA aynı kontak adı
+//
+// Aynı gün + aynı MY şartı, isim eşleşmesindeki yanlış pozitifleri (farklı
+// firmalarda çalışan iki "MEHMET YILMAZ") engellemek için zorunlu tutuldu.
+// Otomatik birleştirme YOK — agent birleştirme ekranında hangi kayıtları dahil
+// edeceğini onay kutularıyla kendi seçer.
+// ============================================================
+function _kisiAdNorm(s){
+  return String(s||'').toLocaleUpperCase('tr')
+    .replace(/[^A-ZÇĞİÖŞÜ]/g,' ').replace(/\s+/g,' ').trim();
+}
+function _aramaGun(ts){ return ts?String(ts).slice(0,10):''; }
+
+function _aramaAyniKisiGrupla(tasks,vMap,kMap){
+  ARAMA.gruplar={}; ARAMA.grupKisi={};
+  const ebeveyn={};
+  const bul=x=>{ while(ebeveyn[x]!==x){ ebeveyn[x]=ebeveyn[ebeveyn[x]]; x=ebeveyn[x]; } return x; };
+  const birlestir=(a,b)=>{ const ra=bul(a), rb=bul(b); if(ra!==rb) ebeveyn[rb]=ra; };
+
+  const uygun=[];
+  const ACIK=['Aranacak','Tekrar Aranacak'];
+  tasks.forEach(t=>{
+    // Yalnizca HENUZ ARANMAMIS gorevler gruplanir. Tamamlanan bir gorevi
+    // birlestirmeye dahil etmek, kapali bir kaydin uzerine ikinci satir yazip
+    // istatistigi sisirirdi.
+    if(!ACIK.includes(t.durum)) return;
+    const v=vMap[t.visit_id]; const k=kMap[t.visit_id];
+    if(!v||!k||!v.my_id) return;
+    const gun=_aramaGun(v.tarih_saat); if(!gun) return;
+    const tel=(typeof normalizeTel==='function')?normalizeTel(k.telefon):{gecerli:false};
+    const ad=_kisiAdNorm(k.ad_soyad);
+    const anahtarlar=[];
+    const on='MY'+v.my_id+'|'+gun+'|';
+    if(tel.gecerli) anahtarlar.push(on+'T:'+tel.e164);
+    // Çok kısa/tek kelimelik adlar eşleştirmeye alınmaz (ör. "AHMET") —
+    // yanlış pozitif üretir.
+    if(ad && ad.length>=6 && ad.indexOf(' ')>0) anahtarlar.push(on+'A:'+ad);
+    if(!anahtarlar.length) return;
+    ebeveyn[t.task_id]=t.task_id;
+    uygun.push({t,anahtarlar,ad:k.ad_soyad,tel:k.telefon});
+  });
+
+  const ilk={};
+  uygun.forEach(u=>u.anahtarlar.forEach(a=>{
+    if(ilk[a]!=null) birlestir(ilk[a],u.t.task_id); else ilk[a]=u.t.task_id;
+  }));
+
+  const kok={};
+  uygun.forEach(u=>{ const r=bul(u.t.task_id); (kok[r]=kok[r]||[]).push(u); });
+  Object.values(kok).forEach(uyeler=>{
+    if(uyeler.length<2) return;                    // tek başınaysa grup değil
+    const ids=uyeler.map(u=>u.t.task_id);
+    const kisi={ad:uyeler[0].ad, tel:uyeler[0].tel};
+    ids.forEach(id=>{ ARAMA.gruplar[id]=ids; ARAMA.grupKisi[id]=kisi; });
+  });
+}
+
+// Kart ve modal için ortak uyarı şeridi HTML'i
+function _aramaAyniKisiSerit(taskId,mod){
+  const ids=ARAMA.gruplar?ARAMA.gruplar[taskId]:null;
+  if(!ids||ids.length<2) return '';
+  const kisi=ARAMA.grupKisi[taskId]||{};
+  const digerUnvan=ids.filter(id=>id!==taskId).map(id=>{
+    const t=(ARAMA.tasks||[]).find(x=>x.task_id===id);
+    return t?((ARAMA.unvanMap||{})[t.ncst]||t.ncst||('#'+id)):('#'+id);
+  });
+  const tel=(typeof normalizeTel==='function')?normalizeTel(kisi.tel):{gecerli:false};
+  const telYazi=tel.gecerli?tel.goster:(kisi.tel||'');
+  const buton=(mod==='modal')
+    ? `<button class="btn btn-sm" style="width:100%;margin-top:8px;background:var(--purple);"
+         onclick="araBirlesikAc(${taskId})">🔗 Bu ${ids.length} ziyareti tek görüşmede teyit et</button>`
+    : '';
+  return `<div style="background:rgba(168,85,247,.12);border:1px solid var(--purple);border-radius:8px;
+            padding:8px 10px;margin:${mod==='modal'?'0 0 10px':'8px 0 0'};font-size:12px;">
+      <div style="color:var(--purple);font-weight:700;">🔗 AYNI KİŞİ — ${ids.length} firma için aranacak</div>
+      <div style="color:var(--text2);margin-top:2px;">${escapeHTML(kisi.ad||'—')}${telYazi?(' · '+escapeHTML(telYazi)):''}</div>
+      <div style="color:var(--text3);margin-top:2px;">Diğer: ${escapeHTML(digerUnvan.join(' · '))}</div>
+      ${buton}
+    </div>`;
 }
 // v1.0.12: kart çerçeve rengi — durum + son arama sonucuna göre görsel önceliklendirme.
 //   Kırmızı: yanlış numara veya şikayet kaydı var (en yüksek öncelik)
@@ -341,8 +470,10 @@ function _aramaKart(t,unvanMap,vMap,mod){
   const stilParca=[]; if(renk) stilParca.push(`border:1.5px solid ${renk};`); if(mod==='tamamlanan') stilParca.push('cursor:pointer;');
   const cerceve=stilParca.length?` style="${stilParca.join('')}"`:'';
   const tiklaAttr=(mod==='tamamlanan')?` onclick="araSonucDetayAc(${t.task_id})"`:'';
+  // V31.49: aynı kişi uyarısı — sadece aktif (aranacak) kartlarda anlamlı
+  const ayniKisi=(mod==='aktif')?_aramaAyniKisiSerit(t.task_id,'kart'):'';
   return `<div class="visit-card"${tiklaAttr}${cerceve}><div class="visit-firm">${escapeHTML(unvan)}</div>
-    <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${ozetSatir}${alt}</div>`;
+    <div class="visit-my">Ziyaret: ${escapeHTML(myAd)} · ${zt}${tekrar}</div>${ozetSatir}${ayniKisi}${alt}</div>`;
 }
 
 // v1.0.14: KÇM -> MY/FMY iki kademeli filtre. Düz "Tüm personel" listesi çok
@@ -741,8 +872,97 @@ async function araModalAc(taskId){
   // V31.46: Firma geçmişinin altındaki "Aranacak numara" kutusu
   _aramaTelKutuRender(telefon, contactAd);
 
+  // V31.49: aynı kişi uyarısı + "tek görüşmede teyit et" butonu
+  window._anket.birlesik=null;
+  const uyariEl=document.getElementById('aramaAnketUyari');
+  if(uyariEl) uyariEl.innerHTML=_aramaAyniKisiSerit(taskId,'modal');
+
   _anketRender();
   openModal('aramaAnketModal');
+}
+
+// ============================================================
+// V31.49: BİRLEŞİK ARAMA
+// ------------------------------------------------------------
+// Agent TEK telefon görüşmesi yapar, TEK anket doldurur; sistem her ziyaret
+// için AYRI arama_sonuclari satırı yazar. Kayıtlar birleşmez — birleşseydi
+// ikinci ziyaret raporlarda teyit edilmemiş görünür, teyit oranı ve MY
+// memnuniyet ortalaması bozulurdu.
+//
+// Ortak cevaplar (ulasildi / muhatap_dogru / gorusmek_istedi / memnuniyet /
+// sikayet / agent_notu) tüm satırlara aynen kopyalanır.
+// Ziyarete özel cevaplar (ziyaret_dogrulandi / gorusme_suresi /
+// ihtiyac_anlasildi) her firma için AYRI sorulur ve kendi satırına yazılır —
+// müşteri bir firmaya gelen ziyareti onaylayıp diğerini hatırlamayabilir.
+// ============================================================
+async function araBirlesikAc(taskId){
+  const ids=(ARAMA.gruplar||{})[taskId];
+  if(!ids||ids.length<2){ toast('Birleştirilecek başka kayıt yok','info'); return; }
+
+  const hedefler=[];
+  const ACIK=['Aranacak','Tekrar Aranacak'];
+  for(const id of ids){
+    const t=(ARAMA.tasks||[]).find(x=>x.task_id===id);
+    if(!t || !ACIK.includes(t.durum)) continue;   // emniyet: kapali gorev dahil edilmez
+    const v=(ARAMA.vMap||{})[t.visit_id]||{};
+    const k=(ARAMA.kMap||{})[t.visit_id]||{};
+    let deneme=1;
+    const {count}=await sb.from('arama_sonuclari').select('*',{count:'exact',head:true}).eq('task_id',id);
+    deneme=(count||0)+1;
+    hedefler.push({
+      taskId:id, ncst:t.ncst, visit_id:t.visit_id||null, my_id:v.my_id||null,
+      contact_id:v.contact_id||null, telefon:k.telefon||null,
+      unvan:(ARAMA.unvanMap||{})[t.ncst]||t.ncst||('#'+id),
+      ziyaretTarih:v.tarih_saat||null, deneme
+    });
+  }
+  if(hedefler.length<2){ toast('Birleştirilecek kayıt bulunamadı','error'); return; }
+
+  // Onay ekranı — otomatik birleştirme yok, agent hangilerini dahil edeceğini seçer
+  window._birlesikAday=hedefler;
+  const satirlar=hedefler.map((hd,i)=>`
+    <label style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+      <input type="checkbox" class="birlesikChk" value="${i}" ${i===0?'checked disabled':'checked'} style="margin-top:3px;">
+      <div style="flex:1;">
+        <div style="font-weight:600;">${escapeHTML(hd.unvan)}</div>
+        <div style="font-size:11px;color:var(--text3);">Ziyaret: ${hd.ziyaretTarih?fmtDate(hd.ziyaretTarih):'—'} · ${hd.deneme}. arama</div>
+      </div>
+    </label>`).join('');
+  document.getElementById('birlesikGovde').innerHTML=
+    `<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">
+       Tek görüşmede teyit edilecek ziyaretleri seçin. Her ziyaret için <b>ayrı kayıt</b>
+       yazılır; ortak cevaplar hepsine kopyalanır, ziyaret teyidi ayrı sorulur.
+     </div>${satirlar}`;
+  openModal('birlesikOnayModal');
+}
+
+function araBirlesikBasla(){
+  const secili=[...document.querySelectorAll('.birlesikChk')].filter(c=>c.checked).map(c=>parseInt(c.value));
+  if(secili.length<2){ toast('En az 2 ziyaret seçin','error'); return; }
+  const hedefler=secili.map(i=>window._birlesikAday[i]);
+  const ana=hedefler[0];
+  window._anket.birlesik=hedefler;
+  window._anket.c={};                       // birleşik akış baştan doldurulur
+  closeModal('birlesikOnayModal');
+  const uyariEl=document.getElementById('aramaAnketUyari');
+  if(uyariEl) uyariEl.innerHTML=
+    `<div style="background:rgba(168,85,247,.12);border:1px solid var(--purple);border-radius:8px;
+          padding:8px 10px;margin-bottom:10px;font-size:12px;">
+       <div style="color:var(--purple);font-weight:700;">🔗 BİRLEŞİK ARAMA — ${hedefler.length} ziyaret</div>
+       <div style="color:var(--text2);margin-top:2px;">${hedefler.map(h=>escapeHTML(h.unvan)).join(' · ')}</div>
+       <div style="color:var(--text3);margin-top:2px;">Her ziyaret için ayrı kayıt yazılacak.</div>
+       <button class="btn btn-sm btn-ghost" style="width:100%;margin-top:8px;" onclick="araBirlesikIptal()">Birleştirmeyi iptal et</button>
+     </div>`;
+  _anketRender();
+}
+
+function araBirlesikIptal(){
+  const tid=window._anket.taskId;
+  window._anket.birlesik=null; window._anket.c={};
+  const uyariEl=document.getElementById('aramaAnketUyari');
+  if(uyariEl) uyariEl.innerHTML=_aramaAyniKisiSerit(tid,'modal');
+  _anketRender();
+  toast('Birleştirme iptal edildi','info');
 }
 
 // ============================================================
@@ -963,24 +1183,60 @@ function _anketRender(){
       }
 
       if(c.gorusmek_istedi==='Evet'){
-        const zt=window._anket.ziyaretTarih;
-        const ztMetni=zt?fmtDate(zt):'belirtilen tarihte';
-        h+=_chips('ziyaret_dogrulandi',ztMetni+" sizi Turkcell'den arkadaşımız ziyarete geldi mi?",['Evet','Hayır','Gelmedi ama Telefonla konuştuk']);
+        const bl=window._anket.birlesik;
 
-        // "Evet" ve "Telefonla konuştuk" ikisi de bir görüşme gerçekleştiği için
-        // aynı ihtiyaç/memnuniyet bloğunu görür; "Hayır" (kimse gelmedi/aranmadı,
-        // sahte şüphesi) doğrudan şikayet sorusuna geçer.
-        const gorusmeOldu = (c.ziyaret_dogrulandi==='Evet' || c.ziyaret_dogrulandi==='Gelmedi ama Telefonla konuştuk');
-        if(gorusmeOldu){
-          h+=_chips('gorusme_suresi','Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
-          h+=_chips('ihtiyac_anlasildi','Temsilcimiz ihtiyacınızı anladı ve çözüm üretebildi mi?',['Evet','Kısmen','Hayır']);
-          h+=_scale('memnuniyet','Memnuniyet (1-10)',1,10,{ret:true});
-        }
+        if(bl && bl.length>1){
+          // ---- V31.49 BİRLEŞİK: her ziyaret için AYRI teyit bloğu ----
+          // Anahtarlar indeksli: ziyaret_dogrulandi_0, gorusme_suresi_0, ...
+          bl.forEach((hd,i)=>{
+            const ztM=hd.ziyaretTarih?fmtDate(hd.ziyaretTarih):'belirtilen tarihte';
+            h+=`<div style="border:1px solid var(--border);border-left:3px solid var(--purple);
+                  border-radius:8px;padding:10px;margin-bottom:12px;">
+                  <div style="font-weight:700;font-size:13px;margin-bottom:8px;">${i+1}. ${escapeHTML(hd.unvan)}</div>`;
+            h+=_chips('ziyaret_dogrulandi_'+i, ztM+" sizi Turkcell'den arkadaşımız ziyarete geldi mi?",['Evet','Hayır','Gelmedi ama Telefonla konuştuk']);
+            const zd=c['ziyaret_dogrulandi_'+i];
+            if(zd==='Evet' || zd==='Gelmedi ama Telefonla konuştuk'){
+              h+=_chips('gorusme_suresi_'+i,'Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
+              h+=_chips('ihtiyac_anlasildi_'+i,'Temsilcimiz ihtiyacınızı anladı ve çözüm üretebildi mi?',['Evet','Kısmen','Hayır']);
+            }
+            h+=`</div>`;
+          });
 
-        if(c.ziyaret_dogrulandi){
-          h+=_chips('sikayet_var','Şikayet / talep var mı?',['Evet','Hayır']);
-          if(c.sikayet_var==='Evet'){
-            h+=`<div class="field" style="margin-bottom:10px;"><label>Şikayet / talep</label><textarea id="anketSikayet" oninput="_anketText('sikayet_metni',this.value)" style="width:100%;">${escapeHTML(c.sikayet_metni||'')}</textarea></div>`;
+          // Ortak: en az bir ziyarette görüşme olduysa memnuniyet sorulur
+          const herhangiGorusme=bl.some((hd,i)=>{
+            const zd=c['ziyaret_dogrulandi_'+i];
+            return zd==='Evet' || zd==='Gelmedi ama Telefonla konuştuk';
+          });
+          if(herhangiGorusme) h+=_scale('memnuniyet','Memnuniyet (1-10) — kişi bazlı, tek sorulur',1,10,{ret:true});
+
+          const hepsiCevaplandi=bl.every((hd,i)=>!!c['ziyaret_dogrulandi_'+i]);
+          if(hepsiCevaplandi){
+            h+=_chips('sikayet_var','Şikayet / talep var mı?',['Evet','Hayır']);
+            if(c.sikayet_var==='Evet'){
+              h+=`<div class="field" style="margin-bottom:10px;"><label>Şikayet / talep</label><textarea id="anketSikayet" oninput="_anketText('sikayet_metni',this.value)" style="width:100%;">${escapeHTML(c.sikayet_metni||'')}</textarea></div>`;
+            }
+          }
+        } else {
+          // ---- TEKLİ (mevcut akış, değişmedi) ----
+          const zt=window._anket.ziyaretTarih;
+          const ztMetni=zt?fmtDate(zt):'belirtilen tarihte';
+          h+=_chips('ziyaret_dogrulandi',ztMetni+" sizi Turkcell'den arkadaşımız ziyarete geldi mi?",['Evet','Hayır','Gelmedi ama Telefonla konuştuk']);
+
+          // "Evet" ve "Telefonla konuştuk" ikisi de bir görüşme gerçekleştiği için
+          // aynı ihtiyaç/memnuniyet bloğunu görür; "Hayır" (kimse gelmedi/aranmadı,
+          // sahte şüphesi) doğrudan şikayet sorusuna geçer.
+          const gorusmeOldu = (c.ziyaret_dogrulandi==='Evet' || c.ziyaret_dogrulandi==='Gelmedi ama Telefonla konuştuk');
+          if(gorusmeOldu){
+            h+=_chips('gorusme_suresi','Görüşme süresi',['<5 dk','5-15 dk','15+ dk']);
+            h+=_chips('ihtiyac_anlasildi','Temsilcimiz ihtiyacınızı anladı ve çözüm üretebildi mi?',['Evet','Kısmen','Hayır']);
+            h+=_scale('memnuniyet','Memnuniyet (1-10)',1,10,{ret:true});
+          }
+
+          if(c.ziyaret_dogrulandi){
+            h+=_chips('sikayet_var','Şikayet / talep var mı?',['Evet','Hayır']);
+            if(c.sikayet_var==='Evet'){
+              h+=`<div class="field" style="margin-bottom:10px;"><label>Şikayet / talep</label><textarea id="anketSikayet" oninput="_anketText('sikayet_metni',this.value)" style="width:100%;">${escapeHTML(c.sikayet_metni||'')}</textarea></div>`;
+            }
           }
         }
       }
@@ -1007,8 +1263,13 @@ function _anketAksiyonRender(){
   } else if(c.ulasildi==='Evet' && c.muhatap_dogru==='Evet' && c.gorusmek_istedi==='Hayır'){
     // Doğru kişi ama şu an uygun değil — yeni arama tarihiyle "Tekrar Aranacak" kapat.
     h=`<button class="btn" style="width:100%;background:var(--blue);" onclick="araAnketTekrar()">Tekrar Aranacak</button>`;
-  } else if(c.ulasildi==='Evet' && c.muhatap_dogru==='Evet' && c.gorusmek_istedi==='Evet' && c.ziyaret_dogrulandi){
-    h=`<button class="btn" style="width:100%;background:var(--green);" onclick="araAnketKaydet()">Kaydet (Tamamlandı)</button>`;
+  } else if(c.ulasildi==='Evet' && c.muhatap_dogru==='Evet' && c.gorusmek_istedi==='Evet' &&
+            (st.birlesik && st.birlesik.length>1
+               ? st.birlesik.every((hd,i)=>!!c['ziyaret_dogrulandi_'+i])   // V31.49: hepsi cevaplanmalı
+               : !!c.ziyaret_dogrulandi)){
+    const etiket=(st.birlesik && st.birlesik.length>1)
+      ? 'Kaydet ('+st.birlesik.length+' ziyaret — Tamamlandı)' : 'Kaydet (Tamamlandı)';
+    h=`<button class="btn" style="width:100%;background:var(--green);" onclick="araAnketKaydet()">${etiket}</button>`;
   } else if(c.ulasildi==='Hayır' && c.ulasilamama_neden){
     if(c.ulasilamama_neden==='Yanlış numara'){
       h=`<button class="btn" style="width:100%;background:var(--amber);color:#000;" onclick="araAnketBilgiGuncelle('Yanlış numara')">Kapat + MY'ye Bilgi Güncelleme Görevi</button>`;
@@ -1100,11 +1361,57 @@ function _isGunuEkle(gunSayisi){
 }
 
 async function araAnketKaydet(){
-  const c=window._anket.c;
+  const st=window._anket, c=st.c;
   if(!c.ulasildi){ toast('Ulaşıldı mı? seçin','error'); return; }
+
+  // ---- V31.49 BİRLEŞİK KAYIT ----
+  // KAYITLAR BİRLEŞMEZ: her ziyaret kendi arama_sonuclari satırını alır.
+  // Birleşseydi ikinci ziyaret raporlarda teyit edilmemiş görünür, ziyaret
+  // teyit oranı ve MY memnuniyet ortalaması bozulurdu.
+  if(st.birlesik && st.birlesik.length>1){
+    const bl=st.birlesik;
+    const unvanlar=bl.map(h=>h.unvan).join(' + ');
+    const birlesikNot='[Birleşik arama] Aynı kişi ('+(st.contactAd||'—')+') ile tek görüşmede '+
+                      bl.length+' ziyaret teyit edildi: '+unvanlar+'.';
+    try{
+      const yazilan=[];
+      for(let i=0;i<bl.length;i++){
+        const hd=bl[i];
+        const zd=c['ziyaret_dogrulandi_'+i]||null;
+        const gorusmeOldu=(zd==='Evet'||zd==='Gelmedi ama Telefonla konuştuk');
+        // Ortak cevaplar tüm satırlara kopyalanır; ziyarete özel olanlar kendi satırına.
+        const satir=Object.assign(_anketSatir(), {
+          task_id:hd.taskId, visit_id:hd.visit_id, ncst:hd.ncst, my_id:hd.my_id,
+          contact_id:hd.contact_id, telefon:hd.telefon||null, deneme_no:hd.deneme,
+          ziyaret_dogrulandi:zd,
+          gorusme_suresi: gorusmeOldu ? (c['gorusme_suresi_'+i]||null) : null,
+          ihtiyac_anlasildi: gorusmeOldu ? (c['ihtiyac_anlasildi_'+i]||null) : null,
+          agent_notu: [c.agent_notu, birlesikNot].filter(Boolean).join('\n')
+        });
+        const {error}=await sb.from('arama_sonuclari').insert(satir);
+        if(error){
+          _anketHata('Arama kaydi ('+hd.unvan+')', error);
+          if(yazilan.length) toast(yazilan.length+' kayıt yazıldı, kalanlar yazılamadı. Görevler KAPATILMADI.','error');
+          return;   // hiçbir görev kapatılmaz — yarım kapanma olmasın
+        }
+        yazilan.push(hd);
+      }
+      // Tüm satırlar yazıldı — ancak şimdi görevler kapatılır
+      for(const hd of bl){
+        if(!await _anketGorevGuncelle(hd.taskId,{durum:'Tamamlandı',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()})) return;
+        try{ await sb.from('task_logs').insert({task_id:hd.taskId,user_id:currentUser.my_id,user_ad:currentUser.ad_soyad,
+              aksiyon:'Arama Tamamlandı (birleşik)', detay:birlesikNot}); }catch(e){}
+      }
+      toast(bl.length+' ziyaret tek görüşmede teyit edildi','success');
+      closeModal('aramaAnketModal'); loadAramaListesi();
+    }catch(e){ _anketHata('Birlesik arama kaydi', e); }
+    return;
+  }
+
+  // ---- TEKLİ (mevcut akış) ----
   try{
     if(!await _anketSatirYaz()) return;
-    if(!await _anketGorevGuncelle(window._anket.taskId,{durum:'Tamamlandı',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()})) return;
+    if(!await _anketGorevGuncelle(st.taskId,{durum:'Tamamlandı',tamamlanma_tarihi:new Date().toISOString(),guncelleme_tarihi:new Date().toISOString()})) return;
     await _anketLog('Arama Tamamlandı','Teyit araması dolduruldu');
     toast('Arama kaydedildi','success');
     closeModal('aramaAnketModal'); loadAramaListesi();

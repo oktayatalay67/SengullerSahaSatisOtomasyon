@@ -1,6 +1,11 @@
 // ============================================================
-// veriyonetimi.js — v1.5.0  (2 sekme: Musteri + Kontak)
-// Son güncelleme: 2026-08-26
+// veriyonetimi.js — v1.5.1  (2 sekme: Musteri + Kontak)
+// Son güncelleme: 2026-09-01
+//   v1.5.1 (V31.47) — TELEFON FORMAT KORUMASI: telefon artik vyCast() icinde,
+//     yani HER modda (musteri importu dahil) normalize/dogrulama huninden gecer.
+//     Onceden yalnizca kontak dalinda vyTel cagriliyordu; musteri Excel yuklemesi
+//     ham telefon yaziyordu. Gecersiz numara YAZILMAZ ve mevcut DB degerini EZMEZ;
+//     onizleme ozetinde sari uyari kutusuyla sayisi ve ornekleri gosterilir.
 // Değişiklikler:
 //   v1.5.0 — (V31.44) Portfoy Devri sekmesi (dosyasiz): Kaynak(B)->Hedef(A);
 //            hedefin eskileri C'ye tasinir. Ozet + onay + dogrulama. MY secici
@@ -280,7 +285,24 @@ function vyNull(v){ const s=String(v==null?'':v).trim(); return s.length?s:null;
 function vyBool(v){ const s=vyNorm(v); if(s==='') return null; if(['TRUE','1','EVET','VAR','X','DOGRU','E','Y','YES'].indexOf(s)>=0) return true; if(['FALSE','0','HAYIR','YOK','YANLIS','H','N','NO'].indexOf(s)>=0) return false; return null; }
 function vyNum(v){ const s=String(v==null?'':v).replace(',','.').trim(); if(!s) return null; const n=Number(s); return isNaN(n)?null:n; }
 function vyInt(v){ const n=vyNum(v); return n===null?null:Math.trunc(n); }
-function vyCast(f,v){ const t=vyType(f); if(t==='bool') return vyBool(v); if(t==='int') return vyInt(v); if(t==='num') return vyNum(v); return vyNull(v); }
+// V31.47: telefon her modda (kontak VE musteri importu) normalize/dogrulama
+// huninden gecer. Onceden yalnizca kontak dalinda vyTel cagriliyordu; musteri
+// Excel yuklemesi ham telefon yaziyordu — bozuk verinin ana giris kapilarindan
+// biriydi. Gecersiz numara null doner: YAZILMAZ, mevcut DB degerini de EZMEZ
+// (null 'dosyada bos' sayilir), sadece sayaca islenip raporda gosterilir.
+function vyCast(f,v){
+  const t=vyType(f);
+  if(f==='telefon'){
+    const ham=vyNull(v);
+    if(ham===null) return null;
+    if(vyTelGecerli(ham)) return vyTel(ham);
+    VY._telGecersiz=(VY._telGecersiz||0)+1;
+    if(!VY._telGecersizOrnek) VY._telGecersizOrnek=[];
+    if(VY._telGecersizOrnek.length<5) VY._telGecersizOrnek.push(String(ham));
+    return null;
+  }
+  if(t==='bool') return vyBool(v); if(t==='int') return vyInt(v); if(t==='num') return vyNum(v); return vyNull(v);
+}
 function vyCastDb(f,v){ const t=vyType(f); if(t==='bool') return (v==null)?null:!!v; if(t==='int') return (v==null||v==='')?null:Math.trunc(Number(v)); if(t==='num') return (v==null||v==='')?null:Number(v); return (v==null||String(v).trim()==='')?null:String(v).trim(); }
 
 // kontak: telefon normalize + gecerlilik (veri_kalitesi.js)
@@ -291,6 +313,7 @@ function vyEmailGecerli(v){ if(!vyNull(v)) return false; if(typeof emailGecerli=
 
 async function vyAnaliz(){
   const cfg=vyCfg();
+  VY._telGecersiz=0; VY._telGecersizOrnek=[];   // V31.47: telefon sayaci sifirla
   const mapped=[]; VY.mapping.forEach((f,i)=>{ if(f && i!==0) mapped.push({idx:i, field:f}); });
   if(!VY.rows.length){ toast('Veri yok','error'); return; }
   // kontak: ad_soyad eslenmeli
@@ -445,6 +468,14 @@ function vyRenderAnaliz(G, toplam){
   const box=document.getElementById('vyAnalizSonuc'); if(!box) return;
   const card=(renk,b,a)=>'<div style="flex:1;min-width:110px;background:var(--bg2);border:1px solid '+renk+';border-radius:10px;padding:10px 12px;"><div style="font-size:22px;font-weight:800;color:'+renk+';">'+a+'</div><div style="font-size:12px;color:var(--text2);">'+b+'</div></div>';
   let h='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px;">'+card('#34d399','Guncellenecek',G.guncelle.length)+card('#60a5fa','Yeni Eklenecek',G.yeni.length)+card('#fbbf24','Bos->Onay',G.bosonay.length)+card('#f87171','Atlanacak',G.atla.length)+card('#94a3b8','Degisiklik Yok',G.degismez)+'</div>';
+  // V31.47: format kurallarina uymayan telefonlar yazilmadi — kullaniciya bildir
+  if(VY._telGecersiz){
+    h+='<div style="background:rgba(255,180,0,.12);border:1px solid var(--amber);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:12px;color:var(--amber);">'
+      +'&#9888; <b>'+VY._telGecersiz+'</b> satirda telefon format kurallarina uymadigi icin <b>yazilmayacak</b> '
+      +'(10 hane olmali ve 5 ile baslamali). Mevcut DB degerleri korunur, uzerine yazilmaz.'
+      +(VY._telGecersizOrnek&&VY._telGecersizOrnek.length?'<br>Ornek: '+VY._telGecersizOrnek.map(x=>escapeHTML(x)).join(', '):'')
+      +'</div>';
+  }
   h+='<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Toplam '+toplam+' satir. Yalnizca <b>isaretli</b> satirlar yazilir. Tablo: <b>'+vyCfg().table+'</b></div>';
   // ATAMA istatistik
   if(VY.mode==='atama' && VYATAMA.selectedMy){

@@ -1,4 +1,5 @@
 // ============================================================
+// musteri.js — v31.50: kontak listelerinde ham telefon yerine _telG() (config.js)
 // musteri.js — v1.2.0
 // Son güncelleme: 2026-07-17
 // Değişiklikler:
@@ -923,7 +924,7 @@ function renderKontakKarti(k, ncst){
         <button onclick="event.stopPropagation();deleteKontakFromForm(${k.contact_id},'${escapeHTML(k.ad_soyad)}')" style="background:rgba(255,80,80,.15);border:1px solid var(--red);border-radius:6px;cursor:pointer;font-size:12px;padding:3px 7px;color:var(--red);" title="Sil">🗑</button>
       </div>
     </div>
-    ${k.telefon?`<div style="font-size:12px;color:var(--blue);margin-top:4px;">📞 ${escapeHTML(k.telefon)}</div>`:''}
+    ${k.telefon?`<div style="font-size:12px;color:var(--blue);margin-top:4px;">📞 ${escapeHTML(_telG(k.telefon))}</div>`:''}
     ${k.email?`<div style="font-size:12px;color:var(--text2);">✉️ ${escapeHTML(k.email)}</div>`:''}
   </div>`;
 }
@@ -934,7 +935,7 @@ async function openKontakDetay(contactId){
   // Kontak detay modalını aç
   document.getElementById('kdAd').textContent = k.ad_soyad||'—';
   document.getElementById('kdGorev').textContent = k.gorev_unvani||'—';
-  document.getElementById('kdTel').textContent = k.telefon||'—';
+  document.getElementById('kdTel').textContent = k.telefon?_telG(k.telefon):'—';
   document.getElementById('kdEmail').textContent = k.email||'—';
   document.getElementById('kdMusteriBtn').onclick = ()=>{ closeModal('modalKontakDetay'); selectMusteri(k.ncst); };
   // Müşteri adını yükle
@@ -1054,7 +1055,7 @@ async function loadKontaklar(searchVal=''){
           <button class="icon-btn" onclick="event.stopPropagation();openEditKontakModal(${k.contact_id})">✏️</button>
         </div>
         ${unvanMap[k.ncst]?`<div style="font-size:12px;color:var(--blue);margin-top:5px;cursor:pointer;" onclick="event.stopPropagation();switchMusteriTab('musteri');selectMusteri('${k.ncst}')">🏢 ${escapeHTML(unvanMap[k.ncst])}</div>`:''}
-        ${k.telefon?`<div style="font-size:12px;color:var(--text2);margin-top:2px;">📞 ${escapeHTML(k.telefon)}</div>`:''}
+        ${k.telefon?`<div style="font-size:12px;color:var(--text2);margin-top:2px;">📞 ${escapeHTML(_telG(k.telefon))}</div>`:''}
       </div>`).join('');
   }catch(err){ c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`; }
 }

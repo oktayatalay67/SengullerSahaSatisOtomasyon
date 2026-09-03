@@ -1,5 +1,8 @@
 // ============================================================
-// veri_kalitesi.js — v1.0.0
+// veri_kalitesi.js — v1.0.1
+//   v1.0.1 (V31.47) — telefonNormalize() artik config.js/normalizeTel()'e delege
+//     eder (tek ayristirma kaynagi). telefonMaskeBagla() idempotent yapildi:
+//     her modal acilisinda yeni bir 'input' dinleyicisi bagliyordu.
 // ------------------------------------------------------------
 // KONTAK VERİ KALİTESİ KAPISI
 //   • Kurallar sistem_ayarlari tablosundan (DB) yüklenir → window.VKAYAR
@@ -51,8 +54,20 @@ async function loadVeriKalitesiAyar(){
    ============================================================ */
 // Her türlü girişi 10 haneli '5xxxxxxxxx' biçimine indirger.
 // '05xx...', '+905xx...', '905xx...', '5xx....0' (Excel) → '5xxxxxxxxx'
+//
+// V31.47 — TEK AYRIŞTIRMA KAYNAĞI: gerçek ayrıştırma config.js içindeki
+// normalizeTel() tarafından yapılır, bu fonksiyon onun ulusal (10 hane)
+// çıktısını döndürür. V31.46'da config.js'e ikinci bir normalize eklenmişti;
+// iki kuralın zamanla ayrışmaması için burada birleştirildi.
+// Geri düşüş: normalizeTel yoksa (yükleme sırası bozulursa) eski mantık çalışır.
 function telefonNormalize(input){
   if(input===null || input===undefined) return '';
+  if(typeof normalizeTel==='function'){
+    const n = normalizeTel(input);
+    if(n.gecerli) return n.ulusal;   // 10 hane
+    // Geçersizse: eski davranışla ham rakamları döndür ki telefonGecerli()
+    // kullanıcıya "10 haneli olmalı / 5 ile başlamalı" gibi anlamlı sebep versin.
+  }
   let s = String(input).trim();
   s = s.replace(/\.0+$/, '');        // Excel '.0' ekini at
   s = s.replace(/\D/g, '');          // rakam dışını at
@@ -203,6 +218,10 @@ function getSeciliKontakTipleri(containerId){
 function telefonMaskeBagla(inputId){
   const el = document.getElementById(inputId);
   if(!el) return;
+  // V31.47: her modal acilisinda tekrar cagriliyordu -> dinleyiciler ust uste
+  // biniyordu. Tek sefer baglanmasi icin isaret birakiliyor.
+  if(el.dataset.telMaske==='1') return;
+  el.dataset.telMaske='1';
   el.addEventListener('input', function(){
     let d = telefonNormalize(this.value);          // 10 haneye indir
     d = d.slice(0,10);

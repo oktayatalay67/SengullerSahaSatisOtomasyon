@@ -1,6 +1,11 @@
 // ============================================================
-// admin.js — v1.1.1
-// Son güncelleme: 2026-06-24
+// admin.js — v1.1.3
+//   v1.1.3 (V31.50) — Kullanici listesinde ham telefon yerine _telG().
+// admin.js — v1.1.2
+// Son güncelleme: 2026-09-01
+//   v1.1.2 (V31.47) — TELEFON FORMAT KORUMASI: kullanici formu (kullTelefon)
+//     ham .trim() yaziyordu. Canli maske + telefonGecerli() dogrulamasi eklendi,
+//     DB'ye normalize (10 hane) yaziliyor. Dokunulmamis eski deger korunur.
 // Değişiklikler:
 //   v1.1.1 — ÇOK KRİTİK, UZUN SÜREDİR ÇÖZÜLEMEYEN BUG: Fırsat formundaki "Görüşülen
 //            Kişi" özet satırı (oppKontakOzet) sadece İLK oluşturulduğunda boştu —
@@ -1228,7 +1233,7 @@ function renderKullanicilar(liste){
           <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;">
             <span class="tag tag-gray" style="font-size:10px;">${escapeHTML(u.yetki_seviyesi||'—')}</span>
             ${u.aktif?'<span class="tag tag-green" style="font-size:10px;">Aktif</span>':'<span class="tag tag-red" style="font-size:10px;">Pasif</span>'}
-            ${u.telefon?`<span class="tag tag-gray" style="font-size:10px;">📞 ${escapeHTML(u.telefon)}</span>`:''}
+            ${u.telefon?`<span class="tag tag-gray" style="font-size:10px;">📞 ${escapeHTML(_telG(u.telefon))}</span>`:''}
           </div>
         </div>
         <div class="urun-row-actions" style="flex-direction:column;gap:5px;">
@@ -1308,6 +1313,8 @@ async function openAddKullaniciModal(){
   document.getElementById('kullAdSoyad').value='';
   document.getElementById('kullEmail').value='';
   document.getElementById('kullTelefon').value='';
+  window._kullTelOrijinal='';                                                  // V31.47
+  if(typeof telefonMaskeBagla==='function') telefonMaskeBagla('kullTelefon');  // V31.47
   document.getElementById('kullKcmId').value='';
   document.getElementById('kullSifre').value='';
   document.getElementById('kullSifreTekrar').value='';
@@ -1328,7 +1335,10 @@ async function openEditKullaniciModal(userId){
   document.getElementById('editKullId').value=userId;
   document.getElementById('kullAdSoyad').value=u.ad_soyad||'';
   document.getElementById('kullEmail').value=u.email||'';
-  document.getElementById('kullTelefon').value=u.telefon||'';
+  window._kullTelOrijinal = u.telefon || '';                                   // V31.47
+  document.getElementById('kullTelefon').value=
+    (typeof telefonMaskele==='function') ? telefonMaskele(u.telefon||'') : (u.telefon||'');
+  if(typeof telefonMaskeBagla==='function') telefonMaskeBagla('kullTelefon');  // V31.47
   document.getElementById('kullSifre').value='';
   document.getElementById('kullSifreTekrar').value='';
   document.getElementById('kullSifreInfo').classList.remove('hide');
@@ -1390,7 +1400,7 @@ async function saveKullanici(){
   const id=document.getElementById('editKullId').value;
   const adSoyad=document.getElementById('kullAdSoyad').value.trim();
   const email=document.getElementById('kullEmail').value.trim().toLowerCase();
-  const telefon=document.getElementById('kullTelefon').value.trim();
+  const telefonHam=document.getElementById('kullTelefon').value.trim();
   const kcmId=document.getElementById('kullKcmId').value||null;
   const gorevTanimi=document.getElementById('kullGorevTanimi')?.value.trim()||null;
   // v31.13: Tek rol kaynağı — 'Görev Tanımı' (fazla/bozuk 'Yetki Seviyesi' alanı kaldırıldı).
@@ -1402,6 +1412,21 @@ async function saveKullanici(){
   if(!id&&!sifre){toast('Yeni kullanıcı için şifre zorunlu','error');return;}
   if(sifre&&sifre!==sifreTekrar){toast('Şifreler eşleşmiyor','error');return;}
   if(sifre&&sifre.length<4){toast('Şifre en az 4 karakter olmalı','error');return;}
+  // V31.47 — TELEFON FORMAT KORUMASI (users.telefon)
+  // Ham .trim() ile yazılıyordu. Kontak/müşteri ile aynı kural: boş olabilir,
+  // doluysa 10 hane + '5' ile başlamalı; DB'ye normalize edilmiş hali gider.
+  const _kullTelOrj=window._kullTelOrijinal||'';
+  const _kullTelOrjGosterim=(typeof telefonMaskele==='function')?telefonMaskele(_kullTelOrj):_kullTelOrj;
+  let telefon=null;
+  if(telefonHam===_kullTelOrjGosterim){
+    telefon=_kullTelOrj||null;      // dokunulmadi -> eski deger korunur
+  }else if(telefonHam){
+    if(typeof telefonGecerli==='function'){
+      const _t=telefonGecerli(telefonHam);
+      if(!_t.ok){toast('Telefon: '+_t.sebep,'error');return;}
+      telefon=_t.normalize;
+    }else{ telefon=telefonHam; }
+  }
   // KÇM adını bul
   const kcmGrup=kullKcmGruplari.find(k=>String(k.kcm_id)===String(kcmId));
   const kcmAdi=kcmGrup?.kcm_adi||null;

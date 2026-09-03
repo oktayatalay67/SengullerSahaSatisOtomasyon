@@ -1,5 +1,14 @@
 // ============================================================
-// temas.js — v2.10.45
+// temas.js — v2.10.48
+//   v2.10.48 — (V31.50) Temas formu kontak satirinda ham telefon yerine _telG().
+// temas.js — v2.10.47
+//   v2.10.47 — (V31.47) TELEFON FORMAT KORUMASI: musteri karti (editCustTelefon)
+//     artik ham .value yazmiyor. Canli maske baglandi, kayitta telefonGecerli()
+//     dogrulamasi yapiliyor, DB'ye normalize (10 hane) yaziliyor. Kullanici alana
+//     DOKUNMADIYSA eski/bozuk deger aynen korunur — aksi halde 187 eski sabit hat
+//     kaydinin sahibi baska bir alani duzeltmek istedigi anda kilitlenirdi.
+//   v2.10.46 — (V31.39) Kontak kaydinda EMNIYET KEMERI: musteri_unvani bossa
+//              ncst'den customers.unvan otomatik cekilir (bos unvan onlenir).
 //   v2.10.45 — Memnuniyet Arama Adim 2: yuz yuze (Ziyaret) + Gerceklesti temasta
 //              otomatik 'Ziyaret Teyit Araması' gorevi (sonraki is gunu + N-gun
 //              cooldown + kontak override). Mevcut ziyaret akisi degismedi.
@@ -1030,7 +1039,14 @@ function openCustEditModal(c, source){
   _setToggle('fw', c.firewall_kullanimi===true);
   document.getElementById('editFwMarka').value = c.firewall_detay||'';
   document.getElementById('editCustAdres').value = c.adres||'';
-  document.getElementById('editCustTelefon').value = c.telefon||'';
+  // V31.47: eski/bozuk numaralar icin ham deger saklanir — kullanici bu alana
+  // DOKUNMADIYSA kayit engellenmez, deger aynen korunur (bkz. submitCustUpdate).
+  window._custTelOrijinal = c.telefon || '';
+  document.getElementById('editCustTelefon').value =
+    (typeof telefonMaskele==='function') ? telefonMaskele(c.telefon||'') : (c.telefon||'');
+  // V31.47: müşteri kartı telefonuna da canlı maske bağlanıyor (kontak formunda
+  // zaten vardı, burada yoktu — ham veri bu kapıdan giriyordu).
+  if(typeof telefonMaskeBagla==='function') telefonMaskeBagla('editCustTelefon');
   window._custUpdateSource = source||'temas';
 
   // v2.10.26: KRİTİK — sahiplik kontrolü merkezi hale getirildi. Önceden sadece
@@ -1089,6 +1105,30 @@ function _setToggle(type,val){
 async function submitCustUpdate(){
   if(!currentEditingCustNcst)return;
   if(!hasPerm('musteri_duzenle')){toast('Müşteri düzenleme yetkiniz yok','error');closeModal('custEditModal');return;}
+
+  // V31.47 — TELEFON FORMAT KORUMASI
+  // Bu alan V31.46'ya kadar ham .value ile customers.telefon'a yazılıyordu;
+  // bozuk numaraların ana giriş kapılarından biriydi. Artık kontak formuyla
+  // aynı kuralı uyguluyor: boş bırakılabilir, ama doluysa geçerli olmak zorunda.
+  const _custTelHam = document.getElementById('editCustTelefon').value.trim();
+  const _custTelOrj  = window._custTelOrijinal || '';
+  const _custTelOrjGosterim = (typeof telefonMaskele==='function')
+    ? telefonMaskele(_custTelOrj) : _custTelOrj;
+  let _custTelKayit = null;
+  if(_custTelHam === _custTelOrjGosterim){
+    // Alana dokunulmadi: eski deger (bozuk olsa bile) aynen korunur. Aksi halde
+    // 187 eski sabit hat / bozuk kaydin sahibi, adres gibi baska bir alani
+    // duzeltmek istedigi anda kaydi kilitlenirdi.
+    _custTelKayit = _custTelOrj || null;
+  }else if(_custTelHam){
+    if(typeof telefonGecerli==='function'){
+      const _t = telefonGecerli(_custTelHam);
+      if(!_t.ok){ toast('Telefon: '+_t.sebep,'error'); return; }
+      _custTelKayit = _t.normalize;                       // 10 hane, '5' ile başlar
+    }else{
+      _custTelKayit = _custTelHam;                        // geri düşüş
+    }
+  }
   // v2.10.26: KRİTİK — sahiplik kontrolü burada da yapılıyor (UI'da disable edilmiş
   // olması yetmez, biri DOM'u manipüle edip Kaydet'i tekrar görünür yapabilir).
   const _rSubmit=(currentUser.yetki_seviyesi||'').toUpperCase();
@@ -1115,7 +1155,7 @@ async function submitCustUpdate(){
     firewall_kullanimi:editToggleState.fw===true,
     firewall_detay:editToggleState.fw===true?document.getElementById('editFwMarka').value||null:null,
     adres:document.getElementById('editCustAdres').value||null,
-    telefon:document.getElementById('editCustTelefon').value||null
+    telefon:_custTelKayit
   };
   const isAdmin=(currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';
   if(isAdmin){
@@ -1162,7 +1202,7 @@ function renderKontakItemForForm(c, onSelectFn, onCheckId){
   <div style="flex:1;cursor:pointer;" onclick="${onSelectFn}(${c.contact_id},'${escapeHTML(c.ad_soyad)}')">
     <strong>${escapeHTML(c.ad_soyad)}</strong>
     <span style="font-size:11px;color:var(--text2);"> · ${escapeHTML(c.gorev_unvani||'-')}</span>
-    ${c.telefon?`<span style="font-size:11px;color:var(--text3);"> 📞${escapeHTML(c.telefon)}</span>`:''}
+    ${c.telefon?`<span style="font-size:11px;color:var(--text3);"> 📞${escapeHTML(_telG(c.telefon))}</span>`:''}
   </div>
   <div class="c-check hide" id="${onCheckId}_${c.contact_id}" style="color:var(--green);font-size:16px;pointer-events:none;">✓</div>
   <button onclick="event.stopPropagation();openEditKontakModal(${c.contact_id})" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px;" title="Düzenle">✏️</button>
@@ -1199,8 +1239,20 @@ async function saveNewContact(){
   const title = document.getElementById('newContactTitle').value.trim();
   const phone = document.getElementById('newContactPhone').value.trim();
   const email = document.getElementById('newContactEmail').value.trim();
-  const musteriUnvani = document.getElementById('newContactMusteriUnvani').value.trim();
+  let musteriUnvani = document.getElementById('newContactMusteriUnvani').value.trim();
   const kontakTipi = (typeof getSeciliKontakTipleri==='function') ? getSeciliKontakTipleri('newContactTipleri') : [];
+
+  // v2.10.46: EMNIYET KEMERI — musteri_unvani bossa ncst'den customers.unvan otomatik cek
+  if(!musteriUnvani){
+    const _src=window._newKontakSource; let _n;
+    if(_src==='musteri') _n=selectedMusteri?.ncst;
+    else if(_src==='firsat_form') _n=firsatSelectedMusteri?.ncst;
+    else if(_src==='firsat') _n=oppSelectedNcst;
+    else if(_src==='edit') _n=window._newKontakNcst||null;
+    else _n=selectedCustomer?.ncst;
+    if(_n){ try{ const {data}=await sb.from('customers').select('unvan').eq('ncst',_n).single();
+      if(data && data.unvan){ musteriUnvani=data.unvan; const el=document.getElementById('newContactMusteriUnvani'); if(el) el.value=data.unvan; } }catch(e){} }
+  }
 
   // v30.80: VERİ KALİTESİ KAPISI — kaydetmeden önce doğrula (yeni + düzenleme, katı mod)
   if(typeof kontakDogrula==='function'){
