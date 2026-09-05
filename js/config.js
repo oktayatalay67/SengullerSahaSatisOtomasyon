@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.2.98
+// config.js — v1.2.99
 // Son güncelleme: 2026-09-05
 // Değişiklikler:
+//   v1.2.99 — APP_VERSION → V31.58. Donanim: 48 saatlik rezervasyon suresi
+//             (onayda damga, kartta kalan sure rozeti, Süre Uzat butonu,
+//             firsatci supurme). donanim.js v1.0.24.
+//             MIGRASYON: sistem_bakim + stok_sure_dolumu_isle() + stok_musait
+//             tembel hesap — onceden calistirildi.
 //   v1.2.98 — APP_VERSION → V31.57. Donanim: MY/FMY gorunurlugu depo bazli,
 //             'Sadece stokta olanlar' anahtari, stokta olmayan urun icin
 //             tedarik talebi + Talepler sekmesi (donanim.js v1.0.23).
@@ -286,7 +291,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.57';
+const APP_VERSION = 'V31.58';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

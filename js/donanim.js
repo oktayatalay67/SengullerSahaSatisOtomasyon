@@ -1,4 +1,14 @@
 // ============================================================
+// donanim.js — v1.0.24 (V31.58)
+//   v1.0.24 (V31.58): 48 saatlik rezervasyon suresi — platform bagimsiz.
+//     Onay aninda rezervasyon_bitis = now()+48s damgalanir. Kalan sure kartta
+//     rozet olarak gorunur (6 saatten az kirmizi, 24 saatten az turuncu).
+//     Süre Uzat butonu (+48s) donanim_yonet veya onay yetkisi olanda.
+//     Firsatci supurme: stok_sure_dolumu_isle() modul acilisinda, rezervasyon
+//     listesinde ve onay oncesinde cagrilir; DB tarafinda 5 dk kisitlama ve
+//     advisory lock var. Yeni durumlar: Süresi Doldu, Kısmi Tamamlandı.
+//     Yeni: _donanimSureSupur, _donanimSureRozet, donanimSureUzat.
+//     SQL: sistem_bakim + stok_sure_dolumu_isle + stok_musait tembel hesap.
 // donanim.js — v1.0.23 (V31.57)
 //   v1.0.23 (V31.57): MY/FMY gorunurlugu DEPO bazli oldu + tedarik talebi.
 //     loadDonanimListesi artik kcm_id yerine depo_id ile kapsam uyguluyor
@@ -143,6 +153,7 @@ async function initDonanimPage(){
   window._donanimDepoCache = null;   // V31.57: her açılışta depo haritası tazelenir
   _donanimSepetBarGuncelle();
 
+  _donanimSureSupur(false);          // V31.58: modül açılışında fırsatçı süpürme
   await _loadDonanimKcmFiltre();
   await loadDonanimListesi();
   _donanimTalepBadge();
@@ -914,6 +925,8 @@ const DONANIM_SUREC_ADIMLARI = {
   'Eşleştirildi':      {no:4, renk:'#3498db'},
   'Fatura Kesildi':    {no:5, renk:'#9b59b6'},
   'Cihaz Gönderildi':  {no:6, renk:'#2ecc71'},
+  'Süresi Doldu':      {no:0, renk:'#b03a2e'},   // V31.58
+  'Kısmi Tamamlandı':  {no:4, renk:'#5d6d7e'},   // V31.58
   'Reddedildi':        {no:0, renk:'#c0392b'},
   'İptal':             {no:0, renk:'#7f8c8d'}
 };
@@ -1230,6 +1243,7 @@ async function loadDonanimRezervasyonlar(){
   const listEl = document.getElementById('donanimRezListesi');
   if(!listEl) return;
   listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  await _donanimSureSupur(false);   // V31.58: fırsatçı süpürme (5 dk kısıtlamalı)
 
   const scope = getScope('donanim_takip');
   let q = sb.from('stok_rezervasyon_ozet').select('*').order('created_at',{ascending:false});
@@ -1245,9 +1259,14 @@ async function loadDonanimRezervasyonlar(){
   // sepet_id başına tek satır yeterli (aynı sepetteki tüm kalemler aynı satış tipini paylaşır).
   const sepetIds = [...new Set(data.map(r=>r.sepet_id).filter(Boolean))];
   const satisTipiMap = {};
+  const sureMap = {};   // V31.58: sepet -> {bitis, uzatma}
   if(sepetIds.length){
-    const {data:stRows} = await sb.from('stok_rezervasyonlari').select('sepet_id,satis_tipi').in('sepet_id', sepetIds);
-    (stRows||[]).forEach(s=>{ if(s.satis_tipi && !satisTipiMap[s.sepet_id]) satisTipiMap[s.sepet_id]=s.satis_tipi; });
+    const {data:stRows} = await sb.from('stok_rezervasyonlari')
+      .select('sepet_id,satis_tipi,rezervasyon_bitis,uzatma_sayisi').in('sepet_id', sepetIds);
+    (stRows||[]).forEach(s=>{
+      if(s.satis_tipi && !satisTipiMap[s.sepet_id]) satisTipiMap[s.sepet_id]=s.satis_tipi;
+      if(!sureMap[s.sepet_id]) sureMap[s.sepet_id] = {bitis:s.rezervasyon_bitis, uzatma:s.uzatma_sayisi||0};
+    });
   }
 
   // MY/TL/KÇM adlarını toplu çek
@@ -1306,6 +1325,11 @@ async function loadDonanimRezervasyonlar(){
     const satisTipiRozet = satisTipi ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${DONANIM_SATIS_TIPI_RENK[satisTipi]||'var(--text3)'};color:#fff;margin-left:6px;white-space:nowrap;">${escapeHTML(satisTipi)}</span>` : '';
     // v31.26: kullanıcının kendi (satan/rezerve eden olduğu) YENİ onaylanmış siparişi — dikkat çeksin
     const buKendiYeniOnay = r.durum==='Onaylandı' && (r.satan_my_id===currentUser.my_id || r.rezerve_eden_id===currentUser.my_id);
+    // V31.58: kalan süre rozeti + uzatma yetkisi
+    const _sure = sureMap[r.sepet_id] || {};
+    const sureRozet = _donanimSureRozet(_sure.bitis, r.durum);
+    const buUzat = DONANIM_SURE_AKTIF.includes(r.durum) && !!_sure.bitis &&
+                   (hasPerm('donanim_yonet') || _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id));
     const dikkatCek = buKendiYeniOnay ? 'background:rgba(230,126,34,0.10);box-shadow:0 0 0 1px rgba(230,126,34,0.5);' : '';
     const yeniOnayRozet = buKendiYeniOnay ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--red);color:#fff;margin-left:6px;white-space:nowrap;">🔔 Onaylandı</span>` : '';
     return `<div class="visit-card" style="margin-bottom:8px;border-left:3px solid ${adim.renk};${dikkatCek}">
@@ -1315,7 +1339,7 @@ async function loadDonanimRezervasyonlar(){
           <div style="width:26px;height:26px;border-radius:50%;background:${adim.renk};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">${adim.no}</div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
-          <span style="font-size:11px;color:${adim.renk};font-weight:700;">${escapeHTML(r.durum)}${satisTipiRozet}${yeniOnayRozet}</span>
+          <span style="font-size:11px;color:${adim.renk};font-weight:700;">${escapeHTML(r.durum)}${satisTipiRozet}${yeniOnayRozet}${sureRozet}</span>
           <span style="font-size:14px;font-weight:800;">${Number(r.toplam_tutar||0).toLocaleString('tr-TR')} ₺</span>
         </div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;">${r.kalem_sayisi} kalem · ${new Date(r.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'})}</div>
@@ -1324,7 +1348,7 @@ async function loadDonanimRezervasyonlar(){
           Müşterinin MY'si: ${escapeHTML(musteriMyAd)} · Rezerve eden: ${escapeHTML(rezEdenAd)}
         </div>
       </div>
-      ${(buOnaylayabilir||buIptalEdebilir||buDuzenleyebilir||buHazirla||buEslestir||buFatura||buGonder) ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+      ${(buOnaylayabilir||buIptalEdebilir||buDuzenleyebilir||buHazirla||buEslestir||buFatura||buGonder||buUzat) ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
         ${buOnaylayabilir ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimRezervasyonOnayla('${r.sepet_id}')">✅ Onayla</button><button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">Reddet</button>` : ''}
         ${buDuzenleyebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezDuzenleAc('${r.sepet_id}')">Düzenle</button>` : ''}
         ${buIptalEdebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonIptal('${r.sepet_id}')">İptal Et</button>` : ''}
@@ -1332,6 +1356,7 @@ async function loadDonanimRezervasyonlar(){
         ${buEslestir ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimImeiEslestirAc('${r.sepet_id}')">IMEI Eşleştir</button>` : ''}
         ${buFatura ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Fatura Kesildi')">Fatura Kesildi</button>` : ''}
         ${buGonder ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Cihaz Gönderildi')">Cihaz Gönderildi</button>` : ''}
+        ${buUzat ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimSureUzat('${r.sepet_id}')">⏳ Süre Uzat${_sure.uzatma?` (${_sure.uzatma})`:''}</button>` : ''}
       </div>` : ''}
     </div>`;
   }).join('');
@@ -1342,7 +1367,8 @@ async function loadDonanimRezervasyonlar(){
 // v30.89: Ön Rezervasyon -> Rezervasyon (kesinleşme). SADECE bu adımda
 // stoktan gerçekten düşer: on_rezerve_adet azalır, rezerve_adet artar.
 async function donanimRezervasyonOnayla(sepetId){
-  if(!confirm('Bu rezervasyon talebini onaylayıp kesinleştirmek istediğinize emin misiniz?\n\nOnaylanınca cihazlar stoktan düşecek.')) return;
+  if(!confirm('Bu rezervasyon talebini onaylayıp kesinleştirmek istediğinize emin misiniz?\n\nOnaylanınca cihazlar stoktan düşecek ve 48 saatlik süre başlayacak.')) return;
+  await _donanimSureSupur(true);   // V31.58: stok sayısı güncel olsun
 
   const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
   if(error || !kalemler?.length){ toast('Hata: kayıtlar bulunamadı','error'); return; }
@@ -1361,7 +1387,9 @@ async function donanimRezervasyonOnayla(sepetId){
     await sb.from('stok_urunleri').update({on_rezerve_adet:yeniOnRez, rezerve_adet:yeniRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
   }
 
-  await sb.from('stok_rezervasyonlari').update({durum:'Onaylandı', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
+  // V31.58: onayla birlikte 48 saatlik rezervasyon süresi başlar
+  const _bitis = new Date(Date.now() + DONANIM_SURE_SAAT*3600000).toISOString();
+  await sb.from('stok_rezervasyonlari').update({durum:'Onaylandı', rezervasyon_bitis:_bitis, updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
 
   await _donanimRezHareketLog('Rezervasyon Onaylandı', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
 
@@ -2647,4 +2675,95 @@ async function _donanimTalepBadge(){
     .select('*',{count:'exact',head:true}).eq('durum','Talep Edildi');
   if(error){ btn.textContent = temel; return; }
   btn.textContent = (count||0) > 0 ? `${temel} (${count})` : temel;
+}
+
+/* ============================================================
+   48 SAATLİK REZERVASYON SÜRESİ (V31.58)
+   ------------------------------------------------------------
+   Platform bağımsız tasarım — pg_cron YOK. Üç katman:
+
+   1) TEMBEL HESAP  — stok_musait görünümü süresi dolmuş
+      rezervasyonun eşleşmeyen kısmını müsait sayar. Kimse
+      süpürmese bile ekrandaki stok sayısı doğrudur.
+   2) FIRSATÇI SÜPÜRME — stok_sure_dolumu_isle() modül açılışında
+      ve rezervasyon işlemlerinden önce çağrılır; durumu kalıcı
+      olarak 'Süresi Doldu' / 'Kısmi Tamamlandı' yapar.
+   3) KISITLAMA — sistem_bakim tablosu + pg_try_advisory_lock;
+      5 dakikadan sık koşmaz, iki oturum çakışmaz.
+
+   Fonksiyon dönüşü:  >=0 islenen kayit · -1 kisitlama · -2 kilitli
+   Saat 'Onaylandı' adiminda baslar, 'Eşleştirildi'de durur.
+   ============================================================ */
+
+const DONANIM_SURE_SAAT = 48;                       // rezervasyon süresi
+const DONANIM_SURE_AKTIF = ['Onaylandı','Hazırlanıyor','Kısmen Eşleştirildi'];
+
+// Fırsatçı süpürme. Hata hiçbir zaman kullanıcı akışını kesmez.
+async function _donanimSureSupur(zorla){
+  try{
+    const {data, error} = await sb.rpc('stok_sure_dolumu_isle', {p_zorla: !!zorla});
+    if(error){ console.warn('[donanim] süre süpürme:', error.message); return 0; }
+    const n = Number(data);
+    if(n > 0) console.info('[donanim] süresi dolan rezervasyon işlendi:', n);
+    return n;
+  }catch(e){ console.warn('[donanim] süre süpürme istisnası:', e.message); return 0; }
+}
+
+// Kalan süre rozeti — kart üzerinde gösterilir
+function _donanimSureRozet(bitis, durum){
+  if(!bitis || !DONANIM_SURE_AKTIF.includes(durum)) return '';
+  const kalanMs = new Date(bitis).getTime() - Date.now();
+  if(isNaN(kalanMs)) return '';
+  let metin, renk;
+  if(kalanMs <= 0){
+    metin = '⏳ Süre doldu'; renk = '#b03a2e';
+  } else {
+    const saat = Math.floor(kalanMs / 3600000);
+    const dk   = Math.floor((kalanMs % 3600000) / 60000);
+    metin = '⏳ ' + (saat >= 1 ? (saat + ' sa ' + dk + ' dk') : (dk + ' dk')) + ' kaldı';
+    renk  = saat < 6 ? '#e74c3c' : (saat < 24 ? '#f39c12' : '#5d6d7e');
+  }
+  return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${renk};color:#fff;margin-left:6px;white-space:nowrap;">${metin}</span>`;
+}
+
+// Süre uzatma — Depo & Muhasebe (donanim_yonet) veya onay yetkisi olan
+async function donanimSureUzat(sepetId){
+  // urun_id + adet + ncst: _donanimRezHareketLog bunlarsız satır üretemez
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari')
+    .select('rezervasyon_id,urun_id,adet,ncst,satan_my_id,kcm_id,durum,rezervasyon_bitis,uzatma_sayisi')
+    .eq('sepet_id', sepetId);
+  if(error || !kalemler || !kalemler.length){ toast('Rezervasyon bulunamadı','error'); return; }
+
+  const ilk = kalemler[0];
+  const yetkili = hasPerm('donanim_yonet') || _donanimRezOnayYetkisi(ilk.satan_my_id, ilk.kcm_id);
+  if(!yetkili){ toast('Süre uzatma yetkiniz yok','error'); return; }
+  if(!DONANIM_SURE_AKTIF.includes(ilk.durum)){
+    toast('Bu durumdaki rezervasyonun süresi uzatılamaz','error'); return;
+  }
+  if(!confirm(`Rezervasyon süresi ${DONANIM_SURE_SAAT} saat uzatılsın mı?`)) return;
+
+  // Taban: mevcut bitiş geçmişteyse şimdiden, değilse mevcut bitişten devam
+  const mevcut = ilk.rezervasyon_bitis ? new Date(ilk.rezervasyon_bitis).getTime() : 0;
+  const taban  = Math.max(mevcut, Date.now());
+  const yeni   = new Date(taban + DONANIM_SURE_SAAT*3600000).toISOString();
+  const simdi  = new Date().toISOString();
+
+  const hatalar = [];
+  for(const k of kalemler){
+    const {error:uErr} = await sb.from('stok_rezervasyonlari').update({
+      rezervasyon_bitis: yeni,
+      uzatma_sayisi: (k.uzatma_sayisi||0) + 1,
+      uzatan_id: currentUser.my_id,
+      uzatma_tarihi: simdi,
+      updated_at: simdi
+    }).eq('rezervasyon_id', k.rezervasyon_id);
+    if(uErr) hatalar.push(uErr.message);
+  }
+  if(hatalar.length){ toast('Uzatılamadı: '+hatalar[0],'error'); return; }
+
+  await _donanimRezHareketLog('Rezervasyon Süresi Uzatıldı', kalemler,
+    {ncst: ilk.ncst, satan_my_id: ilk.satan_my_id});
+
+  toast(`Süre ${DONANIM_SURE_SAAT} saat uzatıldı`,'success');
+  loadDonanimRezervasyonlar();
 }
