@@ -1,4 +1,35 @@
 // ============================================================
+// donanim.js — v1.0.22 (V31.56)
+//   v1.0.22 (V31.56): Depo Stok Raporu — Depolar sekmesinde pivot rapor
+//     (satir=urun, kolon=depo, hucre=adet) + 3 sayfali .xlsx cikti:
+//     'Ozet' (pivot), 'Detay' (depo x urun; toplam/rezerve/on rezerve/musait/
+//     ortak stok/aktif), 'Depo Ozet' (depo basina urun ve cihaz sayisi).
+//     Rapor tamamen ADET bazlidir, IMEI hicbir sayfada yer almaz.
+//     'Stogu olmayanlari da goster' anahtari ekran ve Excel'i birlikte etkiler.
+//     Yeni: donanimRaporAc, _donanimRaporVeri, _donanimRaporRender,
+//     donanimRaporBosDegisti, donanimRaporExcelIndir.
+// donanim.js — v1.0.21 (V31.55)
+//   v1.0.21 (V31.55): 'Depolar' sekmesi — Depo & Muhasebe dagitim ekrani.
+//     Depo agaci (Merkez Depo + her KCM sanal depo + istege bagli birer cep
+//     depo), depo bazli ozet kartlari, urun bazli dagitim modali. Merkez ->
+//     diger depolara ADET tahsisi (seri/IMEI tasinmaz). Kurallar: toplam
+//     dagitim havuzu asamaz; bir deponun tahsisi rezerve+on_rezerve altina
+//     inemez (dogrulama TUMU yazilmadan once); adet 0 + rezervasyon yok ->
+//     satir silinir; urun pasife alininca ayni malzeme_kodu'nun tum depo
+//     satirlari pasif. Ortak stok (tum_kcm) anahtari urun bazinda.
+//     SQL: Adim D onceden calistirildi (depolar, depolar_v, stok_urunleri.depo_id).
+// donanim.js — v1.0.20 (V31.54)
+//   v1.0.20 (V31.54): Excel stok yukleme ANA DEPOYA (cihaz havuzu) yapilir.
+//     KCM/depo secimi kaldirildi; hedef her zaman katalog satiri
+//     (stok_urunleri.kcm_id IS NULL). IMEI filtresi: yalnizca 15 haneli tam
+//     sayisal seriler alinir (18 haneli ICCID vb. atlanir). Katalog satiri
+//     SELECT->yoksa INSERT ile bulunur (PostgREST on_conflict kismi indeksi
+//     hedefleyemedigi icin upsert kullanilamaz). toplam_adet artirilmaz,
+//     'Depoda' seri sayisi olarak YENIDEN SAYILIR (idempotent). Ekran raporu
+//     sadelesti (yuklenen+hata+mevcut); atlanan satirlar tek ozet satirinda,
+//     tam liste indirilen Excel raporunda. Dosya ici mukerrer seri ayiklanir.
+//     Yeni: _donanimSeriTemizle, _donanimImeiMi, _donanimKatalogSatiriBul,
+//     _donanimKatalogAdetYenile.
 // donanim.js — v1.0.19 (V31.26)
 //   v1.0.19 (V31.26): Tedarik akışı bildirimi — Ana menü 'Donanım Takip'
 //     ikonunda rozet: kullanıcının kendi (satan/rezerve eden) siparişlerinden
@@ -88,6 +119,9 @@ async function initDonanimPage(){
     const transferYetki = hasPerm('donanim_transfer_talep') || hasPerm('donanim_transfer_onay1') || hasPerm('donanim_transfer_onay2');
     transferTabBtn.style.display = transferYetki ? '' : 'none';
   }
+  // V31.55: Depolar sekmesi yalnız donanim_yonet yetkisinde görünür (Depo & Muhasebe)
+  const depoTabBtn = document.getElementById('donanimTabDepoBtn');
+  if(depoTabBtn) depoTabBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
   window._donanimSepet = {};
   window._donanimSecimModu = false;
   _donanimSepetBarGuncelle();
@@ -245,21 +279,24 @@ async function openDonanimTimeline(urunId){
 }
 
 /* ============================================================
-   EXCEL İLE STOK YÜKLEME (v30.85)
+   EXCEL İLE STOK YÜKLEME — ANA DEPO / CİHAZ HAVUZU (V31.54)
    ------------------------------------------------------------
    ERP formatı: Ambar Adı | Barkod No | Malzeme Kodu | Malzeme
    Açıklaması | Seri No | Ana Birim | Fiili Stok | Gerçek Stok
    Sadece Malzeme Kodu + Malzeme Açıklaması + Seri No kullanılır.
-   KÇM/Depo kullanıcı tarafından ÖNCEDEN seçilir (dosyadan gelmez).
+
+   V31.54 ile değişenler:
+   • KÇM / depo seçimi KALDIRILDI. Hedef her zaman ANA DEPO —
+     yani katalog satırı (stok_urunleri.kcm_id IS NULL).
+     KÇM'lere dağıtım ayrı ekranda (Depo & Muhasebe) yapılır.
+   • IMEI FİLTRESİ: yalnızca 15 haneli, tamamı rakam seriler
+     havuza alınır. 18 haneli ICCID ve diğer uzunluklar atlanır.
+   • 'Ambar Adı' sütunu artık okunmuyor.
+   • toplam_adet artırılmaz, YENİDEN SAYILIR (idempotent).
    ============================================================ */
 
 async function openDonanimExcelYukle(){
-  const sel = document.getElementById('donanimExcelKcm');
-  if(sel && sel.options.length<=1){
-    const {data} = await sb.from('kcm_groups').select('kcm_id,kcm_adi').order('kcm_adi');
-    sel.innerHTML = '<option value="">Seçiniz...</option>' +
-      (data||[]).map(k=>`<option value="${k.kcm_id}">${escapeHTML(k.kcm_adi)}</option>`).join('');
-  }
+  // V31.54: KÇM/depo seçimi yok — hedef her zaman ana depo (katalog, kcm_id IS NULL)
   document.getElementById('donanimExcelAdim1').classList.remove('hide');
   document.getElementById('donanimExcelAdim2').classList.add('hide');
   document.getElementById('donanimExcelSonuc').classList.add('hide');
@@ -285,11 +322,65 @@ function _donanimExcelOku(file){
   });
 }
 
+/* ---- V31.54 yardımcıları ---------------------------------- */
+
+// Excel'den gelen seri no metnini temizler ("...058.0" gibi float artıklarını atar)
+function _donanimSeriTemizle(s){
+  return String(s==null?'':s).trim().replace(/[.,]0+$/,'');
+}
+
+// IMEI = 15 hane, tamamı rakam. 18 haneli ICCID ve diğer uzunluklar havuza girmez.
+function _donanimImeiMi(s){
+  return /^\d{15}$/.test(_donanimSeriTemizle(s));
+}
+
+// Katalog satırı (kcm_id IS NULL) bul, yoksa oluştur.
+// upsert/onConflict KULLANILMAZ: katalog tekilliği kısmi indeksle sağlanıyor
+// (ux_stok_urunleri_katalog ... WHERE kcm_id IS NULL) ve PostgREST'in on_conflict
+// parametresi kısmi indeksi hedefleyemez (indeksin WHERE yüklemini üretemez).
+// Bu yüzden SELECT -> yoksa INSERT deseni kullanılır.
+async function _donanimKatalogSatiriBul(malzemeKodu, aciklama){
+  const {data:mevcut, error:selErr} = await sb.from('stok_urunleri')
+    .select('urun_id,aciklama').eq('malzeme_kodu', malzemeKodu).is('kcm_id', null).limit(1);
+  if(selErr) return {hata:'Katalog sorgusu: '+selErr.message};
+  if(mevcut && mevcut.length){
+    if(!mevcut[0].aciklama && aciklama){
+      await sb.from('stok_urunleri')
+        .update({aciklama:aciklama, updated_at:new Date().toISOString()})
+        .eq('urun_id', mevcut[0].urun_id);
+    }
+    return {urun_id: mevcut[0].urun_id, yeni:false};
+  }
+  const {data:yeni, error:insErr} = await sb.from('stok_urunleri')
+    .insert({kcm_id:null, depo_adi:null, malzeme_kodu:malzemeKodu,
+             aciklama:aciklama||malzemeKodu, toplam_adet:0, rezerve_adet:0,
+             on_rezerve_adet:0, aktif:true, tum_kcm:false})
+    .select('urun_id').single();
+  if(insErr || !yeni){
+    // Yarış durumu: aynı anda başka bir yükleme oluşturmuş olabilir -> tekrar ara
+    const {data:tekrar} = await sb.from('stok_urunleri')
+      .select('urun_id').eq('malzeme_kodu', malzemeKodu).is('kcm_id', null).limit(1);
+    if(tekrar && tekrar.length) return {urun_id: tekrar[0].urun_id, yeni:false};
+    return {hata:'Katalog satırı oluşturulamadı: '+(insErr?insErr.message:'bilinmeyen hata')};
+  }
+  return {urun_id: yeni.urun_id, yeni:true};
+}
+
+// toplam_adet ARTIRILMAZ, YENİDEN SAYILIR — aynı dosya iki kez yüklenirse sayı şişmez.
+async function _donanimKatalogAdetYenile(urunIdler){
+  for(const urunId of urunIdler){
+    const {count, error} = await sb.from('stok_seri_no')
+      .select('*',{count:'exact',head:true}).eq('urun_id', urunId).eq('durum','Depoda');
+    if(error){ console.error('[donanim] adet sayım hatası urun_id='+urunId, error.message); continue; }
+    const {error:updErr} = await sb.from('stok_urunleri')
+      .update({toplam_adet: count||0, updated_at:new Date().toISOString()})
+      .eq('urun_id', urunId);
+    if(updErr) console.error('[donanim] adet yazma hatası urun_id='+urunId, updErr.message);
+  }
+}
+
 async function donanimExcelIsle(){
-  const kcmId = document.getElementById('donanimExcelKcm').value;
-  const depoAdi = document.getElementById('donanimExcelDepoAdi').value.trim() || ''; // v30.86: null değil boş string
   const dosya = document.getElementById('donanimExcelDosya').files[0];
-  if(!kcmId){ toast('KÇM seçin','error'); return; }
   if(!dosya){ toast('Excel dosyası seçin','error'); return; }
 
   document.getElementById('donanimExcelAdim1').classList.add('hide');
@@ -297,6 +388,7 @@ async function donanimExcelIsle(){
   document.getElementById('donanimExcelIlerleme').classList.remove('hide');
   document.getElementById('donanimExcelSonuc').classList.add('hide');
   const ilerlemeEl = document.getElementById('donanimExcelIlerlemeMetin');
+  const CHUNK = 500;
 
   try{
     ilerlemeEl.textContent = 'Excel okunuyor...';
@@ -304,149 +396,152 @@ async function donanimExcelIsle(){
     if(!rows.length){ toast('Excel boş görünüyor','error'); openDonanimExcelYukle(); return; }
 
     const kOf = (row, ...adaylar)=>{ for(const a of adaylar){ if(row[a]!==undefined) return row[a]; } return ''; };
-    const satirlar = rows.map(r=>({
-      seri_no: String(kOf(r,'Seri No','SERİ NO','Seri no')).trim(),
+    const ham = rows.map(r=>({
+      seri_no: _donanimSeriTemizle(kOf(r,'Seri No','SERİ NO','Seri no')),
       malzeme_kodu: String(kOf(r,'Malzeme Kodu','MALZEME KODU')).trim(),
       aciklama: String(kOf(r,'Malzeme Acıklaması','Malzeme Açıklaması','MALZEME ACIKLAMASI','MALZEME AÇIKLAMASI','Malzeme Aciklamasi')).trim()
     })).filter(r=>r.seri_no);
 
-    ilerlemeEl.textContent = `${satirlar.length} satır bulundu. Mevcut stok kontrol ediliyor...`;
+    // 1) IMEI FİLTRESİ — sadece 15 haneli tam sayısal seriler havuza girer
+    ilerlemeEl.textContent = `${ham.length} satır okundu. IMEI filtresi uygulanıyor...`;
+    const adaylar = [], elenen = [];
+    ham.forEach(s=>{
+      if(!s.malzeme_kodu){ elenen.push({...s, sebep:'Malzeme kodu boş'}); return; }
+      if(!_donanimImeiMi(s.seri_no)){ elenen.push({...s, sebep:`IMEI değil (${s.seri_no.length} hane)`}); return; }
+      adaylar.push(s);
+    });
 
-    // 1) Excel'deki tüm seri no'ları DB'de ara
-    const tumSeriNo = satirlar.map(s=>s.seri_no);
+    // 2) Dosya içi mükerrer seri no
+    const gorulen = new Set(), dosyaMukerrer = [], tekil = [];
+    adaylar.forEach(s=>{
+      if(gorulen.has(s.seri_no)) dosyaMukerrer.push(s);
+      else { gorulen.add(s.seri_no); tekil.push(s); }
+    });
+
+    if(!tekil.length){
+      window._donanimExcelRapor = [];
+      window._donanimExcelRaporTam = elenen.map(s=>({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'⏭️ Atlandı', aciklama:s.sebep}));
+      document.getElementById('donanimExcelIlerleme').classList.add('hide');
+      document.getElementById('donanimExcelSonuc').classList.remove('hide');
+      document.getElementById('donanimExcelOzet').innerHTML =
+        `⚠️ <span style="color:var(--red);">Yüklenecek IMEI bulunamadı.</span><br>`+
+        `<span style="font-weight:400;color:var(--text2);font-size:12px;">`+
+        `${ham.length} satır okundu · ${elenen.length} satır 15 haneli IMEI değil</span>`;
+      document.getElementById('donanimExcelRaporTablo').innerHTML = '';
+      toast('Dosyada 15 haneli IMEI bulunamadı','error');
+      return;
+    }
+
+    // 3) Mevcut seri no'ları DB'de ara
     const mevcutSeriMap = {};
-    const CHUNK=500;
-    for(let i=0;i<tumSeriNo.length;i+=CHUNK){
-      const parca = tumSeriNo.slice(i,i+CHUNK);
+    const tumSeri = tekil.map(s=>s.seri_no);
+    for(let i=0;i<tumSeri.length;i+=CHUNK){
+      const parca = tumSeri.slice(i,i+CHUNK);
       const {data, error} = await sb.from('stok_seri_no').select('seri_no_id,seri_no,urun_id').in('seri_no',parca);
       if(error) throw new Error('Mevcut stok kontrolünde hata: '+error.message);
       (data||[]).forEach(d=>{ mevcutSeriMap[d.seri_no]=d; });
-      ilerlemeEl.textContent = `Mevcut stok kontrol ediliyor... (${Math.min(i+CHUNK,tumSeriNo.length)}/${tumSeriNo.length})`;
+      ilerlemeEl.textContent = `Mevcut havuz kontrol ediliyor... (${Math.min(i+CHUNK,tumSeri.length)}/${tumSeri.length})`;
     }
 
-    const urunIdleri=[...new Set(Object.values(mevcutSeriMap).map(x=>x.urun_id))];
-    const urunMalzemeMap={};
-    if(urunIdleri.length){
-      const {data,error} = await sb.from('stok_urunleri').select('urun_id,malzeme_kodu').in('urun_id',urunIdleri);
+    const mevcutUrunIdler = [...new Set(Object.values(mevcutSeriMap).map(x=>x.urun_id))];
+    const urunMalzemeMap = {};
+    for(let i=0;i<mevcutUrunIdler.length;i+=200){
+      const parca = mevcutUrunIdler.slice(i,i+200);
+      const {data,error} = await sb.from('stok_urunleri').select('urun_id,malzeme_kodu').in('urun_id',parca);
       if(error) throw new Error('Ürün bilgisi çekilirken hata: '+error.message);
       (data||[]).forEach(d=>{ urunMalzemeMap[d.urun_id]=d.malzeme_kodu; });
     }
 
-    ilerlemeEl.textContent = 'Ürün grupları hazırlanıyor...';
-    const {data:mevcutUrunler, error:muErr} = await sb.from('stok_urunleri')
-      .select('urun_id,malzeme_kodu,toplam_adet').eq('kcm_id',kcmId).eq('depo_adi',depoAdi);
-    if(muErr) throw new Error('Mevcut ürünler çekilirken hata: '+muErr.message);
-    const urunMap = {};
-    (mevcutUrunler||[]).forEach(u=>{ if(u.malzeme_kodu) urunMap[u.malzeme_kodu]=u; });
-
-    // 2) Satır satır sınıflandır — bu SADECE bir ÖN-DEĞERLENDİRME, nihai rapor
-    //    gerçek DB yazma sonuçlarına göre AŞAĞIDA yeniden kurulacak (v30.86 fix).
-    const yeniSeriNolar = [];
-    const yeniUrunGerekli = {};
-    const zatenMevcut = []; // {seri_no, aciklama}
-    const celiskiler = []; // {seri_no, aciklama, mevcutKod}
-
-    satirlar.forEach(satir=>{
-      const eski = mevcutSeriMap[satir.seri_no];
-      if(!eski){
-        if(!urunMap[satir.malzeme_kodu] && !yeniUrunGerekli[satir.malzeme_kodu]){
-          yeniUrunGerekli[satir.malzeme_kodu] = {aciklama:satir.aciklama, adet:0};
-        }
-        if(yeniUrunGerekli[satir.malzeme_kodu]) yeniUrunGerekli[satir.malzeme_kodu].adet++;
-        yeniSeriNolar.push(satir);
-      } else {
-        const mevcutMalzemeKodu = urunMalzemeMap[eski.urun_id];
-        if(mevcutMalzemeKodu === satir.malzeme_kodu){
-          zatenMevcut.push(satir);
-        } else {
-          celiskiler.push({...satir, mevcutKod:mevcutMalzemeKodu});
-        }
-      }
+    const yeniSeriler = [], zatenMevcut = [], celiskiler = [];
+    tekil.forEach(s=>{
+      const eski = mevcutSeriMap[s.seri_no];
+      if(!eski){ yeniSeriler.push(s); return; }
+      if(urunMalzemeMap[eski.urun_id] === s.malzeme_kodu) zatenMevcut.push(s);
+      else celiskiler.push({...s, mevcutKod: urunMalzemeMap[eski.urun_id]});
     });
 
-    // 3) Yeni ürün gruplarını oluştur — HATA VARSA o malzeme_kodu'na ait TÜM
-    //    satırlar HATA olarak işaretlenecek (sessizce atlanmayacak, v30.86 fix)
-    ilerlemeEl.textContent = `${Object.keys(yeniUrunGerekli).length} yeni ürün grubu oluşturuluyor...`;
-    const urunOlusturmaHatasi = {}; // malzeme_kodu -> hata mesajı
-    for(const malzemeKodu of Object.keys(yeniUrunGerekli)){
-      const bilgi = yeniUrunGerekli[malzemeKodu];
-      const {data:yeniUrun, error:uErr} = await sb.from('stok_urunleri')
-        .upsert({kcm_id:parseInt(kcmId), depo_adi:depoAdi, malzeme_kodu:malzemeKodu,
-                 aciklama:bilgi.aciklama, toplam_adet:0, rezerve_adet:0, aktif:true},
-                {onConflict:'kcm_id,depo_adi,malzeme_kodu'})
-        .select('urun_id').single();
-      if(uErr || !yeniUrun){
-        urunOlusturmaHatasi[malzemeKodu] = uErr ? uErr.message : 'Bilinmeyen hata (ürün oluşturulamadı)';
-      } else {
-        urunMap[malzemeKodu] = {urun_id:yeniUrun.urun_id, toplam_adet:0};
-      }
+    // 4) Katalog satırları (ANA DEPO — kcm_id NULL)
+    const kodlar = [...new Set(yeniSeriler.map(s=>s.malzeme_kodu))];
+    const katalogMap = {}, katalogHata = {};
+    let yeniKatalogSayisi = 0;
+    for(let i=0;i<kodlar.length;i++){
+      const kod = kodlar[i];
+      const ornek = yeniSeriler.find(s=>s.malzeme_kodu===kod);
+      const sonuc = await _donanimKatalogSatiriBul(kod, ornek?ornek.aciklama:'');
+      if(sonuc.hata) katalogHata[kod] = sonuc.hata;
+      else { katalogMap[kod] = sonuc.urun_id; if(sonuc.yeni) yeniKatalogSayisi++; }
+      ilerlemeEl.textContent = `Katalog satırları hazırlanıyor... (${i+1}/${kodlar.length})`;
     }
 
-    // 4) Yeni seri no kayıtlarını ekle — HER SATIR için gerçek insert sonucu izlenir
-    ilerlemeEl.textContent = `Seri no kayıtları ekleniyor...`;
-    const basariliEklenen = []; // {seri_no, aciklama}
-    const eklemeHatasi = []; // {seri_no, aciklama, sebep}
-    const eklenecekler = yeniSeriNolar.filter(s => !urunOlusturmaHatasi[s.malzeme_kodu]);
-    // Ürün oluşturulamayanları hataya yaz
-    yeniSeriNolar.filter(s => urunOlusturmaHatasi[s.malzeme_kodu]).forEach(s=>{
-      eklemeHatasi.push({seri_no:s.seri_no, aciklama:s.aciklama, sebep:'Ürün grubu oluşturulamadı: '+urunOlusturmaHatasi[s.malzeme_kodu]});
+    // 5) Seri no kayıtları — her satırın gerçek insert sonucu izlenir
+    const basarili = [], eklemeHatasi = [];
+    yeniSeriler.filter(s=>katalogHata[s.malzeme_kodu]).forEach(s=>{
+      eklemeHatasi.push({...s, sebep:'Katalog satırı hazırlanamadı: '+katalogHata[s.malzeme_kodu]});
     });
-
-    for(let i=0;i<eklenecekler.length;i+=CHUNK){
-      const parca = eklenecekler.slice(i,i+CHUNK);
-      const payload = parca.map(s=>({ seri_no:s.seri_no, urun_id:urunMap[s.malzeme_kodu].urun_id, durum:'Depoda' }));
+    const eklenecek = yeniSeriler.filter(s=>katalogMap[s.malzeme_kodu]);
+    for(let i=0;i<eklenecek.length;i+=CHUNK){
+      const parca = eklenecek.slice(i,i+CHUNK);
+      const payload = parca.map(s=>({seri_no:s.seri_no, urun_id:katalogMap[s.malzeme_kodu], durum:'Depoda'}));
       const {data:insData, error:insErr} = await sb.from('stok_seri_no').insert(payload).select('seri_no');
       if(insErr){
-        // Bu chunk'ın tamamı hata aldı — hepsini hataya yaz (sessizce atlanmaz)
-        parca.forEach(s=> eklemeHatasi.push({seri_no:s.seri_no, aciklama:s.aciklama, sebep:'Kayıt hatası: '+insErr.message}));
+        parca.forEach(s=> eklemeHatasi.push({...s, sebep:'Kayıt hatası: '+insErr.message}));
       } else {
-        const eklenenSeriler = new Set((insData||[]).map(d=>d.seri_no));
+        const eklenenSet = new Set((insData||[]).map(d=>d.seri_no));
         parca.forEach(s=>{
-          if(eklenenSeriler.has(s.seri_no)) basariliEklenen.push(s);
-          else eklemeHatasi.push({seri_no:s.seri_no, aciklama:s.aciklama, sebep:'Kayıt doğrulanamadı (insert sonucu boş döndü)'});
+          if(eklenenSet.has(s.seri_no)) basarili.push(s);
+          else eklemeHatasi.push({...s, sebep:'Kayıt doğrulanamadı (insert sonucu boş döndü)'});
         });
       }
-      ilerlemeEl.textContent = `Seri no ekleniyor... (${Math.min(i+CHUNK,eklenecekler.length)}/${eklenecekler.length})`;
+      ilerlemeEl.textContent = `IMEI kayıtları ekleniyor... (${Math.min(i+CHUNK,eklenecek.length)}/${eklenecek.length})`;
     }
 
-    // 5) toplam_adet güncelle — SADECE gerçekten eklenen kayıtlar sayılır
-    ilerlemeEl.textContent = 'Stok adetleri güncelleniyor...';
-    const artisMap = {};
-    basariliEklenen.forEach(s=>{ const uid=urunMap[s.malzeme_kodu].urun_id; artisMap[uid]=(artisMap[uid]||0)+1; });
-    for(const urunId of Object.keys(artisMap)){
-      const mevcut = Object.values(urunMap).find(u=>u.urun_id==urunId);
-      const yeniToplam = (mevcut?.toplam_adet||0) + artisMap[urunId];
-      const {error:updErr} = await sb.from('stok_urunleri').update({toplam_adet:yeniToplam, updated_at:new Date().toISOString()}).eq('urun_id',urunId);
-      if(updErr) console.error('Adet güncelleme hatası (urun_id='+urunId+'):', updErr.message);
-    }
+    // 6) Havuz adetleri — artırma değil, YENİDEN SAYIM
+    ilerlemeEl.textContent = 'Havuz adetleri yeniden sayılıyor...';
+    const etkilenen = [...new Set(basarili.map(s=>katalogMap[s.malzeme_kodu]))];
+    await _donanimKatalogAdetYenile(etkilenen);
 
-    // 6) NİHAİ RAPOR — gerçek sonuçlara göre kurulur (v30.86: artık iyimser değil)
-    const rapor = [];
-    basariliEklenen.forEach(s=> rapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'✅ Yüklendi', aciklama:''}));
-    zatenMevcut.forEach(s=> rapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'⏭️ Yüklenmedi', aciklama:'Zaten stokta mevcut'}));
-    celiskiler.forEach(s=> rapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'❌ HATA', aciklama:`Bu seri no başka bir üründe kayıtlı (mevcut kod: ${s.mevcutKod||'?'})`}));
-    eklemeHatasi.forEach(s=> rapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'❌ HATA', aciklama:s.sebep}));
+    // 7) Raporlar — EKRAN sade (yüklenen + hata + mevcut), EXCEL tam
+    const ekranRapor = [];
+    basarili.forEach(s=> ekranRapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'✅ Yüklendi', aciklama:''}));
+    celiskiler.forEach(s=> ekranRapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'❌ HATA', aciklama:`Bu seri no başka bir üründe kayıtlı (mevcut kod: ${s.mevcutKod||'?'})`}));
+    eklemeHatasi.forEach(s=> ekranRapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'❌ HATA', aciklama:s.sebep}));
+    zatenMevcut.forEach(s=> ekranRapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'⏭️ Yüklenmedi', aciklama:'Zaten havuzda mevcut'}));
 
-    const yeniSayisi=basariliEklenen.length, mevcutSayisi=zatenMevcut.length, hataSayisi=celiskiler.length+eklemeHatasi.length;
+    const tamRapor = ekranRapor.slice();
+    dosyaMukerrer.forEach(s=> tamRapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'⏭️ Atlandı', aciklama:'Dosya içinde mükerrer'}));
+    elenen.forEach(s=> tamRapor.push({seri_no:s.seri_no, urun_adi:s.aciklama, durum:'⏭️ Atlandı', aciklama:s.sebep}));
 
-    // 7) Timeline'a TEK özet log
+    window._donanimExcelRapor = ekranRapor;
+    window._donanimExcelRaporTam = tamRapor;
+
+    const hataSayisi = celiskiler.length + eklemeHatasi.length;
+    const atlananToplam = elenen.length + dosyaMukerrer.length;
+
+    // 8) Timeline'a tek özet log
     const {error:logErr} = await sb.from('stok_hareketleri').insert({
-      aksiyon: 'Excel Stok Yükleme',
-      detay: `${yeniSayisi} yeni, ${mevcutSayisi} zaten mevcut, ${hataSayisi} hata — Toplam ${satirlar.length} satır işlendi.`,
+      aksiyon: 'Excel Stok Yükleme (Ana Depo)',
+      detay: `${basarili.length} IMEI havuza eklendi · ${zatenMevcut.length} zaten mevcut · ${hataSayisi} hata · ${elenen.length} satır IMEI değil · ${yeniKatalogSayisi} yeni ürün — dosyada toplam ${ham.length} satır.`,
       user_id: currentUser.my_id,
       user_ad: currentUser.ad_soyad || String(currentUser.my_id)
     });
     if(logErr) console.error('Timeline log hatası:', logErr.message);
 
-    // 8) Rapor ekranda göster
-    window._donanimExcelRapor = rapor;
+    // 9) Ekrana yaz
     document.getElementById('donanimExcelIlerleme').classList.add('hide');
     document.getElementById('donanimExcelSonuc').classList.remove('hide');
     document.getElementById('donanimExcelOzet').innerHTML =
-      `✅ <span style="color:var(--green);">${yeniSayisi} yeni</span> · `+
-      `⏭️ <span style="color:var(--text3);">${mevcutSayisi} mevcut</span> · `+
-      `❌ <span style="color:var(--red);">${hataSayisi} hata</span> (Toplam ${satirlar.length} satır)`;
-    document.getElementById('donanimExcelRaporTablo').innerHTML = rapor.map(r=>`<tr>
+      `✅ <span style="color:var(--green);">${basarili.length} IMEI yüklendi</span> · `+
+      `⏭️ <span style="color:var(--text3);">${zatenMevcut.length} zaten havuzda</span> · `+
+      `❌ <span style="color:var(--red);">${hataSayisi} hata</span><br>`+
+      `<span style="font-weight:400;color:var(--text2);font-size:12px;">`+
+      `Hedef: ANA DEPO · dosyada ${ham.length} satır · IMEI olmadığı için atlanan ${elenen.length} · `+
+      `dosya içi mükerrer ${dosyaMukerrer.length} · yeni ürün ${yeniKatalogSayisi}</span>`;
+
+    const ozetSatir = atlananToplam ? `<tr>
+      <td colspan="4" style="padding:8px;border-bottom:1px solid var(--border);color:var(--text2);font-size:12px;">
+        ⏭️ ${atlananToplam} satır burada listelenmedi (IMEI değil / dosya içi mükerrer) — tamamı &quot;Raporu İndir&quot; dosyasında.
+      </td></tr>` : '';
+    document.getElementById('donanimExcelRaporTablo').innerHTML = ozetSatir + ekranRapor.map(r=>`<tr>
       <td style="padding:6px;border-bottom:1px solid var(--border);">${escapeHTML(r.seri_no)}</td>
       <td style="padding:6px;border-bottom:1px solid var(--border);">${escapeHTML(r.urun_adi)}</td>
       <td style="padding:6px;border-bottom:1px solid var(--border);">${r.durum}</td>
@@ -454,7 +549,7 @@ async function donanimExcelIsle(){
     </tr>`).join('');
 
     if(hataSayisi>0) toast(`Yükleme tamamlandı ama ${hataSayisi} HATA var — raporu kontrol edin`,'error');
-    else toast(`Yükleme tamamlandı: ${yeniSayisi} yeni kayıt`,'success');
+    else toast(`Yükleme tamamlandı: ${basarili.length} IMEI ana depoya eklendi`,'success');
     loadDonanimListesi();
   }catch(err){
     console.error(err);
@@ -465,8 +560,9 @@ async function donanimExcelIsle(){
 }
 
 // Rapor Excel olarak indirilir (SheetJS ile)
+// V31.54: ekranda sadeleştirilmiş liste gösterilir, indirilen dosya TAM raporu içerir.
 function donanimExcelRaporIndir(){
-  const rapor = window._donanimExcelRapor||[];
+  const rapor = window._donanimExcelRaporTam || window._donanimExcelRapor || [];
   if(!rapor.length){ toast('İndirilecek rapor yok','error'); return; }
   const ws = XLSX.utils.json_to_sheet(rapor.map(r=>({
     'Seri No': r.seri_no, 'Ürün': r.urun_adi, 'Durum': r.durum, 'Açıklama': r.aciklama
@@ -774,7 +870,8 @@ function donanimTabGeç(hangi){
   const tabs = {
     stok:     {btn:'donanimTabStokBtn',     sekme:'donanimStokSekme'},
     rez:      {btn:'donanimTabRezBtn',      sekme:'donanimRezSekme'},
-    transfer: {btn:'donanimTabTransferBtn', sekme:'donanimTransferSekme'}
+    transfer: {btn:'donanimTabTransferBtn', sekme:'donanimTransferSekme'},
+    depo:     {btn:'donanimTabDepoBtn',     sekme:'donanimDepoSekme'}      // V31.55
   };
   const sepetBar = document.getElementById('donanimSepetBar');
   Object.keys(tabs).forEach(k=>{
@@ -787,6 +884,7 @@ function donanimTabGeç(hangi){
   else if(sepetBar){ sepetBar.classList.add('hide'); }
   if(hangi==='rez') loadDonanimRezervasyonlar();
   if(hangi==='transfer') loadDonanimTransferListesi();
+  if(hangi==='depo') loadDonanimDepoSekme();                                // V31.55
 }
 
 // ============ TRANSFER (Adım 2: Talep) ============
@@ -1672,4 +1770,554 @@ async function openDonanimRezDetay(sepetId){
     <div style="text-align:right;margin-top:10px;font-size:16px;font-weight:800;">Genel Toplam: ${Number(toplam).toLocaleString('tr-TR')} ₺</div>
     ${ilk.aciklama ? `<div style="margin-top:8px;font-size:12px;color:var(--text2);">Not: ${escapeHTML(ilk.aciklama)}</div>` : ''}
   `;
+}
+
+/* ============================================================
+   DEPO & DAĞITIM — Depo & Muhasebe ekranı (V31.55)
+   ------------------------------------------------------------
+   Merkez Depo = cihaz havuzu (depolar.kcm_id IS NULL, tip='ANA').
+   Her KÇM aynı zamanda bir sanal depodur; istendiğinde her deponun
+   altına TEK bir cep depo açılabilir — tekilliği veri tabanı
+   indeksleri zorlar (ux_depolar_kcm_tip / ux_depolar_merkez_tip).
+
+   Bu ekran Merkez -> diğer depolara ADET tahsisi yapar; seri (IMEI)
+   TAŞIMAZ. IMEI'ler havuzda kalır, satışta eşleştirilir.
+   Ana depo <-> cep depo hareketi transfer akışıyla yapılacak (Faz 6).
+
+   Kurallar:
+   • Σ (Merkez dışı depolar) <= Merkez toplam_adet
+   • Bir deponun tahsisi rezerve_adet + on_rezerve_adet altına inemez
+   • Adet 0 + rezervasyon yok  -> satır silinir
+   • Ürün pasife alınırsa aynı malzeme_kodu'nun TÜM depo satırları pasif
+   ============================================================ */
+
+window._donanimDepolar  = window._donanimDepolar  || [];
+window._donanimDepoUrun = window._donanimDepoUrun || {};
+window._donanimDagitim  = window._donanimDagitim  || null;
+
+// HTML attribute içindeki tek tırnaklı JS dizesi için kaçış
+function _jsStr(s){
+  return String(s==null?'':s)
+    .replace(/\\/g,'\\\\').replace(/'/g,"\\'")
+    .replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function _depoMerkez(){
+  return (window._donanimDepolar||[]).find(d=> d.kcm_id===null && d.tip==='ANA') || null;
+}
+
+function _depoAd(d){
+  if(!d) return '—';
+  return d.tam_ad || d.depo_adi || ('Depo #'+d.depo_id);
+}
+
+async function _donanimDepolarYukle(zorla){
+  if(!zorla && window._donanimDepolar.length) return window._donanimDepolar;
+  const {data,error} = await sb.from('depolar_v').select('*').eq('aktif',true);
+  if(error){ console.error('[donanim] depolar okunamadı:', error.message); return window._donanimDepolar; }
+  const list = data||[];
+  // Merkez önce; sonra KÇM adına göre, her ana deponun hemen ardından cebi
+  list.sort((a,b)=>{
+    const ak = (a.kcm_id===null)?0:1, bk = (b.kcm_id===null)?0:1;
+    if(ak!==bk) return ak-bk;
+    const an = (a.kcm_adi||a.depo_adi||''), bn = (b.kcm_adi||b.depo_adi||'');
+    if(an!==bn) return an.localeCompare(bn,'tr');
+    return (a.tip==='ANA'?0:1) - (b.tip==='ANA'?0:1);
+  });
+  window._donanimDepolar = list;
+  return list;
+}
+
+// stok_urunleri'nden depoya bağlı TÜM satırlar — sayfalanarak (limit tuzağı yok)
+async function _donanimDepoSatirlariYukle(){
+  const kolon = 'urun_id,depo_id,kcm_id,depo_adi,malzeme_kodu,aciklama,toplam_adet,rezerve_adet,on_rezerve_adet,aktif,tum_kcm';
+  const hepsi = []; const SAYFA = 1000;
+  for(let bas=0; bas<20000; bas+=SAYFA){
+    const {data,error} = await sb.from('stok_urunleri').select(kolon)
+      .not('depo_id','is',null).order('urun_id').range(bas, bas+SAYFA-1);
+    if(error) throw new Error('Depo satırları okunamadı: '+error.message);
+    hepsi.push(...(data||[]));
+    if(!data || data.length < SAYFA) break;
+  }
+  return hepsi;
+}
+
+async function loadDonanimDepoSekme(){
+  const kartEl = document.getElementById('donanimDepoKartlari');
+  const listEl = document.getElementById('donanimDepoUrunListesi');
+  if(!listEl) return;
+  listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try{
+    await _donanimDepolarYukle(true);
+    const satirlar = await _donanimDepoSatirlariYukle();
+
+    // Depo bazlı özet
+    const ozet = {};
+    (window._donanimDepolar||[]).forEach(d=>{ ozet[d.depo_id] = {urun:0, adet:0}; });
+    satirlar.forEach(s=>{
+      if(!ozet[s.depo_id]) ozet[s.depo_id] = {urun:0, adet:0};
+      if((s.toplam_adet||0) > 0){ ozet[s.depo_id].urun++; ozet[s.depo_id].adet += (s.toplam_adet||0); }
+    });
+    if(kartEl) kartEl.innerHTML = _donanimDepoKartlari(ozet);
+
+    // Ürün bazlı gruplama (malzeme_kodu)
+    const merkez = _depoMerkez();
+    const gruplar = {};
+    satirlar.forEach(s=>{
+      const k = s.malzeme_kodu || ('#'+s.urun_id);
+      if(!gruplar[k]) gruplar[k] = {kod:k, aciklama:'', tum_kcm:false, aktif:true, merkez:null, satirlar:{}};
+      const g = gruplar[k];
+      g.satirlar[s.depo_id] = s;
+      if(merkez && s.depo_id === merkez.depo_id){
+        g.merkez = s; g.tum_kcm = !!s.tum_kcm; g.aktif = !!s.aktif;
+        if(s.aciklama) g.aciklama = s.aciklama;
+      }
+      if(!g.aciklama) g.aciklama = s.aciklama || '';
+    });
+    window._donanimDepoUrun = gruplar;
+
+    listEl.innerHTML = _donanimDepoUrunListesi();
+  }catch(err){
+    console.error(err);
+    listEl.innerHTML = `<div style="padding:16px;color:var(--red);font-size:13px;">Hata: ${escapeHTML(err.message)}</div>`;
+  }
+}
+
+function _donanimDepoKartlari(ozet){
+  const list = window._donanimDepolar||[];
+  if(!list.length) return '<div style="padding:12px;color:var(--text2);font-size:13px;">Depo tanımlı değil.</div>';
+  const cepVar = {};
+  list.forEach(d=>{ if(d.tip==='CEP') cepVar[(d.kcm_id===null?'M':d.kcm_id)] = true; });
+  return list.map(d=>{
+    const o = ozet[d.depo_id] || {urun:0, adet:0};
+    const cep = (d.tip==='CEP');
+    const anahtar = (d.kcm_id===null?'M':d.kcm_id);
+    const cepButonu = (!cep && !cepVar[anahtar] && hasPerm('donanim_yonet'))
+      ? `<button class="btn btn-ghost btn-sm" onclick="donanimCepDepoAc(${d.kcm_id===null?'null':d.kcm_id})">+ Cep Depo</button>`
+      : '';
+    return `<div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px;${cep?'margin-left:18px;border-left:3px solid var(--blue);':''}">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13px;">${escapeHTML(_depoAd(d))}${cep?' <span style="font-weight:400;color:var(--text3);font-size:11px;">(cep)</span>':''}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${o.urun} ürün · ${o.adet} cihaz</div>
+      </div>
+      ${cepButonu}
+    </div>`;
+  }).join('');
+}
+
+function _donanimDepoUrunListesi(){
+  const gruplar = window._donanimDepoUrun||{};
+  const q = (document.getElementById('donanimDepoUrunAra')?.value||'').trim().toLocaleLowerCase('tr');
+  const sadeceStoklu = !!document.getElementById('donanimDepoSadeceStoklu')?.checked;
+  const merkez = _depoMerkez();
+
+  let kodlar = Object.keys(gruplar);
+  if(q){
+    const kelimeler = q.split(/\s+/).filter(Boolean);
+    kodlar = kodlar.filter(k=>{
+      const metin = ((gruplar[k].aciklama||'') + ' ' + k).toLocaleLowerCase('tr');
+      return kelimeler.every(w=> metin.includes(w));
+    });
+  }
+  if(sadeceStoklu) kodlar = kodlar.filter(k=> ((gruplar[k].merkez && gruplar[k].merkez.toplam_adet) || 0) > 0);
+  kodlar.sort((a,b)=> (gruplar[a].aciklama||a).localeCompare(gruplar[b].aciklama||b,'tr'));
+
+  if(!kodlar.length) return '<div style="padding:16px;color:var(--text2);font-size:13px;">Kayıt bulunamadı.</div>';
+
+  return `<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${kodlar.length} ürün</div>` +
+  kodlar.map(k=>{
+    const g = gruplar[k];
+    const havuz = (g.merkez && g.merkez.toplam_adet) || 0;
+    let dagitilan = 0;
+    Object.keys(g.satirlar).forEach(id=>{
+      if(!merkez || parseInt(id) !== merkez.depo_id) dagitilan += (g.satirlar[id].toplam_adet||0);
+    });
+    const kalan = havuz - dagitilan;
+    return `<div style="background:var(--navy2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;${g.aktif?'':'opacity:.55;'}">
+      <div style="font-weight:700;font-size:13px;line-height:1.35;">${escapeHTML(g.aciklama||k)}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;">${escapeHTML(k)}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;">
+        Havuzda: <b style="color:var(--text);">${havuz}</b> ·
+        Dağıtılan: <b style="color:var(--text);">${dagitilan}</b> ·
+        Merkez'de kalan: <b style="color:${kalan<0?'var(--red)':'var(--green)'};">${kalan}</b>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
+        <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="checkbox" ${g.tum_kcm?'checked':''} onchange="donanimOrtakStokToggle('${_jsStr(k)}', this.checked)"> Ortak stok
+        </label>
+        <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="checkbox" ${g.aktif?'checked':''} onchange="donanimUrunAktifToggle('${_jsStr(k)}', this.checked)"> Aktif
+        </label>
+        <button class="btn btn-sm" style="background:var(--blue);margin-left:auto;" onclick="donanimDagitimModalAc('${_jsStr(k)}')">Dağıt</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let _donanimDepoAraT = null;
+function donanimDepoUrunAraDebounce(){
+  clearTimeout(_donanimDepoAraT);
+  _donanimDepoAraT = setTimeout(donanimDepoFiltreDegisti, 250);
+}
+function donanimDepoFiltreDegisti(){
+  const el = document.getElementById('donanimDepoUrunListesi');
+  if(el) el.innerHTML = _donanimDepoUrunListesi();
+}
+
+// Cep depo aç — her deponun altında EN FAZLA bir tane (indeks zorlar)
+async function donanimCepDepoAc(kcmId){
+  if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
+  const kid = (kcmId===null || kcmId===undefined || kcmId==='') ? null : parseInt(kcmId);
+  const ana = (window._donanimDepolar||[]).find(d=> d.tip==='ANA' && ((kid===null && d.kcm_id===null) || d.kcm_id===kid));
+  const ad = (ana ? (ana.kcm_adi || ana.depo_adi) : 'Depo') + ' - Cep';
+  const {error} = await sb.from('depolar').insert({kcm_id:kid, depo_adi:ad, tip:'CEP'});
+  if(error){ toast('Cep depo açılamadı: '+error.message,'error'); return; }
+  await sb.from('stok_hareketleri').insert({
+    aksiyon:'Cep Depo Açıldı', detay:ad,
+    user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id)
+  });
+  toast('Cep depo açıldı: '+ad,'success');
+  loadDonanimDepoSekme();
+}
+
+function donanimDagitimModalAc(kod){
+  if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
+  const g = (window._donanimDepoUrun||{})[kod];
+  if(!g){ toast('Ürün bulunamadı','error'); return; }
+  const merkez = _depoMerkez();
+  if(!merkez){ toast('Merkez Depo tanımlı değil','error'); return; }
+
+  const satirlar = (window._donanimDepolar||[])
+    .filter(d=> d.depo_id !== merkez.depo_id)
+    .map(d=>{
+      const s = g.satirlar[d.depo_id] || null;
+      return {
+        depo_id: d.depo_id, ad: _depoAd(d), kcm_id: d.kcm_id, depo_adi: d.depo_adi,
+        urun_id: s ? s.urun_id : null,
+        mevcut:  s ? (s.toplam_adet||0) : 0,
+        alt:     s ? ((s.rezerve_adet||0) + (s.on_rezerve_adet||0)) : 0,
+        adet:    s ? (s.toplam_adet||0) : 0
+      };
+    });
+
+  window._donanimDagitim = {
+    kod, aciklama: g.aciklama||kod,
+    havuz: (g.merkez && g.merkez.toplam_adet) || 0,
+    merkezUrunId: (g.merkez && g.merkez.urun_id) || null,
+    tum_kcm: !!g.tum_kcm,
+    satirlar
+  };
+
+  const bas = document.getElementById('donanimDagitimBaslik');
+  if(bas) bas.textContent = 'Dağıt — ' + (g.aciklama||kod);
+  _donanimDagitimRender();
+  openModal('donanimDagitimModal');
+}
+
+function _donanimDagitimRender(){
+  const D = window._donanimDagitim; if(!D) return;
+  const el = document.getElementById('donanimDagitimSatirlar');
+  if(el) el.innerHTML = D.satirlar.map((r,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${escapeHTML(r.ad)}</div>
+        ${r.alt>0?`<div style="font-size:11px;color:#f59e0b;">En az ${r.alt} olmalı (rezerve edilmiş)</div>`:''}
+      </div>
+      <input type="number" min="${r.alt}" step="1" value="${r.adet}"
+             oninput="donanimDagitimAdet(${i}, this.value)"
+             style="width:80px;text-align:center;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:14px;">
+    </div>`).join('');
+  _donanimDagitimToplamYaz();
+}
+
+function _donanimDagitimToplamYaz(){
+  const D = window._donanimDagitim; if(!D) return;
+  const toplam = D.satirlar.reduce((t,r)=> t + (parseInt(r.adet)||0), 0);
+  const kalan = D.havuz - toplam;
+  const asim = kalan < 0;
+  const el = document.getElementById('donanimDagitimToplam');
+  if(el) el.innerHTML =
+    `<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:10px 0;">
+       <span style="color:var(--text2);">Havuz: <b style="color:var(--text);">${D.havuz}</b></span>
+       <span style="color:var(--text2);">Dağıtılan: <b style="color:var(--text);">${toplam}</b></span>
+       <span style="color:${asim?'var(--red)':'var(--green)'};font-weight:700;">Kalan: ${kalan}</span>
+     </div>
+     ${asim?`<div style="font-size:12px;color:var(--red);">Toplam dağıtım havuzu ${-kalan} adet aşıyor.</div>`:''}`;
+  const btn = document.getElementById('donanimDagitimKaydetBtn');
+  if(btn){ btn.disabled = asim; btn.style.opacity = asim ? '.5' : '1'; }
+}
+
+function donanimDagitimAdet(i, val){
+  const D = window._donanimDagitim; if(!D || !D.satirlar[i]) return;
+  let v = parseInt(val); if(isNaN(v) || v < 0) v = 0;
+  D.satirlar[i].adet = v;
+  _donanimDagitimToplamYaz();
+}
+
+async function donanimDagitimKaydet(){
+  const D = window._donanimDagitim; if(!D) return;
+  if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
+
+  const toplam = D.satirlar.reduce((t,r)=> t + (parseInt(r.adet)||0), 0);
+  if(toplam > D.havuz){ toast(`Toplam dağıtım havuzu aşıyor (${toplam} > ${D.havuz})`,'error'); return; }
+
+  // Azaltma güvenliği — HİÇBİR ŞEY YAZILMADAN ÖNCE tümü doğrulanır
+  for(const r of D.satirlar){
+    if((parseInt(r.adet)||0) < r.alt){
+      toast(`${r.ad}: tahsis ${r.alt} altına inemez (rezerve edilmiş)`,'error'); return;
+    }
+  }
+
+  const btn = document.getElementById('donanimDagitimKaydetBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Kaydediliyor...'; }
+
+  const hatalar = [];
+  for(const r of D.satirlar){
+    const adet = parseInt(r.adet)||0;
+    try{
+      if(r.urun_id){
+        if(adet === 0 && r.alt === 0){
+          const {error} = await sb.from('stok_urunleri').delete().eq('urun_id', r.urun_id);
+          if(error) throw new Error(error.message);
+        } else if(adet !== r.mevcut){
+          const {error} = await sb.from('stok_urunleri')
+            .update({toplam_adet:adet, updated_at:new Date().toISOString()}).eq('urun_id', r.urun_id);
+          if(error) throw new Error(error.message);
+        }
+      } else if(adet > 0){
+        const {error} = await sb.from('stok_urunleri').insert({
+          depo_id: r.depo_id, kcm_id: r.kcm_id, depo_adi: r.depo_adi,
+          malzeme_kodu: D.kod, aciklama: D.aciklama,
+          toplam_adet: adet, rezerve_adet: 0, on_rezerve_adet: 0,
+          aktif: true, tum_kcm: !!D.tum_kcm
+        });
+        if(error) throw new Error(error.message);
+      }
+    }catch(e){ hatalar.push(`${r.ad}: ${e.message}`); }
+  }
+
+  const {error:logErr} = await sb.from('stok_hareketleri').insert({
+    urun_id: D.merkezUrunId || null,
+    aksiyon: 'Depo Dağıtımı',
+    detay: `${D.aciklama} — havuz ${D.havuz}, dağıtılan ${toplam}` + (hatalar.length?` · ${hatalar.length} hata`:''),
+    user_id: currentUser.my_id,
+    user_ad: currentUser.ad_soyad || String(currentUser.my_id)
+  });
+  if(logErr) console.error('[donanim] dağıtım log hatası:', logErr.message);
+
+  if(btn){ btn.disabled = false; btn.textContent = 'Kaydet'; }
+  if(hatalar.length){
+    console.error('[donanim] dağıtım hataları:', hatalar);
+    toast('Bazı depolar kaydedilemedi: '+hatalar[0],'error');
+  } else {
+    toast('Dağıtım kaydedildi','success');
+  }
+  closeModal('donanimDagitimModal');
+  loadDonanimDepoSekme();
+}
+
+// Ortak stok / aktiflik — aynı malzeme_kodu'nun TÜM depo satırlarına uygulanır
+async function donanimOrtakStokToggle(kod, deger){
+  if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); loadDonanimDepoSekme(); return; }
+  const {error} = await sb.from('stok_urunleri')
+    .update({tum_kcm: !!deger, updated_at:new Date().toISOString()})
+    .eq('malzeme_kodu', kod).not('depo_id','is',null);
+  if(error) toast('Kaydedilemedi: '+error.message,'error');
+  else toast(deger?'Ortak stok açıldı':'Ortak stok kapatıldı','success');
+  loadDonanimDepoSekme();
+}
+
+async function donanimUrunAktifToggle(kod, deger){
+  if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); loadDonanimDepoSekme(); return; }
+  const {error} = await sb.from('stok_urunleri')
+    .update({aktif: !!deger, updated_at:new Date().toISOString()})
+    .eq('malzeme_kodu', kod).not('depo_id','is',null);
+  if(error) toast('Kaydedilemedi: '+error.message,'error');
+  else toast(deger?'Ürün aktif edildi':'Ürün pasife alındı','success');
+  loadDonanimDepoSekme();
+}
+
+/* ============================================================
+   DEPO STOK RAPORU (V31.56)
+   ------------------------------------------------------------
+   Pivot: satır = ürün, kolon = depo, hücre = o depodaki ADET.
+   Rezerve / müsait kırılımı ekranda değil, Excel'in 'Detay'
+   sayfasındadır (karar: A — pivot tek sayı gösterir).
+   IMEI hiçbir sayfada yer almaz; rapor tamamen adet bazlıdır.
+   ============================================================ */
+
+window._donanimRapor = window._donanimRapor || null;
+
+// Pivot veri kümesini kurar. Kaynak: depolar_v + stok_urunleri (depo_id dolu satırlar)
+function _donanimRaporVeri(satirlar){
+  const depolar = (window._donanimDepolar||[]).slice();
+  const merkez  = _depoMerkez();
+
+  const gruplar = {};
+  satirlar.forEach(s=>{
+    const k = s.malzeme_kodu || ('#'+s.urun_id);
+    if(!gruplar[k]){
+      gruplar[k] = {kod:k, ad:'', hucre:{}, satir:{}, toplam:0,
+                    rezerve:0, onRezerve:0, tum_kcm:false, aktif:true};
+    }
+    const g = gruplar[k];
+    g.hucre[s.depo_id] = (g.hucre[s.depo_id]||0) + (s.toplam_adet||0);
+    g.satir[s.depo_id] = s;
+    g.toplam    += (s.toplam_adet||0);
+    g.rezerve   += (s.rezerve_adet||0);
+    g.onRezerve += (s.on_rezerve_adet||0);
+    if(merkez && s.depo_id === merkez.depo_id){
+      g.tum_kcm = !!s.tum_kcm; g.aktif = !!s.aktif;
+      if(s.aciklama) g.ad = s.aciklama;
+    }
+    if(!g.ad) g.ad = s.aciklama || '';
+  });
+
+  const liste = Object.values(gruplar)
+    .sort((a,b)=> (a.ad||a.kod).localeCompare(b.ad||b.kod,'tr'));
+
+  const depoToplam = {}, depoUrun = {};
+  depolar.forEach(d=>{ depoToplam[d.depo_id]=0; depoUrun[d.depo_id]=0; });
+  liste.forEach(g=>{
+    depolar.forEach(d=>{
+      const v = g.hucre[d.depo_id]||0;
+      depoToplam[d.depo_id] += v;
+      if(v>0) depoUrun[d.depo_id]++;
+    });
+  });
+
+  return {depolar, liste, depoToplam, depoUrun, merkez,
+          genelToplam: liste.reduce((t,g)=> t+g.toplam, 0)};
+}
+
+async function donanimRaporAc(){
+  if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
+  const govde = document.getElementById('donanimRaporGovde');
+  if(govde) govde.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  openModal('donanimRaporModal');
+  try{
+    await _donanimDepolarYukle(true);
+    const satirlar = await _donanimDepoSatirlariYukle();
+    window._donanimRapor = _donanimRaporVeri(satirlar);
+    _donanimRaporRender();
+  }catch(err){
+    console.error(err);
+    if(govde) govde.innerHTML = `<div style="padding:16px;color:var(--red);font-size:13px;">Hata: ${escapeHTML(err.message)}</div>`;
+  }
+}
+
+function _donanimRaporRender(){
+  const R = window._donanimRapor;
+  const govde = document.getElementById('donanimRaporGovde');
+  if(!R || !govde) return;
+
+  const bosGoster = !!document.getElementById('donanimRaporBosGoster')?.checked;
+  const liste = bosGoster ? R.liste : R.liste.filter(g=> g.toplam > 0);
+
+  if(!liste.length){
+    govde.innerHTML = '<div style="padding:16px;color:var(--text2);font-size:13px;">Gösterilecek kayıt yok.</div>';
+    return;
+  }
+
+  const hd = R.depolar.map(d=>
+    `<th style="padding:6px 8px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--border);font-size:11px;">${escapeHTML(_depoAd(d))}</th>`).join('');
+
+  const govdeSatir = liste.map(g=>{
+    const hucreler = R.depolar.map(d=>{
+      const v = g.hucre[d.depo_id]||0;
+      return `<td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);${v?'':'color:var(--text3);'}">${v}</td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--border);min-width:200px;">
+        <div style="font-size:12px;font-weight:600;">${escapeHTML(g.ad||g.kod)}</div>
+        <div style="font-size:10px;color:var(--text3);">${escapeHTML(g.kod)}${g.tum_kcm?' · ortak':''}${g.aktif?'':' · pasif'}</div>
+      </td>
+      ${hucreler}
+      <td style="padding:6px 8px;text-align:center;font-weight:800;border-bottom:1px solid var(--border);">${g.toplam}</td>
+    </tr>`;
+  }).join('');
+
+  const altSatir = R.depolar.map(d=>
+    `<td style="padding:8px;text-align:center;font-weight:800;">${R.depoToplam[d.depo_id]||0}</td>`).join('');
+
+  govde.innerHTML = `
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">
+      ${liste.length} ürün · ${R.depolar.length} depo · toplam
+      <b style="color:var(--text);">${R.genelToplam}</b> cihaz
+    </div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="background:var(--navy3);">
+          <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);font-size:11px;">Ürün</th>
+          ${hd}
+          <th style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);font-size:11px;">TOPLAM</th>
+        </tr></thead>
+        <tbody>${govdeSatir}</tbody>
+        <tfoot><tr style="background:var(--navy3);">
+          <td style="padding:8px;font-weight:800;">TOPLAM</td>
+          ${altSatir}
+          <td style="padding:8px;text-align:center;font-weight:800;">${R.genelToplam}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+function donanimRaporBosDegisti(){ _donanimRaporRender(); }
+
+// 3 sayfalık .xlsx: Ozet (pivot) · Detay (kırılım) · Depo Ozet
+function donanimRaporExcelIndir(){
+  const R = window._donanimRapor;
+  if(!R || !R.liste.length){ toast('İndirilecek rapor yok','error'); return; }
+  const bosGoster = !!document.getElementById('donanimRaporBosGoster')?.checked;
+  const liste = bosGoster ? R.liste : R.liste.filter(g=> g.toplam > 0);
+  if(!liste.length){ toast('İndirilecek rapor yok','error'); return; }
+
+  const depoAdlari = R.depolar.map(d=> _depoAd(d));
+
+  // --- Sayfa 1: Ozet (pivot) ---
+  const ozet = [['Ürün','Malzeme Kodu', ...depoAdlari, 'TOPLAM']];
+  liste.forEach(g=>{
+    ozet.push([ g.ad||g.kod, g.kod,
+                ...R.depolar.map(d=> g.hucre[d.depo_id]||0),
+                g.toplam ]);
+  });
+  ozet.push(['TOPLAM','', ...R.depolar.map(d=> R.depoToplam[d.depo_id]||0), R.genelToplam]);
+  const wsOzet = XLSX.utils.aoa_to_sheet(ozet);
+  wsOzet['!cols'] = [{wch:46},{wch:26}, ...depoAdlari.map(a=>({wch:Math.max(10, a.length+2)})), {wch:10}];
+
+  // --- Sayfa 2: Detay ---
+  const detay = [['Depo','KÇM','Depo Tipi','Ürün','Malzeme Kodu',
+                  'Toplam','Rezerve','Ön Rezerve','Müsait','Ortak Stok','Aktif']];
+  R.depolar.forEach(d=>{
+    liste.forEach(g=>{
+      const s = g.satir[d.depo_id];
+      if(!s) return;
+      const toplam = s.toplam_adet||0, rez = s.rezerve_adet||0, onRez = s.on_rezerve_adet||0;
+      detay.push([ _depoAd(d), d.kcm_adi||'—', d.tip, g.ad||g.kod, g.kod,
+                   toplam, rez, onRez, toplam-rez,
+                   s.tum_kcm?'Evet':'Hayır', s.aktif?'Evet':'Hayır' ]);
+    });
+  });
+  const wsDetay = XLSX.utils.aoa_to_sheet(detay);
+  wsDetay['!cols'] = [{wch:26},{wch:20},{wch:10},{wch:46},{wch:26},
+                      {wch:9},{wch:9},{wch:12},{wch:9},{wch:11},{wch:8}];
+
+  // --- Sayfa 3: Depo Ozet ---
+  const depoOzet = [['Depo','KÇM','Tip','Ürün Sayısı','Cihaz Sayısı']];
+  R.depolar.forEach(d=>{
+    depoOzet.push([ _depoAd(d), d.kcm_adi||'—', d.tip,
+                    R.depoUrun[d.depo_id]||0, R.depoToplam[d.depo_id]||0 ]);
+  });
+  depoOzet.push(['TOPLAM','','', '', R.genelToplam]);
+  const wsDepo = XLSX.utils.aoa_to_sheet(depoOzet);
+  wsDepo['!cols'] = [{wch:26},{wch:20},{wch:8},{wch:13},{wch:14}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsOzet,  'Ozet');
+  XLSX.utils.book_append_sheet(wb, wsDetay, 'Detay');
+  XLSX.utils.book_append_sheet(wb, wsDepo,  'Depo Ozet');
+
+  const tarih = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `depo_stok_raporu_${tarih}.xlsx`);
+  toast('Rapor indirildi','success');
 }

@@ -1,7 +1,18 @@
 // ============================================================
-// config.js — v1.2.94
-// Son güncelleme: 2026-09-03
+// config.js — v1.2.97
+// Son güncelleme: 2026-09-04
 // Değişiklikler:
+//   v1.2.97 — APP_VERSION → V31.56. Donanim: Depo Stok Raporu (pivot ekran
+//             + 3 sayfali .xlsx: Ozet/Detay/Depo Ozet). donanim.js v1.0.22.
+//             MIGRASYON: yok.
+//   v1.2.96 — APP_VERSION → V31.55. Donanim: 'Depolar' sekmesi — Depo &
+//             Muhasebe dagitim ekrani (depo agaci, cep depo, urun bazli
+//             adet tahsisi). donanim.js v1.0.21. MIGRASYON: Adim D onceden
+//             calistirildi (depolar tablosu + depolar_v + depo_id).
+//   v1.2.95 — APP_VERSION → V31.54. Donanim: Excel stok yukleme artik ANA
+//             DEPOYA (cihaz havuzu) yapiliyor, KCM/depo secimi kaldirildi,
+//             15 haneli IMEI filtresi eklendi (donanim.js v1.0.20).
+//             MIGRASYON: yok (Faz 1 SQL onceden calistirildi).
 //   v1.2.94 — APP_VERSION → V31.53. Arama modulu: 4 sekme (Yeni/Tekrar/Gelecek/
 //             Tamamlanan), filtre kaliciligi + filtreli sayaclar, "aranmak
 //             istemiyor" isareti, gorusme suresi sorusu kaldirildi,
@@ -271,7 +282,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.53';
+const APP_VERSION = 'V31.56';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
