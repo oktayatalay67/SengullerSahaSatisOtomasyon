@@ -7,3 +7,25 @@ main = "_worker.js"
 directory = "."
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+
+# ---------------------------------------------------------------
+# TEST ORTAMI (2026-09-05)
+# Sabit adres: https://test-crm.oktayatalay.workers.dev
+#
+# Cloudflare Builds ayari:
+#   Production branch : main
+#   Deploy command    : npx wrangler deploy              -> crm (CANLI)
+#   Version command   : npx wrangler deploy --env test   -> test-crm (TEST)
+#
+# Not: [assets] blogu env icinde BILEREK tekrarlaniyor. Cloudflare
+# belgelerinde baglayici (binding) turu anahtarlarin ortamlara miras
+# kalmadigi yaziyor; tekrarlamak belirsizligi ortadan kaldiriyor.
+# ---------------------------------------------------------------
+[env.test]
+name = "test-crm"
+workers_dev = true
+
+[env.test.assets]
+directory = "."
+binding = "ASSETS"
+not_found_handling = "single-page-application"
