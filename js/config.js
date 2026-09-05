@@ -1,7 +1,11 @@
 // ============================================================
-// config.js — v1.2.97
-// Son güncelleme: 2026-09-04
+// config.js — v1.2.98
+// Son güncelleme: 2026-09-05
 // Değişiklikler:
+//   v1.2.98 — APP_VERSION → V31.57. Donanim: MY/FMY gorunurlugu depo bazli,
+//             'Sadece stokta olanlar' anahtari, stokta olmayan urun icin
+//             tedarik talebi + Talepler sekmesi (donanim.js v1.0.23).
+//             MIGRASYON: yok.
 //   v1.2.97 — APP_VERSION → V31.56. Donanim: Depo Stok Raporu (pivot ekran
 //             + 3 sayfali .xlsx: Ozet/Detay/Depo Ozet). donanim.js v1.0.22.
 //             MIGRASYON: yok.
@@ -282,7 +286,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.56';
+const APP_VERSION = 'V31.57';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,2 +1,4 @@
 
 .wrangler/
+# Surum arsivi repoda tutulmuyor (ZIP paketleri sohbette teslim ediliyor)
+Claude outputs/
