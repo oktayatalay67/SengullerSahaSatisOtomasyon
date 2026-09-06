@@ -1,4 +1,21 @@
 // ============================================================
+// donanim.js — v1.0.27 (V31.61)
+//   v1.0.27 (V31.61): DEPO DAGITIM IZGARASI — Depolar sekmesi yenilendi.
+//     Satir = urun, sutun = depo. Depolar AILE halinde: her ailenin ANA
+//     deposu ve varsa CEP deposu yan yana, aile arasi kalin ayirici.
+//     Merkez ailesinin ANA deposu HAVUZ'dur (yesil, salt okunur).
+//     Donmus: iki katli ust baslik, sol urun sutunu, alt TOPLAM satiri.
+//     Kayit ANLIK — hucreden cikinca yazilir; ayni urunun hucreleri
+//     200 ms toparlanip tek turda gider. Kural ihlali sunucuya gitmez,
+//     deger eski haline doner.
+//     CEP depolari yalniz donanim_yonet'te gorunur; MY/FMY stok
+//     listesinde de cep satiri filtrelenir.
+//     Yeni: _donanimDepoAgaci, _donanimIzgaraVeri, _donanimIzgaraCiz,
+//       _donanimIzgaraYukseklik, donanimIzgaraYaziliyor,
+//       donanimIzgaraHucreKaydet, donanimIzgaraAraDebounce,
+//       donanimIzgaraFiltreDegisti, donanimIzgaraExcel ve _izg* yardimcilari.
+//     Eski dagitim/rapor MODALLARI kaldirilmadi, sadece dugmeleri kalkti —
+//     izgara testten gecince V31.62'de temizlenecek.
 // donanim.js — v1.0.26 (V31.60)
 //   v1.0.26 (V31.60): Stok sekmesi filtre satiri ikiye bolundu.
 //     - "Sadece stokta olanlar" aciklamasi satir icinden TOOLTIP'e tasindi.
@@ -174,6 +191,8 @@ async function initDonanimPage(){
   window._donanimDepoCache = null;   // V31.57: her açılışta depo haritası tazelenir
   _donanimSepetBarGuncelle();
 
+  const _dsayfaAcilis = document.getElementById('pageMenuDonanim');
+  if(_dsayfaAcilis) _dsayfaAcilis.classList.remove('genis');   // V31.61
   _donanimSureSupur(false);          // V31.58: modül açılışında fırsatçı süpürme
   await _loadDonanimKcmFiltre();
   await loadDonanimListesi();
@@ -255,10 +274,16 @@ async function loadDonanimListesi(){
     listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`;
     return;
   }
+  // V31.61: CEP depo satirlari donanim_yonet disindaki hicbir role gosterilmez
+  let _satirlar = data || [];
+  if(!hasPerm('donanim_yonet')){
+    const _h = await _donanimDepoHaritasi();
+    _satirlar = _satirlar.filter(r=> !(r.depo_id && _h.cep && _h.cep[r.depo_id]));
+  }
   // V31.60: hedef depo zaten Merkez ise (ADMIN + kendi depom), merkez satirlari
   // 'katalog' sayilip elenmemeli — birlestirmeye merkez kimligi verilmez.
   const _kendiMerkez = !!(hedefDepoId && merkezDepoId && hedefDepoId === merkezDepoId);
-  window._donanimList = _donanimListeBirlestir(data||[], hedefDepoId, _kendiMerkez ? null : merkezDepoId, sadeceStok);
+  window._donanimList = _donanimListeBirlestir(_satirlar, hedefDepoId, _kendiMerkez ? null : merkezDepoId, sadeceStok);
   _renderDonanimListesi(window._donanimList);
 }
 
@@ -1048,6 +1073,9 @@ function donanimTabGeç(hangi){
   else if(sepetBar){ sepetBar.classList.add('hide'); }
   if(hangi==='rez') loadDonanimRezervasyonlar();
   if(hangi==='transfer') loadDonanimTransferListesi();
+  // V31.61: dagitim izgarasi 480px cerceveye sigmaz — sadece bu sekmede genisler
+  const _dsayfa = document.getElementById('pageMenuDonanim');
+  if(_dsayfa) _dsayfa.classList.toggle('genis', hangi==='depo');
   if(hangi==='depo') loadDonanimDepoSekme();                                // V31.55
   if(hangi==='talep') loadDonanimTalepListesi();                            // V31.57
 }
@@ -2024,66 +2052,35 @@ async function _donanimDepoSatirlariYukle(){
 }
 
 async function loadDonanimDepoSekme(){
-  const kartEl = document.getElementById('donanimDepoKartlari');
-  const listEl = document.getElementById('donanimDepoUrunListesi');
-  if(!listEl) return;
-  listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  const el = document.getElementById('donanimIzgara');
+  if(!el) return;
+  el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  _izgDurum('Değişiklikler hücreden çıkınca kaydedilir.', 'var(--text2)');
   try{
-    await _donanimDepolarYukle(true);
-    const satirlar = await _donanimDepoSatirlariYukle();
-
-    // Depo bazlı özet
-    const ozet = {};
-    (window._donanimDepolar||[]).forEach(d=>{ ozet[d.depo_id] = {urun:0, adet:0}; });
-    satirlar.forEach(s=>{
-      if(!ozet[s.depo_id]) ozet[s.depo_id] = {urun:0, adet:0};
-      if((s.toplam_adet||0) > 0){ ozet[s.depo_id].urun++; ozet[s.depo_id].adet += (s.toplam_adet||0); }
-    });
-    if(kartEl) kartEl.innerHTML = _donanimDepoKartlari(ozet);
-
-    // Ürün bazlı gruplama (malzeme_kodu)
-    const merkez = _depoMerkez();
-    const gruplar = {};
-    satirlar.forEach(s=>{
-      const k = s.malzeme_kodu || ('#'+s.urun_id);
-      if(!gruplar[k]) gruplar[k] = {kod:k, aciklama:'', tum_kcm:false, aktif:true, merkez:null, satirlar:{}};
-      const g = gruplar[k];
-      g.satirlar[s.depo_id] = s;
-      if(merkez && s.depo_id === merkez.depo_id){
-        g.merkez = s; g.tum_kcm = !!s.tum_kcm; g.aktif = !!s.aktif;
-        if(s.aciklama) g.aciklama = s.aciklama;
-      }
-      if(!g.aciklama) g.aciklama = s.aciklama || '';
-    });
-    window._donanimDepoUrun = gruplar;
-
-    listEl.innerHTML = _donanimDepoUrunListesi();
+    await _donanimIzgaraVeri();
+    const kartEl = document.getElementById('donanimDepoKartlari');
+    if(kartEl) kartEl.innerHTML = _donanimDepoKartlari(window._donanimIzgara.ozet);
+    _donanimIzgaraCiz();
+    _donanimIzgaraYukseklik();
   }catch(err){
     console.error(err);
-    listEl.innerHTML = `<div style="padding:16px;color:var(--red);font-size:13px;">Hata: ${escapeHTML(err.message)}</div>`;
+    el.innerHTML = `<div style="padding:16px;color:var(--red);font-size:13px;">Hata: ${escapeHTML(err.message)}</div>`;
   }
 }
 
+// V31.61: depo ozeti dikey kart yerine yatay serit — izgaraya yer birakir
 function _donanimDepoKartlari(ozet){
   const list = window._donanimDepolar||[];
-  if(!list.length) return '<div style="padding:12px;color:var(--text2);font-size:13px;">Depo tanımlı değil.</div>';
-  const cepVar = {};
-  list.forEach(d=>{ if(d.tip==='CEP') cepVar[(d.kcm_id===null?'M':d.kcm_id)] = true; });
-  return list.map(d=>{
+  if(!list.length) return '<div style="padding:10px;color:var(--text2);font-size:13px;">Depo tanımlı değil.</div>';
+  const cipler = list.map(d=>{
+    if(d.tip==='CEP' && !_izgCepGorunur()) return '';
     const o = ozet[d.depo_id] || {urun:0, adet:0};
-    const cep = (d.tip==='CEP');
-    const anahtar = (d.kcm_id===null?'M':d.kcm_id);
-    const cepButonu = (!cep && !cepVar[anahtar] && hasPerm('donanim_yonet'))
-      ? `<button class="btn btn-ghost btn-sm" onclick="donanimCepDepoAc(${d.kcm_id===null?'null':d.kcm_id})">+ Cep Depo</button>`
-      : '';
-    return `<div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px;${cep?'margin-left:18px;border-left:3px solid var(--blue);':''}">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:13px;">${escapeHTML(_depoAd(d))}${cep?' <span style="font-weight:400;color:var(--text3);font-size:11px;">(cep)</span>':''}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${o.urun} ürün · ${o.adet} cihaz</div>
-      </div>
-      ${cepButonu}
+    return `<div class="${d.tip==='CEP'?'cep':''}">
+      <div class="ad">${escapeHTML(_depoAd(d))}</div>
+      <div class="sy">${o.urun} ürün · ${o.adet} cihaz</div>
     </div>`;
   }).join('');
+  return '<div class="izg-cip">' + cipler + '</div>';
 }
 
 function _donanimDepoUrunListesi(){
@@ -2319,6 +2316,421 @@ async function donanimUrunAktifToggle(kod, deger){
 }
 
 /* ============================================================
+   DEPO DAĞITIM IZGARASI (V31.61)
+   ------------------------------------------------------------
+   Satır = ürün, sütun = depo. Depolar AİLE halinde gruplanır:
+   her ailenin bir ANA deposu, istenirse bir CEP deposu vardır.
+   Merkez ailesinin ANA deposu HAVUZ'dur (salt okunur).
+
+   Kurallar (V31.55 ile aynı, artık hücre bazlı uygulanır):
+   • Σ (Merkez dışı tüm depolar) <= Merkez toplam_adet
+   • Bir depo, o depodaki rezerve_adet + on_rezerve_adet altına inemez
+   • Adet 0 + rezervasyon yok -> satır silinir
+   • Kayıt ANLIK: hücreden çıkınca (change) yazılır. Aynı ürünün
+     ardışık hücreleri IZG_YAZ_GECIKME ms boyunca toplanıp tek
+     turda yazılır (ardışık istek yığılması olmasın diye).
+   • Kural ihlali sunucuya HİÇ gitmez; değer eski hâline döner.
+
+   Cep depoları yalnızca donanim_yonet yetkisinde görünür.
+   ============================================================ */
+
+const IZG_YAZ_GECIKME = 200;                 // ms — aynı ürün için toparlama
+window._donanimIzgara = window._donanimIzgara || null;
+const _izgKuyruk = new Map();                // malzeme_kodu -> {timer, alanlar:Map}
+
+const _izgCepGorunur = () => hasPerm('donanim_yonet');
+
+// Depoları aileye ayırır: Merkez (kcm_id NULL) önce, sonra KÇM'ler ada göre
+function _donanimDepoAgaci(){
+  const map = new Map();
+  (window._donanimDepolar||[]).forEach(d=>{
+    const anahtar = (d.kcm_id===null || d.kcm_id===undefined) ? 'M' : String(d.kcm_id);
+    if(!map.has(anahtar)){
+      map.set(anahtar, {anahtar, kcm_id:(anahtar==='M'?null:d.kcm_id), ad:'', merkez:(anahtar==='M'), ana:null, cep:null});
+    }
+    const a = map.get(anahtar);
+    if(d.tip==='CEP') a.cep = d; else a.ana = d;
+    if(!a.ad) a.ad = d.kcm_adi || d.depo_adi || _depoAd(d);
+  });
+  const aileler = [...map.values()].filter(a=> a.ana);
+  aileler.forEach(a=>{ if(a.merkez) a.ad = a.ana.depo_adi || 'Merkez Depo'; });
+  aileler.sort((a,b)=> (a.merkez?0:1)-(b.merkez?0:1) || a.ad.localeCompare(b.ad,'tr'));
+  return aileler;
+}
+
+/* --- değer erişimi: kayıtlı (DB) ve geçici (yazılıyor) --- */
+function _izgKayitli(g, depoId){
+  const s = g.satirlar[depoId];
+  return s ? (s.toplam_adet||0) : 0;
+}
+function _izgAdet(g, depoId){
+  if(g.gecici && g.gecici[depoId] !== undefined) return g.gecici[depoId];
+  return _izgKayitli(g, depoId);
+}
+function _izgAlt(g, depoId){
+  const s = g.satirlar[depoId];
+  return s ? ((s.rezerve_adet||0) + (s.on_rezerve_adet||0)) : 0;
+}
+function _izgHavuz(g){ return (g.merkez && g.merkez.toplam_adet) || 0; }
+
+// Havuz dışı TÜM depolar — gizli cep depoları da sayılır, yoksa havuz matematiği bozulur
+function _izgTumHedefler(){
+  const merkez = window._donanimIzgara ? window._donanimIzgara.merkez : _depoMerkez();
+  return (window._donanimDepolar||[]).filter(d=> !merkez || d.depo_id !== merkez.depo_id);
+}
+function _izgDagitilan(g){ return _izgTumHedefler().reduce((t,d)=> t + _izgAdet(g, d.depo_id), 0); }
+function _izgKalan(g){ return _izgHavuz(g) - _izgDagitilan(g); }
+
+/* --- veri --- */
+async function _donanimIzgaraVeri(){
+  await _donanimDepolarYukle(true);
+  const satirlar = await _donanimDepoSatirlariYukle();
+  const merkez = _depoMerkez();
+
+  const gruplar = {};
+  satirlar.forEach(s=>{
+    const k = s.malzeme_kodu || ('#'+s.urun_id);
+    if(!gruplar[k]) gruplar[k] = {kod:k, aciklama:'', tum_kcm:false, aktif:true, merkez:null, satirlar:{}, gecici:{}};
+    const g = gruplar[k];
+    g.satirlar[s.depo_id] = s;
+    if(merkez && s.depo_id === merkez.depo_id){
+      g.merkez = s; g.tum_kcm = !!s.tum_kcm; g.aktif = !!s.aktif;
+      if(s.aciklama) g.aciklama = s.aciklama;
+    }
+    if(!g.aciklama) g.aciklama = s.aciklama || '';
+  });
+
+  const ozet = {};
+  (window._donanimDepolar||[]).forEach(d=>{ ozet[d.depo_id] = {urun:0, adet:0}; });
+  satirlar.forEach(s=>{
+    if(!ozet[s.depo_id]) ozet[s.depo_id] = {urun:0, adet:0};
+    if((s.toplam_adet||0) > 0){ ozet[s.depo_id].urun++; ozet[s.depo_id].adet += (s.toplam_adet||0); }
+  });
+
+  window._donanimDepoUrun = gruplar;                    // eski fonksiyonlarla uyum
+  window._donanimRapor    = _donanimRaporVeri(satirlar); // Excel aynı veriyi kullanır
+  window._donanimIzgara   = {aileler:_donanimDepoAgaci(), gruplar, merkez, ozet};
+  return window._donanimIzgara;
+}
+
+function _izgKodlar(){
+  const I = window._donanimIzgara; if(!I) return [];
+  const q = (document.getElementById('donanimIzgaraAra')?.value||'').trim().toLocaleLowerCase('tr');
+  const bosGoster = !!document.getElementById('donanimIzgaraBos')?.checked;
+  let kodlar = Object.keys(I.gruplar);
+  if(q){
+    const kelimeler = q.split(/\s+/).filter(Boolean);
+    kodlar = kodlar.filter(k=>{
+      const metin = ((I.gruplar[k].aciklama||'') + ' ' + k).toLocaleLowerCase('tr');
+      return kelimeler.every(w=> metin.includes(w));
+    });
+  }
+  if(!bosGoster) kodlar = kodlar.filter(k=> _izgHavuz(I.gruplar[k]) > 0 || _izgDagitilan(I.gruplar[k]) > 0);
+  kodlar.sort((a,b)=> (I.gruplar[a].aciklama||a).localeCompare(I.gruplar[b].aciklama||b,'tr'));
+  return kodlar;
+}
+
+/* --- çizim --- */
+function _donanimIzgaraCiz(){
+  const I  = window._donanimIzgara;
+  const el = document.getElementById('donanimIzgara');
+  if(!I || !el) return;
+  if(!I.merkez){
+    el.innerHTML = '<div style="padding:16px;color:var(--red);font-size:13px;">Merkez Depo tanımlı değil.</div>';
+    return;
+  }
+  const cep = _izgCepGorunur();
+  const kodlar = _izgKodlar();
+  const kolonSayisi = 1 + I.aileler.length*(cep?2:1) + 2;
+
+  const grupTr = '<th class="izg-urun">Depo ailesi &rarr;</th>'
+    + I.aileler.map(a=>
+        `<th class="izg-gbas" colspan="${cep?2:1}">${escapeHTML(a.ad)}</th>`).join('')
+    + '<th colspan="2">Özet</th>';
+
+  const dalTr = '<th class="izg-urun">Ürün</th>'
+    + I.aileler.map(a=>{
+        const ana = a.merkez
+          ? '<th class="izg-gbas izg-havuz">Havuz</th>'
+          : '<th class="izg-gbas">Ana</th>';
+        if(!cep) return ana;
+        const c = a.cep
+          ? '<th class="izg-cep">Cep</th>'
+          : `<th class="izg-cep"><button class="izg-cepac" onclick="donanimCepDepoAc(${a.kcm_id===null?'null':a.kcm_id})">+ Cep aç</button></th>`;
+        return ana + c;
+      }).join('')
+    + '<th>Kalan</th><th>Dağıtılan</th>';
+
+  const govde = !kodlar.length
+    ? `<tr><td class="izg-urun" colspan="${kolonSayisi}" style="color:var(--text2);">Kayıt bulunamadı.</td></tr>`
+    : kodlar.map(kod=>{
+        const g = I.gruplar[kod];
+        const hucreler = I.aileler.map(a=>{
+          let out = a.merkez
+            ? `<td class="izg-havuz izg-gbas">${_izgHavuz(g)}</td>`
+            : _izgHucre(g, a.ana, 'izg-gbas');
+          if(cep) out += a.cep ? _izgHucre(g, a.cep, 'izg-cep') : '<td class="izg-cepyok">&mdash;</td>';
+          return out;
+        }).join('');
+        const k = _izgKalan(g);
+        return `<tr${g.aktif?'':' style="opacity:.55;"'}>
+          <td class="izg-urun">
+            <div class="izg-ad">${escapeHTML(g.aciklama||kod)}</div>
+            <div class="izg-kod">${escapeHTML(kod)}</div>
+            <div class="izg-ayar">
+              <button class="izg-pil${g.tum_kcm?' on':''}" title="Ortak stok — tüm KÇM'ler görür"
+                onclick="donanimOrtakStokToggle('${_jsStr(kod)}', ${g.tum_kcm?'false':'true'})">ortak</button>
+              <button class="izg-pil${g.aktif?' on':''}" title="Ürün aktif / pasif"
+                onclick="donanimUrunAktifToggle('${_jsStr(kod)}', ${g.aktif?'false':'true'})">aktif</button>
+            </div>
+          </td>
+          ${hucreler}
+          <td class="izg-kalan ${k<0?'eksik':(k===0?'bitti':'')}" data-kalan="${escapeHTML(kod)}">${k}</td>
+          <td class="izg-toplam" data-dagitim="${escapeHTML(kod)}">${_izgDagitilan(g)}</td>
+        </tr>`;
+      }).join('');
+
+  el.innerHTML = `<table class="izg-tablo">
+    <thead><tr class="izg-grup">${grupTr}</tr><tr class="izg-dal">${dalTr}</tr></thead>
+    <tbody>${govde}</tbody>
+    <tfoot><tr id="donanimIzgaraDip"></tr></tfoot>
+  </table>`;
+  _izgDip();
+}
+
+function _izgHucre(g, depo, tdSinif){
+  const adet = _izgAdet(g, depo.depo_id);
+  const alt  = _izgAlt(g, depo.depo_id);
+  const cep  = (depo.tip === 'CEP');
+  return `<td class="izg-h ${tdSinif}">
+    <input class="izg-gir${cep?' izg-gir-cep':''}${adet===0?' izg-sifir':''}" type="number" min="${alt}" step="1"
+           value="${adet}" data-kod="${escapeHTML(g.kod)}" data-depo="${depo.depo_id}"
+           oninput="donanimIzgaraYaziliyor(this)" onchange="donanimIzgaraHucreKaydet(this)"
+           aria-label="${escapeHTML((g.aciklama||g.kod)+' — '+_depoAd(depo))}">
+    <span class="izg-min${alt?' var':''}">${alt?('min '+alt):'&nbsp;'}</span></td>`;
+}
+
+function _izgDip(){
+  const I  = window._donanimIzgara;
+  const tr = document.getElementById('donanimIzgaraDip');
+  if(!I || !tr) return;
+  const cep = _izgCepGorunur();
+  const kodlar = _izgKodlar();
+  const depoTop = depoId => kodlar.reduce((t,k)=> t + _izgAdet(I.gruplar[k], depoId), 0);
+  const havuzTop = kodlar.reduce((t,k)=> t + _izgHavuz(I.gruplar[k]), 0);
+  const kalanTop = kodlar.reduce((t,k)=> t + _izgKalan(I.gruplar[k]), 0);
+  const genelTop = kodlar.reduce((t,k)=> t + _izgDagitilan(I.gruplar[k]), 0);
+  tr.innerHTML = '<td class="izg-urun">TOPLAM</td>'
+    + I.aileler.map(a=>{
+        let out = a.merkez
+          ? `<td class="izg-havuz izg-gbas">${havuzTop}</td>`
+          : `<td class="izg-gbas">${depoTop(a.ana.depo_id)}</td>`;
+        if(cep) out += a.cep ? `<td class="izg-cep">${depoTop(a.cep.depo_id)}</td>` : '<td class="izg-cepyok">&mdash;</td>';
+        return out;
+      }).join('')
+    + `<td>${kalanTop}</td><td>${genelTop}</td>`;
+}
+
+function _izgSatirYenile(kod){
+  const g = window._donanimIzgara?.gruplar?.[kod]; if(!g) return;
+  const k = _izgKalan(g);
+  const kh = document.querySelector(`[data-kalan="${CSS.escape(kod)}"]`);
+  if(kh){ kh.textContent = k; kh.className = 'izg-kalan ' + (k<0?'eksik':(k===0?'bitti':'')); }
+  const dh = document.querySelector(`[data-dagitim="${CSS.escape(kod)}"]`);
+  if(dh) dh.textContent = _izgDagitilan(g);
+}
+
+function _izgDurum(metin, renk){
+  const el = document.getElementById('donanimIzgaraDurum');
+  if(el){ el.textContent = metin; el.style.color = renk || 'var(--text2)'; }
+}
+
+function _izgFlas(el, basarili){
+  if(!el) return;
+  el.classList.remove('izg-kirli','izg-ok','izg-red');
+  el.classList.add(basarili ? 'izg-ok' : 'izg-red');
+  setTimeout(()=>{ el.classList.remove('izg-ok','izg-red'); }, basarili ? 1100 : 1600);
+}
+
+/* --- yazarken: sadece ekran; kayıt YOK --- */
+function donanimIzgaraYaziliyor(el){
+  const kod = el.dataset.kod, depoId = parseInt(el.dataset.depo, 10);
+  const g = window._donanimIzgara?.gruplar?.[kod]; if(!g) return;
+  let v = parseInt(el.value, 10);
+  if(isNaN(v) || v < 0) v = 0;
+  g.gecici = g.gecici || {};
+  g.gecici[depoId] = v;
+  el.classList.remove('izg-ok','izg-red');
+  el.classList.add('izg-kirli');
+  el.classList.toggle('izg-sifir', v===0);
+  _izgSatirYenile(kod);
+  _izgDip();
+}
+
+/* --- hücreden çıkınca: doğrula, sonra kuyruğa al --- */
+function donanimIzgaraHucreKaydet(el){
+  if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
+  const kod = el.dataset.kod, depoId = parseInt(el.dataset.depo, 10);
+  const g = window._donanimIzgara?.gruplar?.[kod]; if(!g) return;
+
+  let v = parseInt(el.value, 10);
+  if(isNaN(v) || v < 0) v = 0;
+  g.gecici = g.gecici || {};
+  g.gecici[depoId] = v;
+
+  const alt = _izgAlt(g, depoId);
+  let hata = '';
+  if(v < alt) hata = `Bu depoda ${alt} adet rezerve var, altına inilemez.`;
+  else if(_izgKalan(g) < 0) hata = `Havuzda yeterli cihaz yok — ${Math.abs(_izgKalan(g))} adet fazla.`;
+
+  if(hata){
+    delete g.gecici[depoId];
+    el.value = _izgKayitli(g, depoId);
+    el.classList.toggle('izg-sifir', _izgKayitli(g, depoId)===0);
+    _izgFlas(el, false);
+    _izgSatirYenile(kod); _izgDip();
+    _izgDurum('⚠ ' + hata + ' Değer geri alındı.', 'var(--red)');
+    return;
+  }
+  if(v === _izgKayitli(g, depoId)){       // gerçek değişiklik yok
+    delete g.gecici[depoId];
+    el.classList.remove('izg-kirli');
+    return;
+  }
+  _izgKuyrukEkle(kod, depoId, el);
+}
+
+function _izgKuyrukEkle(kod, depoId, el){
+  let q = _izgKuyruk.get(kod);
+  if(!q){ q = {timer:null, alanlar:new Map()}; _izgKuyruk.set(kod, q); }
+  q.alanlar.set(depoId, el);
+  clearTimeout(q.timer);
+  q.timer = setTimeout(()=>{ _izgKuyrukYaz(kod); }, IZG_YAZ_GECIKME);
+}
+
+async function _izgKuyrukYaz(kod){
+  const q = _izgKuyruk.get(kod); if(!q) return;
+  _izgKuyruk.delete(kod);
+  const g = window._donanimIzgara?.gruplar?.[kod]; if(!g) return;
+
+  const KOLON = 'urun_id,depo_id,kcm_id,depo_adi,malzeme_kodu,aciklama,toplam_adet,rezerve_adet,on_rezerve_adet,aktif,tum_kcm';
+  const hatalar = [], yazilan = [];
+
+  for(const [depoId, el] of q.alanlar){
+    const adet = g.gecici ? g.gecici[depoId] : undefined;
+    if(adet === undefined) continue;
+    const depo  = (window._donanimDepolar||[]).find(d=> d.depo_id === depoId);
+    const satir = g.satirlar[depoId] || null;
+    const alt   = _izgAlt(g, depoId);
+    try{
+      if(satir){
+        if(adet === 0 && alt === 0){
+          const {error} = await sb.from('stok_urunleri').delete().eq('urun_id', satir.urun_id);
+          if(error) throw new Error(error.message);
+          delete g.satirlar[depoId];
+        }else{
+          const {error} = await sb.from('stok_urunleri')
+            .update({toplam_adet:adet, updated_at:new Date().toISOString()})
+            .eq('urun_id', satir.urun_id);
+          if(error) throw new Error(error.message);
+          satir.toplam_adet = adet;
+        }
+      }else if(adet > 0){
+        const {data, error} = await sb.from('stok_urunleri').insert({
+          depo_id: depoId,
+          kcm_id:  depo ? depo.kcm_id : null,
+          depo_adi: depo ? depo.depo_adi : null,
+          malzeme_kodu: kod,
+          aciklama: g.aciklama || kod,
+          toplam_adet: adet, rezerve_adet: 0, on_rezerve_adet: 0,
+          aktif: !!g.aktif, tum_kcm: !!g.tum_kcm
+        }).select(KOLON).single();
+        if(error) throw new Error(error.message);
+        if(data) g.satirlar[depoId] = data;
+      }
+      delete g.gecici[depoId];
+      yazilan.push(`${depo?_depoAd(depo):('#'+depoId)}=${adet}`);
+      if(el && el.isConnected) _izgFlas(el, true);
+    }catch(e){
+      delete g.gecici[depoId];
+      hatalar.push(`${depo?_depoAd(depo):('#'+depoId)}: ${e.message}`);
+      if(el && el.isConnected){
+        el.value = _izgKayitli(g, depoId);
+        el.classList.toggle('izg-sifir', _izgKayitli(g, depoId)===0);
+        _izgFlas(el, false);
+      }
+    }
+  }
+
+  if(yazilan.length){
+    try{
+      await sb.from('stok_hareketleri').insert({
+        urun_id: g.merkez ? g.merkez.urun_id : null,
+        aksiyon: 'Depo Dağıtımı',
+        detay: `${g.aciklama||kod} — ${yazilan.join(', ')}`,
+        user_id: currentUser.my_id,
+        user_ad: currentUser.ad_soyad || String(currentUser.my_id)
+      });
+    }catch(e){ console.warn('[donanim] dağıtım log hatası:', e.message); }
+  }
+
+  _izgSatirYenile(kod); _izgDip(); _izgKartlariTazele();
+  if(hatalar.length){
+    console.error('[donanim] ızgara yazma hataları:', hatalar);
+    _izgDurum('⚠ Kaydedilemedi — ' + hatalar[0], 'var(--red)');
+  }else if(yazilan.length){
+    const saat = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    _izgDurum(`✓ ${(g.aciklama||kod).slice(0,34)} kaydedildi · ${saat}`, 'var(--green)');
+  }
+}
+
+/* --- depo özet şeridi --- */
+function _izgKartlariTazele(){
+  const I = window._donanimIzgara; if(!I) return;
+  const ozet = {};
+  (window._donanimDepolar||[]).forEach(d=>{ ozet[d.depo_id] = {urun:0, adet:0}; });
+  Object.keys(I.gruplar).forEach(k=>{
+    const g = I.gruplar[k];
+    Object.keys(g.satirlar).forEach(id=>{
+      const a = g.satirlar[id].toplam_adet||0;
+      if(!ozet[id]) ozet[id] = {urun:0, adet:0};
+      if(a > 0){ ozet[id].urun++; ozet[id].adet += a; }
+    });
+  });
+  I.ozet = ozet;
+  const el = document.getElementById('donanimDepoKartlari');
+  if(el) el.innerHTML = _donanimDepoKartlari(ozet);
+}
+
+/* --- yükseklik: ızgara ekranın altına kadar uzar, başlık asla kaçmaz --- */
+function _donanimIzgaraYukseklik(){
+  const kutu = document.getElementById('donanimIzgaraKutu');
+  if(!kutu || kutu.offsetParent === null) return;
+  const ust = kutu.getBoundingClientRect().top;
+  const h = Math.max(220, Math.round(window.innerHeight - ust - 78));
+  kutu.style.maxHeight = h + 'px';
+}
+window.addEventListener('resize', _donanimIzgaraYukseklik);
+
+let _izgAraT = null;
+function donanimIzgaraAraDebounce(){
+  clearTimeout(_izgAraT);
+  _izgAraT = setTimeout(donanimIzgaraFiltreDegisti, 250);
+}
+function donanimIzgaraFiltreDegisti(){
+  _donanimIzgaraCiz();
+  _donanimIzgaraYukseklik();
+}
+
+// Excel: rapor modalının veri yapısını ve indirme fonksiyonunu aynen kullanır
+function donanimIzgaraExcel(){
+  const bos = document.getElementById('donanimIzgaraBos');
+  const eski = document.getElementById('donanimRaporBosGoster');
+  if(eski && bos) eski.checked = bos.checked;
+  donanimRaporExcelIndir();
+}
+
+/* ============================================================
    DEPO STOK RAPORU (V31.56)
    ------------------------------------------------------------
    Pivot: satır = ürün, kolon = depo, hücre = o depodaki ADET.
@@ -2524,8 +2936,9 @@ async function _donanimDepoHaritasi(){
   if(window._donanimDepoCache) return window._donanimDepoCache;
   const {data,error} = await sb.from('depolar_v').select('depo_id,kcm_id,tip,aktif').eq('aktif',true);
   if(error){ console.error('[donanim] depolar_v okunamadı:', error.message); return {merkez:null, kcm:{}}; }
-  const harita = {merkez:null, kcm:{}};
+  const harita = {merkez:null, kcm:{}, cep:{}};
   (data||[]).forEach(d=>{
+    if(d.tip === 'CEP'){ harita.cep[d.depo_id] = true; return; }   // V31.61
     if(d.tip !== 'ANA') return;
     if(d.kcm_id === null) harita.merkez = d.depo_id;
     else harita.kcm[d.kcm_id] = d.depo_id;

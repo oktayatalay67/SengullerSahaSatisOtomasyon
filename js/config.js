@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.3.01
+// config.js — v1.3.02
 // Son güncelleme: 2026-09-05
 // Değişiklikler:
+//   v1.3.02 — APP_VERSION → V31.61. Donanim Depolar sekmesi: depo dagitim
+//     izgarasi (urun satir / depo sutun, anlik kayit, donmus basliklar).
+//     Cep depolari yalniz donanim_yonet'te gorunur.
 //   v1.3.01 — APP_VERSION → V31.60. Donanim stok filtresi: aciklama tooltip'e
 //     tasindi, "Kendi depom" anahtari eklendi (scope=TUM + kcm_id/ADMIN).
 //   v1.3.00 — APP_VERSION → V31.59. Donanim: 48 saat kurali IS SAATI oldu;
@@ -296,7 +299,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.60';
+const APP_VERSION = 'V31.61';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

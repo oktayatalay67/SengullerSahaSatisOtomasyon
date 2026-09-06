@@ -162,3 +162,81 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
   .modal-overlay{width:100%;}
   .toast-container{max-width:380px;}
 }
+
+/* ============================================================
+   V31.61 — DEPO DAGITIM IZGARASI
+   Satir = urun, sutun = depo. Donmus: iki katli ust baslik,
+   sol urun sutunu, alt TOPLAM satiri.
+   Yesil = havuz (Merkez ANA) · mor = cep deposu.
+   ============================================================ */
+/* Izgara 480px'lik telefon cercevesine sigmaz; SADECE Depolar
+   sekmesi acikken sayfa genisler (.page.genis). */
+@media(min-width:900px){
+  .page.genis{max-width:1280px;}
+  .page.genis .scroll{padding-left:22px;padding-right:22px;}
+}
+.izg-arac{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
+.izg-arac input[type=text]{flex:1 1 170px;min-width:0;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 10px;font-size:13px;font-family:inherit;outline:none;}
+.izg-sw{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;white-space:nowrap;}
+.izg-lejant{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.izg-lj{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);background:var(--navy3);border:1px solid var(--border);border-radius:999px;padding:3px 9px;}
+.izg-nokta{width:10px;height:10px;border-radius:3px;flex:none;}
+.izg-nokta.h{background:rgba(0,214,143,.35);border:1px solid var(--green);}
+.izg-nokta.a{background:var(--navy3);border:1px solid rgba(255,255,255,.25);}
+.izg-nokta.c{background:rgba(168,85,247,.35);border:1px dashed var(--purple);}
+.izg-durum{font-size:11px;color:var(--text2);margin-bottom:8px;min-height:15px;}
+.izg-cip{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:3px;margin-bottom:10px;}
+.izg-cip > div{flex:none;background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;min-width:112px;}
+.izg-cip > div.cep{border-left:3px solid var(--purple);}
+.izg-cip .ad{font-size:11px;font-weight:700;white-space:nowrap;}
+.izg-cip .sy{font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap;}
+
+.izg-kutu{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:10px;background:var(--card);max-height:60vh;}
+.izg-tablo{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12px;}
+.izg-tablo th,.izg-tablo td{padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.izg-tablo thead tr.izg-grup th{position:sticky;top:0;z-index:22;height:28px;padding:3px 8px;background:var(--navy2);text-align:center;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text);}
+.izg-tablo thead tr.izg-dal th{position:sticky;top:28px;z-index:21;background:var(--navy3);text-align:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text2);box-shadow:inset 0 -1px 0 rgba(255,255,255,.18);}
+.izg-gbas{border-left:2px solid rgba(255,255,255,.42)!important;}
+.izg-tablo th.izg-urun,.izg-tablo td.izg-urun{position:sticky;left:0;background:var(--card);text-align:left;white-space:normal;min-width:168px;max-width:210px;box-shadow:1px 0 0 rgba(255,255,255,.18);}
+.izg-tablo td.izg-urun{z-index:10;}
+.izg-tablo thead tr.izg-grup th.izg-urun{z-index:32;background:var(--navy2);}
+.izg-tablo thead tr.izg-dal th.izg-urun{z-index:32;background:var(--navy3);}
+.izg-tablo tfoot td{position:sticky;bottom:0;z-index:20;background:var(--navy2);font-weight:800;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.18);border-bottom:none;}
+.izg-tablo tfoot td.izg-urun{z-index:32;background:var(--navy2);text-align:left;}
+.izg-tablo tbody tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+.izg-tablo tbody tr:nth-child(even) td.izg-urun{background:#212139;}
+.izg-ad{font-size:12px;font-weight:600;line-height:1.3;}
+.izg-kod{font-size:10px;color:var(--text3);margin-top:2px;}
+.izg-tablo th.izg-havuz{color:var(--green);}
+.izg-tablo td.izg-havuz{background:rgba(0,214,143,.09);text-align:center;font-weight:800;color:var(--green);}
+.izg-tablo tbody tr:nth-child(even) td.izg-havuz{background:rgba(0,214,143,.14);}
+.izg-tablo tfoot td.izg-havuz{color:var(--green);}
+.izg-tablo th.izg-cep{color:var(--purple);}
+.izg-tablo td.izg-cep{background:rgba(168,85,247,.10);}
+.izg-tablo tbody tr:nth-child(even) td.izg-cep{background:rgba(168,85,247,.15);}
+.izg-tablo tfoot td.izg-cep{color:var(--purple);background:rgba(168,85,247,.14);}
+.izg-tablo td.izg-kalan{text-align:center;font-weight:700;color:var(--text2);}
+.izg-tablo td.izg-kalan.eksik{color:var(--red);}
+.izg-tablo td.izg-kalan.bitti{color:var(--text3);}
+.izg-tablo td.izg-toplam{text-align:center;font-weight:800;}
+.izg-tablo td.izg-h{padding:2px 3px;text-align:center;}
+.izg-tablo td.izg-cepyok{text-align:center;color:var(--text3);font-size:11px;background:rgba(168,85,247,.04);}
+.izg-gir{width:54px;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);font:inherit;font-size:13px;font-weight:700;text-align:center;padding:5px 2px;font-variant-numeric:tabular-nums;outline:none;-moz-appearance:textfield;transition:background-color .18s,border-color .18s,color .18s;}
+.izg-gir::-webkit-outer-spin-button,.izg-gir::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.izg-gir:hover{border-color:rgba(255,255,255,.25);}
+.izg-gir:focus{border-color:var(--blue);background:rgba(77,159,255,.16);}
+.izg-gir-cep{border-style:dashed;border-color:rgba(168,85,247,.35);}
+.izg-gir-cep:focus{border-style:solid;border-color:var(--purple);background:rgba(168,85,247,.22);}
+.izg-gir.izg-sifir{color:var(--text3);font-weight:400;}
+.izg-gir.izg-kirli{background:rgba(255,180,0,.16);border-color:var(--amber);border-style:solid;color:var(--amber);}
+.izg-gir.izg-ok{background:rgba(0,214,143,.22);border-color:var(--green);border-style:solid;color:var(--green);}
+.izg-gir.izg-red{background:rgba(224,4,42,.22);border-color:var(--red);border-style:solid;color:#ff8ca2;}
+.izg-min{display:block;font-size:9px;color:var(--text3);margin-top:-2px;}
+.izg-min.var{color:var(--amber);}
+.izg-cepac{font:inherit;font-size:10px;font-weight:700;color:var(--purple);background:transparent;border:1px dashed rgba(168,85,247,.5);border-radius:6px;padding:2px 7px;cursor:pointer;white-space:nowrap;}
+.izg-cepac:active{background:rgba(168,85,247,.18);}
+.izg-ayar{display:flex;gap:4px;margin-top:4px;}
+.izg-pil{font:inherit;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--text3);background:transparent;border:1px solid var(--border);border-radius:999px;
+  padding:1px 7px;cursor:pointer;}
+.izg-pil.on{color:var(--green);border-color:rgba(0,214,143,.5);background:rgba(0,214,143,.12);}
