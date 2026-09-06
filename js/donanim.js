@@ -1,4 +1,21 @@
 // ============================================================
+// donanim.js — v1.0.29 (V31.63)
+//   v1.0.29 (V31.63): İKİ GERÇEK HATA DÜZELTİLDİ.
+//   A) SEVKİYAT ARTIK STOKTAN DÜŞÜYOR. 'Cihaz Gönderildi' adımı yalnızca
+//      durum alanını güncelliyordu; cihaz depoda görünmeye devam ediyordu.
+//      Artık: stok_urunleri.toplam_adet -adet, rezerve_adet -adet,
+//      o sepete bağlı IMEI'ler 'Ayrıldı' -> 'Satıldı', gerceklesen_adet
+//      yazılır. Koşullu durum güncellemesi .select() ile kilit görevi görür:
+//      0 satır dönerse (başkası aynı anda sevk etmişse) düşüm YAPILMAZ.
+//      Yeni: _donanimSevkStokDus.
+//   B) IMEI EŞLEŞTİRME ARTIK HAVUZDAN (Faz 7). Excel yüklemesi tüm
+//      IMEI'leri MERKEZ katalog satırının urun_id'sine yazıyor; rezervasyon
+//      ise KÇM depo satırını işaret ediyor. Eşleştirme rezervasyonun
+//      urun_id'siyle aradığı için KÇM siparişlerinde HİÇ IMEI bulunamıyordu.
+//      Artık malzeme_kodu üzerinden havuz satırına çevrilir.
+//      Yeni: _donanimHavuzUrunId (önbellekli).
+//   NOT: Sevk edilmiş kayıt olmadığı doğrulandı (0 sipariş), geriye dönük
+//        veri düzeltmesi gerekmedi.
 // donanim.js — v1.0.28 (V31.62)
 //   v1.0.28 (V31.62): Yeni Ürün Ekle formu Merkez Depo kataloğuna bağlandı.
 //     Depo özeti aile başına tek kart oldu; ayrı Ana/Cep düğmeleri seçilen
@@ -1631,11 +1648,75 @@ async function donanimSurecIlerlet(sepetId, yeniDurum){
   if(!gerekli || !_donanimSurecYetki(gerekli, ilkK.satan_my_id, ilkK.kcm_id)){ toast('Bu işlem için yetkiniz yok','error'); return; }
   if(DONANIM_GECIS[ilkK.durum]!==yeniDurum){ toast(`Bu kayıt '${ilkK.durum}' durumunda; '${yeniDurum}' geçişi yapılamaz`,'info'); loadDonanimRezervasyonlar(); return; }
 
-  const {error:uErr} = await sb.from('stok_rezervasyonlari').update({durum:yeniDurum, updated_at:new Date().toISOString()}).eq('sepet_id',sepetId).eq('durum',ilkK.durum);
+  // V31.63: .select() eklendi — güncellenen satır sayısı KİLİT görevi görür.
+  // Aynı anda başka bir oturum sevk ettiyse 0 satır döner ve stok bir daha düşmez.
+  const {data:guncellenen, error:uErr} = await sb.from('stok_rezervasyonlari')
+    .update({durum:yeniDurum, updated_at:new Date().toISOString()})
+    .eq('sepet_id',sepetId).eq('durum',ilkK.durum).select('rezervasyon_id');
   if(uErr){ toast('Hata: '+uErr.message,'error'); return; }
+  if(!guncellenen || !guncellenen.length){
+    toast('Kayıt bu sırada başkası tarafından güncellenmiş — işlem yapılmadı','info');
+    loadDonanimRezervasyonlar(); return;
+  }
+
+  // V31.63: sevkiyat stoktan düşer. Yalnızca durumu değiştirmeyi BAŞARAN oturum girer.
+  if(yeniDurum === 'Cihaz Gönderildi') await _donanimSevkStokDus(sepetId, kalemler);
+
   await _donanimRezHareketLog('Süreç: '+yeniDurum, kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
   toast(`Durum güncellendi: ${yeniDurum}`,'success');
   loadDonanimRezervasyonlar();
+}
+
+/* V31.63: SEVKİYAT STOK ETKİSİ
+   Cihaz müşteriye gittiğinde depodan da gitmelidir:
+     • stok_urunleri : toplam_adet -adet, rezerve_adet -adet (0'ın altına inmez)
+     • stok_seri_no  : bu sepete bağlı 'Ayrıldı' seriler 'Satıldı' olur.
+                       sepet_id İZLENEBİLİRLİK için silinmez.
+     • stok_rezervasyonlari.gerceklesen_adet = adet (süre süpürme matematiği)
+   Çift düşüm koruması çağıran taraftadır: koşullu durum güncellemesi. */
+async function _donanimSevkStokDus(sepetId, kalemler){
+  const hatalar = [];
+
+  // Aynı ürün birden çok kalemde olabilir — önce ürün bazında toplanır
+  const dus = {};
+  (kalemler||[]).forEach(k=>{ if(k.urun_id) dus[k.urun_id] = (dus[k.urun_id]||0) + (k.adet||0); });
+
+  for(const urunId of Object.keys(dus)){
+    const adet = dus[urunId];
+    try{
+      const {data:u, error:sErr} = await sb.from('stok_urunleri')
+        .select('urun_id,toplam_adet,rezerve_adet').eq('urun_id', parseInt(urunId,10)).maybeSingle();
+      if(sErr) throw new Error(sErr.message);
+      if(!u)   throw new Error('ürün satırı bulunamadı');
+      const {error:gErr} = await sb.from('stok_urunleri').update({
+        toplam_adet:  Math.max(0, (u.toplam_adet||0)  - adet),
+        rezerve_adet: Math.max(0, (u.rezerve_adet||0) - adet),
+        updated_at: new Date().toISOString()
+      }).eq('urun_id', u.urun_id);
+      if(gErr) throw new Error(gErr.message);
+    }catch(e){ hatalar.push(`Ürün #${urunId}: ${e.message}`); }
+  }
+
+  try{
+    const {error:iErr} = await sb.from('stok_seri_no')
+      .update({durum:'Satıldı', updated_at:new Date().toISOString()})
+      .eq('sepet_id', sepetId).eq('durum','Ayrıldı');
+    if(iErr) throw new Error(iErr.message);
+  }catch(e){ hatalar.push('IMEI durumu: '+e.message); }
+
+  for(const k of (kalemler||[])){
+    try{
+      await sb.from('stok_rezervasyonlari')
+        .update({gerceklesen_adet: k.adet, updated_at:new Date().toISOString()})
+        .eq('rezervasyon_id', k.rezervasyon_id);
+    }catch(e){ hatalar.push('gerçekleşen adet: '+e.message); }
+  }
+
+  if(hatalar.length){
+    console.error('[donanim] sevkiyat stok düşümü:', hatalar);
+    toast('Sevk edildi, ancak stok düşümünde sorun: '+hatalar[0],'error');
+  }
+  return hatalar;
 }
 
 // ============ 2.3: IMEI EŞLEŞTİRME (kısmi, barcode + arama, KÇM kilitli) ============
@@ -1649,6 +1730,32 @@ function _imeiMaskele(seriNo){
   if(hasPerm('donanim_imei_gor')) return s;
   if(s.length<=8) return '*'.repeat(s.length);
   return s.slice(0,4) + '*'.repeat(s.length-8) + s.slice(-4);
+}
+
+/* V31.63 (Faz 7): IMEI'ler MERKEZ havuzunda durur — Excel yüklemesi
+   stok_seri_no.urun_id alanına Merkez katalog satırının kimliğini yazar.
+   Rezervasyon ise satıcının KÇM depo satırını işaret eder. Eşleştirme
+   bu iki kimliği eşit sandığı için KÇM siparişlerinde hiç IMEI bulunamıyordu.
+   Burada rezervasyonun urun_id'si malzeme_kodu üzerinden havuz satırına
+   çevrilir. Merkez satırı bulunamazsa gelen kimlik aynen döner (davranış
+   eski hâline düşer, sessiz hata olmaz). */
+window._donanimHavuzCache = window._donanimHavuzCache || {};
+async function _donanimHavuzUrunId(urunId){
+  const anahtar = String(urunId);
+  if(window._donanimHavuzCache[anahtar] !== undefined) return window._donanimHavuzCache[anahtar];
+  let sonuc = urunId;
+  try{
+    const {data:kaynak} = await sb.from('stok_urunleri')
+      .select('urun_id,malzeme_kodu,depo_id').eq('urun_id', urunId).maybeSingle();
+    const merkezDepoId = await _donanimMerkezDepoId();
+    if(kaynak && kaynak.malzeme_kodu && merkezDepoId && kaynak.depo_id !== merkezDepoId){
+      const {data:havuz} = await sb.from('stok_urunleri')
+        .select('urun_id').eq('malzeme_kodu', kaynak.malzeme_kodu).eq('depo_id', merkezDepoId).limit(1);
+      if(havuz && havuz.length) sonuc = havuz[0].urun_id;
+    }
+  }catch(e){ console.warn('[donanim] havuz ürün çözümlemesi:', e.message); }
+  window._donanimHavuzCache[anahtar] = sonuc;
+  return sonuc;
 }
 
 async function donanimImeiEslestirAc(sepetId){
@@ -1666,12 +1773,17 @@ async function donanimImeiEslestirAc(sepetId){
   const {data:bagliSeri}=await sb.from('stok_seri_no').select('seri_no_id,seri_no,urun_id').eq('sepet_id',sepetId);
   const bagliByUrun={}; (bagliSeri||[]).forEach(s=>{ (bagliByUrun[s.urun_id]=bagliByUrun[s.urun_id]||[]).push({seri_no_id:s.seri_no_id, seri_no:s.seri_no}); });
 
+  // V31.63: her kalem için IMEI havuzundaki karşılığı çözülür
+  const havuzIdler = [];
+  for(const k of kalemler) havuzIdler.push(await _donanimHavuzUrunId(k.urun_id));
+
   window._imeiEslestir = {
     sepetId,
     kalemler: kalemler.map((k,i)=>({
-      idx:i, urun_id:k.urun_id, ad:adMap[k.urun_id]||('Cihaz #'+k.urun_id), adet:k.adet,
-      bagli:(bagliByUrun[k.urun_id]||[]).slice(),
-      orijinal:(bagliByUrun[k.urun_id]||[]).map(s=>s.seri_no_id)
+      idx:i, urun_id:k.urun_id, havuzUrunId:havuzIdler[i],
+      ad:adMap[k.urun_id]||('Cihaz #'+k.urun_id), adet:k.adet,
+      bagli:(bagliByUrun[havuzIdler[i]]||[]).slice(),
+      orijinal:(bagliByUrun[havuzIdler[i]]||[]).map(s=>s.seri_no_id)
     }))
   };
   _imeiRender();
@@ -1710,7 +1822,8 @@ async function donanimImeiAra(idx, q){
   if(!sonuc) return;
   q=(q||'').trim();
   // KÇM kilidi: yalnız bu ürünün (urun_id) Depoda serileri. Boş sorguda ilk N gösterilir.
-  let query = sb.from('stok_seri_no').select('seri_no_id,seri_no').eq('urun_id',k.urun_id).eq('durum','Depoda');
+  // V31.63: arama HAVUZ ürün kimliğiyle yapılır (KÇM kısıtı kalktı)
+  let query = sb.from('stok_seri_no').select('seri_no_id,seri_no').eq('urun_id',k.havuzUrunId||k.urun_id).eq('durum','Depoda');
   if(q.length>=1) query = query.ilike('seri_no','%'+q+'%');
   const {data}=await query.order('seri_no').limit(15);
   const bagliIds=new Set(k.bagli.map(s=>s.seri_no_id));
@@ -1725,7 +1838,7 @@ async function donanimImeiEnter(idx, val){
   if(k.bagli.length>=k.adet){ toast('Bu ürün için tüm slotlar dolu','info'); return; }
   const {data}=await sb.from('stok_seri_no').select('seri_no_id,seri_no,urun_id,durum').eq('seri_no',val).maybeSingle();
   if(!data){ toast('Seri bulunamadı: '+val,'error'); return; }
-  if(data.urun_id!==k.urun_id){ toast('Bu IMEI bu ürüne/KÇM\'ye ait değil','error'); return; }
+  if(data.urun_id!==(k.havuzUrunId||k.urun_id)){ toast('Bu IMEI bu ürüne ait değil','error'); return; }
   if(data.durum!=='Depoda'){ toast(`Bu IMEI boşta değil (durum: ${data.durum})`,'error'); return; }
   if(k.bagli.some(s=>s.seri_no_id===data.seri_no_id)){ toast('Zaten eklendi','info'); return; }
   k.bagli.push({seri_no_id:data.seri_no_id, seri_no:data.seri_no});
@@ -1754,7 +1867,7 @@ async function donanimImeiKaydet(){
   for(const k of st.kalemler){
     toplamSlot+=k.adet; toplamDolu+=k.bagli.length;
     const su=new Set(k.bagli.map(s=>s.seri_no_id)); const orj=new Set(k.orijinal);
-    k.bagli.forEach(s=>{ if(!orj.has(s.seri_no_id)) eklenen.push({seri_no_id:s.seri_no_id, urun_id:k.urun_id}); });
+    k.bagli.forEach(s=>{ if(!orj.has(s.seri_no_id)) eklenen.push({seri_no_id:s.seri_no_id, urun_id:(k.havuzUrunId||k.urun_id)}); });
     k.orijinal.forEach(id=>{ if(!su.has(id)) cikarilan.push(id); });
   }
 

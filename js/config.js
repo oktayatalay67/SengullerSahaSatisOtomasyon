@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.3.03
+// config.js — v1.3.04
 // Son güncelleme: 2026-09-06
 // Değişiklikler:
+//   v1.3.04 — APP_VERSION → V31.63. Donanim: sevkiyat artik stoktan dusuyor
+//     (toplam_adet/rezerve_adet + IMEI 'Satildi'); IMEI eslestirme MERKEZ
+//     havuzundan yapilir (Faz 7) — KCM siparislerinde IMEI bulunamiyordu.
 //   v1.3.03 — APP_VERSION → V31.62. Yeni Ürün Ekle tamamlandı. Depo özeti
 //     aile başına tek kart ve ayrı Ana/Cep depo ayrıntı düğmeleri oldu.
 //   v1.3.02 — APP_VERSION → V31.61. Donanim Depolar sekmesi: depo dagitim
@@ -301,7 +304,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.62';
+const APP_VERSION = 'V31.63';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
