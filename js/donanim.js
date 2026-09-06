@@ -1,16 +1,8 @@
 // ============================================================
 // donanim.js — v1.0.28 (V31.62)
-//   v1.0.28 (V31.62): Depo ozeti AILE basina TEK KUTU oldu — ana depo ust
-//     satirda, cep deposu alt satirda (mor, kesikli ayrac); cep yoksa
-//     "+ ac" dugmesi. Kutuya basilinca DEPO DETAY modali acilir:
-//     ana ve cep bolumleri ayri, urun listesi ad/kod/adet/rezerve/musait,
-//     aranabilir. IMEI hicbir yerde gosterilmez. Ek sorgu yok — veri
-//     izgara icin zaten yuklu.
-//     OLU KOD TEMIZLIGI: "+ Yeni Urun Ekle" dugmesi kaldirildi
-//     (cagirdigi openDonanimYeniUrun hicbir zaman tanimlanmamisti,
-//     tiklaninca ReferenceError atiyordu). Stok kartindaki kalem (duzenle)
-//     dugmesi ve openDonanimDuzenle placeholder'i da kaldirildi.
-//     Katalog tek kaynaktan gelir: Excel yuklemesi -> Merkez Depo.
+//   v1.0.28 (V31.62): Yeni Ürün Ekle formu Merkez Depo kataloğuna bağlandı.
+//     Depo özeti aile başına tek kart oldu; ayrı Ana/Cep düğmeleri seçilen
+//     deponun ürün/adet/rezerve/müsait ayrıntısını açar.
 //     Yeni: donanimDepoDetayAc, _donanimDepoDetayRender,
 //           donanimDepoDetayAraDebounce.
 // donanim.js — v1.0.27 (V31.61)
@@ -182,7 +174,8 @@ window._donanimSepet = {}; // urun_id -> {urun, adet}
 window._donanimSecimModu = false;
 
 async function initDonanimPage(){
-  // V31.62: "+ Yeni Ürün Ekle" kaldırıldı — katalog Excel yüklemesinden gelir
+  const yonetBtn = document.getElementById('donanimYeniUrunBtn');
+  if(yonetBtn) yonetBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
   const excelBtn = document.getElementById('donanimExcelYukleBtn');
   if(excelBtn) excelBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
   const rezBtn = document.getElementById('donanimRezervasyonBtn');
@@ -210,6 +203,48 @@ async function initDonanimPage(){
   await _loadDonanimKcmFiltre();
   await loadDonanimListesi();
   _donanimTalepBadge();
+}
+
+function openDonanimYeniUrun(){
+  if(!hasPerm('donanim_yonet')){ toast('Ürün ekleme yetkiniz yok','error'); return; }
+  ['donanimYeniUrunKod','donanimYeniUrunAd'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const adet=document.getElementById('donanimYeniUrunAdet'); if(adet) adet.value='0';
+  const ortak=document.getElementById('donanimYeniUrunOrtak'); if(ortak) ortak.checked=false;
+  openModal('donanimYeniUrunModal');
+  setTimeout(()=>document.getElementById('donanimYeniUrunKod')?.focus(),80);
+}
+
+async function donanimYeniUrunKaydet(){
+  if(!hasPerm('donanim_yonet')){ toast('Ürün ekleme yetkiniz yok','error'); return; }
+  const kod=(document.getElementById('donanimYeniUrunKod')?.value||'').trim();
+  const ad=(document.getElementById('donanimYeniUrunAd')?.value||'').trim();
+  const adet=Number(document.getElementById('donanimYeniUrunAdet')?.value);
+  const ortak=!!document.getElementById('donanimYeniUrunOrtak')?.checked;
+  if(!kod||!ad){ toast('Malzeme kodu ve ürün adı zorunludur','error'); return; }
+  if(!Number.isInteger(adet)||adet<0){ toast('Başlangıç adedi 0 veya daha büyük tam sayı olmalıdır','error'); return; }
+  const btn=document.getElementById('donanimYeniUrunKaydetBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Ekleniyor...'; }
+  try{
+    await _donanimDepolarYukle(true);
+    const merkez=_depoMerkez();
+    if(!merkez) throw new Error('Merkez Depo tanımlı değil.');
+    const {data:mevcut,error:araErr}=await sb.from('stok_urunleri').select('urun_id').eq('malzeme_kodu',kod).limit(1);
+    if(araErr) throw new Error(araErr.message);
+    if(mevcut&&mevcut.length) throw new Error('Bu malzeme kodu zaten kayıtlı.');
+    const {data,error}=await sb.from('stok_urunleri').insert({
+      depo_id:merkez.depo_id,kcm_id:null,depo_adi:merkez.depo_adi,malzeme_kodu:kod,aciklama:ad,
+      toplam_adet:adet,rezerve_adet:0,on_rezerve_adet:0,aktif:true,tum_kcm:ortak
+    }).select('urun_id').single();
+    if(error) throw new Error(error.message);
+    const {error:logErr}=await sb.from('stok_hareketleri').insert({
+      urun_id:data?.urun_id||null,aksiyon:'Yeni Ürün Eklendi',detay:`${ad} (${kod}) — Merkez Depo, ${adet} adet`,
+      user_id:currentUser.my_id,user_ad:currentUser.ad_soyad||String(currentUser.my_id)
+    });
+    if(logErr) console.warn('[donanim] ürün ekleme log hatası:',logErr.message);
+    closeModal('donanimYeniUrunModal'); toast('Ürün Merkez Depoya eklendi','success');
+    window._donanimDepoCache=null; loadDonanimListesi();
+  }catch(e){ toast('Ürün eklenemedi: '+e.message,'error'); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Ürünü Ekle'; } }
 }
 
 // KÇM filtre dropdown'unu doldurur (scope=TÜM olan roller için görünür)
@@ -2089,34 +2124,36 @@ function _donanimDepoKartlari(ozet){
   const cepGor = _izgCepGorunur();
   return '<div class="izg-cip">' + aileler.map(a=>{
     const oa = ozet[a.ana.depo_id] || {urun:0, adet:0};
+    const dal=(d,tip,cls)=>{
+      const o=ozet[d.depo_id]||{urun:0,adet:0};
+      return `<button type="button" class="dk-dal ${cls}" onclick="donanimDepoDetayAc('${_jsStr(a.anahtar)}',${d.depo_id})"><span class="dk-tip">${tip}</span><span class="dk-sy"><b>${o.urun}</b> ürün · <b>${o.adet}</b> cihaz</span></button>`;
+    };
     let cepSatir = '';
     if(cepGor){
       if(a.cep){
-        const oc = ozet[a.cep.depo_id] || {urun:0, adet:0};
-        cepSatir = `<div class="dk-cep"><b>${oc.urun}</b> ürün · <b>${oc.adet}</b> cihaz <span>cep</span></div>`;
+        cepSatir = dal(a.cep,'Cep Depo','cep');
       }else{
-        cepSatir = `<div class="dk-cep dk-yok">cep deposu yok
-          <button class="izg-cepac" onclick="event.stopPropagation();donanimCepDepoAc(${a.kcm_id===null?'null':a.kcm_id})">+ aç</button></div>`;
+        cepSatir = `<button type="button" class="dk-yok" onclick="donanimCepDepoAc(${a.kcm_id===null?'null':a.kcm_id})">+ Cep aç</button>`;
       }
     }
-    return `<button type="button" class="depo-kutu${a.merkez?' merkez':''}"
-        onclick="donanimDepoDetayAc('${_jsStr(a.anahtar)}')" title="Depo detayını aç">
+    return `<section class="depo-kutu">
       <div class="dk-ad">${escapeHTML(a.ad)}</div>
-      <div class="dk-sy"><b>${oa.urun}</b> ürün · <b>${oa.adet}</b> cihaz</div>
-      ${cepSatir}
-    </button>`;
+      <div class="dk-dallar">${dal(a.ana,a.merkez?'Merkez / Ana':'Ana Depo','ana'+(a.merkez?' merkez':''))}${cepSatir}</div>
+    </section>`;
   }).join('') + '</div>';
 }
 
 /* --- DEPO DETAY MODALI (V31.62) — ek sorgu yok, izgara verisini okur --- */
-function donanimDepoDetayAc(anahtar){
+function donanimDepoDetayAc(anahtar,depoId){
   const I = window._donanimIzgara;
   if(!I){ toast('Depo verisi henüz yüklenmedi','error'); return; }
   const aile = I.aileler.find(a=> String(a.anahtar) === String(anahtar));
   if(!aile){ toast('Depo bulunamadı','error'); return; }
-  window._donanimDepoDetay = aile;
+  const secili=[aile.ana,aile.cep].find(d=>d&&d.depo_id===Number(depoId));
+  if(!secili){ toast('Depo bulunamadı','error'); return; }
+  window._donanimDepoDetay = {aile,secili};
   const bas = document.getElementById('donanimDepoDetayBaslik');
-  if(bas) bas.textContent = aile.ad;
+  if(bas) bas.textContent = `${aile.ad} — ${secili.tip==='CEP'?'Cep Depo':'Ana Depo'}`;
   const ara = document.getElementById('donanimDepoDetayAra');
   if(ara) ara.value = '';
   _donanimDepoDetayRender();
@@ -2130,7 +2167,8 @@ function donanimDepoDetayAraDebounce(){
 }
 
 function _donanimDepoDetayRender(){
-  const aile = window._donanimDepoDetay;
+  const detay = window._donanimDepoDetay;
+  const aile = detay?.aile;
   const I    = window._donanimIzgara;
   const el   = document.getElementById('donanimDepoDetayGovde');
   if(!aile || !I || !el) return;
@@ -2182,12 +2220,7 @@ function _donanimDepoDetayRender(){
   };
 
   const cepGor = _izgCepGorunur();
-  el.innerHTML = bolum(aile.ana, false)
-    + (cepGor && aile.cep ? bolum(aile.cep, true) : '')
-    + (cepGor && !aile.cep
-        ? `<div class="dd-bolum cep"><div class="dd-baslik"><span>CEP DEPOSU</span></div>
-             <div class="dd-bos">Bu depo için cep deposu açılmamış.</div></div>`
-        : '');
+  el.innerHTML = bolum(detay.secili, detay.secili.tip==='CEP');
 }
 
 function _donanimDepoUrunListesi(){

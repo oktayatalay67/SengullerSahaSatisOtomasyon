@@ -1,9 +1,9 @@
 // ============================================================
 // config.js — v1.3.03
-// Son güncelleme: 2026-09-05
+// Son güncelleme: 2026-09-06
 // Değişiklikler:
-//   v1.3.03 — APP_VERSION → V31.62. Depo ozeti aile basina tek kutu + depo
-//     detay modali. Olu "+ Yeni Urun Ekle" ve duzenle dugmeleri kaldirildi.
+//   v1.3.03 — APP_VERSION → V31.62. Yeni Ürün Ekle tamamlandı. Depo özeti
+//     aile başına tek kart ve ayrı Ana/Cep depo ayrıntı düğmeleri oldu.
 //   v1.3.02 — APP_VERSION → V31.61. Donanim Depolar sekmesi: depo dagitim
 //     izgarasi (urun satir / depo sutun, anlik kayit, donmus basliklar).
 //     Cep depolari yalniz donanim_yonet'te gorunur.

@@ -758,6 +758,7 @@
 <div class="page" id="pageMenuDonanim">
   <div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Donanım Takip</div></div>
   <div class="scroll">
+    <button id="donanimYeniUrunBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="openDonanimYeniUrun()">+ Yeni Ürün Ekle</button>
     <button id="donanimExcelYukleBtn" class="btn btn-ghost" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimExcelYukle()">📤 Excel ile Stok Yükle</button>
     <div style="display:flex;gap:6px;margin-bottom:10px;">
       <button id="donanimTabStokBtn" class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="donanimTabGeç('stok')">📦 Stok</button>
@@ -885,6 +886,23 @@
     <div id="donanimRaporGovde" style="max-height:60vh;overflow-y:auto;"></div>
     <div style="margin-top:10px;">
       <button class="btn btn-ghost" style="width:100%;" onclick="closeModal('donanimRaporModal')">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<!-- DONANIM: YENİ ÜRÜN MODALI (V31.62) -->
+<div class="modal-overlay" id="donanimYeniUrunModal" onclick="if(event.target===this)closeModal('donanimYeniUrunModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Yeni Ürün Ekle</div>
+    <div class="donanim-form-aciklama">Ürün Merkez Depo cihaz havuzuna eklenir. IMEI/seri kayıtlarını daha sonra Excel ile yükleyebilirsiniz.</div>
+    <div class="field"><label>Malzeme Kodu *</label><input type="text" id="donanimYeniUrunKod" placeholder="Örn. 10001234" autocomplete="off"></div>
+    <div class="field"><label>Ürün Adı *</label><input type="text" id="donanimYeniUrunAd" placeholder="Marka ve model" autocomplete="off"></div>
+    <div class="field"><label>Başlangıç Adedi</label><input type="number" id="donanimYeniUrunAdet" min="0" step="1" value="0"></div>
+    <label class="donanim-form-check"><input type="checkbox" id="donanimYeniUrunOrtak"> Tüm KÇM'lerde ortak stok olarak göster</label>
+    <div class="donanim-modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('donanimYeniUrunModal')">İptal</button>
+      <button class="btn" id="donanimYeniUrunKaydetBtn" style="background:var(--blue);" onclick="donanimYeniUrunKaydet()">Ürünü Ekle</button>
     </div>
   </div>
 </div>
