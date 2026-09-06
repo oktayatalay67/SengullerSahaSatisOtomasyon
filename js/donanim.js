@@ -1,4 +1,18 @@
 // ============================================================
+// donanim.js — v1.0.28 (V31.62)
+//   v1.0.28 (V31.62): Depo ozeti AILE basina TEK KUTU oldu — ana depo ust
+//     satirda, cep deposu alt satirda (mor, kesikli ayrac); cep yoksa
+//     "+ ac" dugmesi. Kutuya basilinca DEPO DETAY modali acilir:
+//     ana ve cep bolumleri ayri, urun listesi ad/kod/adet/rezerve/musait,
+//     aranabilir. IMEI hicbir yerde gosterilmez. Ek sorgu yok — veri
+//     izgara icin zaten yuklu.
+//     OLU KOD TEMIZLIGI: "+ Yeni Urun Ekle" dugmesi kaldirildi
+//     (cagirdigi openDonanimYeniUrun hicbir zaman tanimlanmamisti,
+//     tiklaninca ReferenceError atiyordu). Stok kartindaki kalem (duzenle)
+//     dugmesi ve openDonanimDuzenle placeholder'i da kaldirildi.
+//     Katalog tek kaynaktan gelir: Excel yuklemesi -> Merkez Depo.
+//     Yeni: donanimDepoDetayAc, _donanimDepoDetayRender,
+//           donanimDepoDetayAraDebounce.
 // donanim.js — v1.0.27 (V31.61)
 //   v1.0.27 (V31.61): DEPO DAGITIM IZGARASI — Depolar sekmesi yenilendi.
 //     Satir = urun, sutun = depo. Depolar AILE halinde: her ailenin ANA
@@ -168,8 +182,7 @@ window._donanimSepet = {}; // urun_id -> {urun, adet}
 window._donanimSecimModu = false;
 
 async function initDonanimPage(){
-  const yonetBtn = document.getElementById('donanimYeniUrunBtn');
-  if(yonetBtn) yonetBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
+  // V31.62: "+ Yeni Ürün Ekle" kaldırıldı — katalog Excel yüklemesinden gelir
   const excelBtn = document.getElementById('donanimExcelYukleBtn');
   if(excelBtn) excelBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
   const rezBtn = document.getElementById('donanimRezervasyonBtn');
@@ -394,7 +407,6 @@ function _renderDonanimListesi(list){
           <div style="font-weight:700;font-size:13px;line-height:1.3;">${escapeHTML(baslik)}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:3px;">${escapeHTML(kcmAd)}${u.malzeme_kodu?' · Kod: '+escapeHTML(u.malzeme_kodu):''}${u.tum_kcm?' · ortak stok':''}</div>
         </div>
-        ${canYonet?`<button class="icon-btn" onclick="openDonanimDuzenle(${u.urun_id})" title="Düzenle">✏️</button>`:''}
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
         <div>
@@ -427,8 +439,8 @@ function donanimFiltreDegisti(){
   loadDonanimListesi();
 }
 
-// Placeholder'lar — sonraki adımlarda doldurulacak
-function openDonanimDuzenle(urunId){ toast('Ürün düzenleme — bir sonraki adımda eklenecek','info'); }
+// V31.62: openDonanimDuzenle kaldırıldı (hiç yazılmamış placeholder'dı).
+// Ortak stok / aktif ayarları Depolar sekmesindeki ızgarada yapılır.
 function openDonanimRezervasyon(urunId){ toast('Rezervasyon formu — bir sonraki adımda eklenecek','info'); }
 // v31.02: Stok geçmişi — stok_hareketleri kayıtlarını ürün bazında gösterir
 async function openDonanimTimeline(urunId){
@@ -2068,19 +2080,114 @@ async function loadDonanimDepoSekme(){
   }
 }
 
-// V31.61: depo ozeti dikey kart yerine yatay serit — izgaraya yer birakir
+// V31.62: aile basina TEK kutu — ana depo ustte, cep deposu altta.
+// Kutuya basilinca o depo ailesinin detay modali acilir.
 function _donanimDepoKartlari(ozet){
-  const list = window._donanimDepolar||[];
-  if(!list.length) return '<div style="padding:10px;color:var(--text2);font-size:13px;">Depo tanımlı değil.</div>';
-  const cipler = list.map(d=>{
-    if(d.tip==='CEP' && !_izgCepGorunur()) return '';
-    const o = ozet[d.depo_id] || {urun:0, adet:0};
-    return `<div class="${d.tip==='CEP'?'cep':''}">
-      <div class="ad">${escapeHTML(_depoAd(d))}</div>
-      <div class="sy">${o.urun} ürün · ${o.adet} cihaz</div>
+  const I = window._donanimIzgara;
+  const aileler = (I && I.aileler) ? I.aileler : _donanimDepoAgaci();
+  if(!aileler.length) return '<div style="padding:10px;color:var(--text2);font-size:13px;">Depo tanımlı değil.</div>';
+  const cepGor = _izgCepGorunur();
+  return '<div class="izg-cip">' + aileler.map(a=>{
+    const oa = ozet[a.ana.depo_id] || {urun:0, adet:0};
+    let cepSatir = '';
+    if(cepGor){
+      if(a.cep){
+        const oc = ozet[a.cep.depo_id] || {urun:0, adet:0};
+        cepSatir = `<div class="dk-cep"><b>${oc.urun}</b> ürün · <b>${oc.adet}</b> cihaz <span>cep</span></div>`;
+      }else{
+        cepSatir = `<div class="dk-cep dk-yok">cep deposu yok
+          <button class="izg-cepac" onclick="event.stopPropagation();donanimCepDepoAc(${a.kcm_id===null?'null':a.kcm_id})">+ aç</button></div>`;
+      }
+    }
+    return `<button type="button" class="depo-kutu${a.merkez?' merkez':''}"
+        onclick="donanimDepoDetayAc('${_jsStr(a.anahtar)}')" title="Depo detayını aç">
+      <div class="dk-ad">${escapeHTML(a.ad)}</div>
+      <div class="dk-sy"><b>${oa.urun}</b> ürün · <b>${oa.adet}</b> cihaz</div>
+      ${cepSatir}
+    </button>`;
+  }).join('') + '</div>';
+}
+
+/* --- DEPO DETAY MODALI (V31.62) — ek sorgu yok, izgara verisini okur --- */
+function donanimDepoDetayAc(anahtar){
+  const I = window._donanimIzgara;
+  if(!I){ toast('Depo verisi henüz yüklenmedi','error'); return; }
+  const aile = I.aileler.find(a=> String(a.anahtar) === String(anahtar));
+  if(!aile){ toast('Depo bulunamadı','error'); return; }
+  window._donanimDepoDetay = aile;
+  const bas = document.getElementById('donanimDepoDetayBaslik');
+  if(bas) bas.textContent = aile.ad;
+  const ara = document.getElementById('donanimDepoDetayAra');
+  if(ara) ara.value = '';
+  _donanimDepoDetayRender();
+  openModal('donanimDepoDetayModal');
+}
+
+let _depoDetayAraT = null;
+function donanimDepoDetayAraDebounce(){
+  clearTimeout(_depoDetayAraT);
+  _depoDetayAraT = setTimeout(_donanimDepoDetayRender, 200);
+}
+
+function _donanimDepoDetayRender(){
+  const aile = window._donanimDepoDetay;
+  const I    = window._donanimIzgara;
+  const el   = document.getElementById('donanimDepoDetayGovde');
+  if(!aile || !I || !el) return;
+  const q = (document.getElementById('donanimDepoDetayAra')?.value||'').trim().toLocaleLowerCase('tr');
+
+  const bolum = (depo, cep)=>{
+    if(!depo) return '';
+    let satirlar = Object.keys(I.gruplar).map(kod=>{
+      const s = I.gruplar[kod].satirlar[depo.depo_id];
+      if(!s) return null;
+      const adet = s.toplam_adet||0;
+      const rez  = (s.rezerve_adet||0) + (s.on_rezerve_adet||0);
+      if(adet === 0 && rez === 0) return null;
+      return {kod, ad: I.gruplar[kod].aciklama || kod, adet, rez, musait: adet - rez};
+    }).filter(Boolean);
+
+    const toplamUrun = satirlar.length;
+    const toplamAdet = satirlar.reduce((t,r)=> t + r.adet, 0);
+
+    if(q){
+      const kelimeler = q.split(/\s+/).filter(Boolean);
+      satirlar = satirlar.filter(r=>{
+        const m = (r.ad + ' ' + r.kod).toLocaleLowerCase('tr');
+        return kelimeler.every(w=> m.includes(w));
+      });
+    }
+    satirlar.sort((a,b)=> b.adet - a.adet || a.ad.localeCompare(b.ad,'tr'));
+
+    const govde = satirlar.length
+      ? satirlar.map(r=>`<div class="dd-satir">
+          <div class="dd-sol">
+            <div class="dd-ad">${escapeHTML(r.ad)}</div>
+            <div class="dd-kod">${escapeHTML(r.kod)}</div>
+          </div>
+          <div class="dd-sag">
+            <span class="dd-adet">${r.adet}</span>
+            <span class="dd-alt">${r.rez ? ('rez '+r.rez+' · müsait '+r.musait) : 'tamamı müsait'}</span>
+          </div>
+        </div>`).join('')
+      : `<div class="dd-bos">${q ? 'Aramaya uyan ürün yok.' : 'Bu depoda cihaz yok.'}</div>`;
+
+    return `<div class="dd-bolum${cep?' cep':''}">
+      <div class="dd-baslik">
+        <span>${cep ? 'CEP DEPOSU' : 'ANA DEPO'}</span>
+        <span class="dd-ozet">${toplamUrun} ürün · ${toplamAdet} cihaz</span>
+      </div>
+      ${govde}
     </div>`;
-  }).join('');
-  return '<div class="izg-cip">' + cipler + '</div>';
+  };
+
+  const cepGor = _izgCepGorunur();
+  el.innerHTML = bolum(aile.ana, false)
+    + (cepGor && aile.cep ? bolum(aile.cep, true) : '')
+    + (cepGor && !aile.cep
+        ? `<div class="dd-bolum cep"><div class="dd-baslik"><span>CEP DEPOSU</span></div>
+             <div class="dd-bos">Bu depo için cep deposu açılmamış.</div></div>`
+        : '');
 }
 
 function _donanimDepoUrunListesi(){

@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.3.02
+// config.js — v1.3.03
 // Son güncelleme: 2026-09-05
 // Değişiklikler:
+//   v1.3.03 — APP_VERSION → V31.62. Depo ozeti aile basina tek kutu + depo
+//     detay modali. Olu "+ Yeni Urun Ekle" ve duzenle dugmeleri kaldirildi.
 //   v1.3.02 — APP_VERSION → V31.61. Donanim Depolar sekmesi: depo dagitim
 //     izgarasi (urun satir / depo sutun, anlik kayit, donmus basliklar).
 //     Cep depolari yalniz donanim_yonet'te gorunur.
@@ -299,7 +301,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.61';
+const APP_VERSION = 'V31.62';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
