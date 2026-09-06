@@ -1,4 +1,14 @@
 // ============================================================
+// donanim.js — v1.0.26 (V31.60)
+//   v1.0.26 (V31.60): Stok sekmesi filtre satiri ikiye bolundu.
+//     - "Sadece stokta olanlar" aciklamasi satir icinden TOOLTIP'e tasindi.
+//     - YENI "Kendi depom" anahtari (sag yarim): acikken yalnizca kullanicinin
+//       kendi ANA deposu listelenir, KCM filtresi devre disi kalir.
+//       Gorunurluk: scope=TUM ve (kcm_id var VEYA yetki_seviyesi=ADMIN).
+//       kcm_id olmayan ADMIN icin "kendi depo" = MERKEZ DEPO.
+//       Depo & Muhasebe gibi kcm_id'si olmayan diger profillerde gorunmez.
+//     Yeni: _donanimKendiDepomAcik, donanimKendiDepomDegisti,
+//           _donanimKendiDepomGorunurluk, _donanimKcmFiltreKilit.
 // donanim.js — v1.0.25 (V31.59)
 //   v1.0.25 (V31.59): 48 saat kurali artik IS SAATI olarak sayilir.
 //     Hafta sonu (Cmt/Paz) ve resmi tatiller sureyi DURDURUR; yarim gun
@@ -174,6 +184,7 @@ async function initDonanimPage(){
 async function _loadDonanimKcmFiltre(){
   const wrap = document.getElementById('donanimKcmFiltreWrap');
   const scope = getScope('donanim');
+  _donanimKendiDepomGorunurluk();          // V31.60
   if(scope !== 'TÜM'){
     if(wrap) wrap.style.display='none';
     return;
@@ -206,8 +217,15 @@ async function loadDonanimListesi(){
   try{
     merkezDepoId = await _donanimMerkezDepoId();
     if(scope === 'TÜM'){
-      const kcmFiltre = document.getElementById('donanimKcmFiltre')?.value;
-      if(kcmFiltre) hedefDepoId = await _donanimAnaDepoId(parseInt(kcmFiltre));
+      if(_donanimKendiDepomAcik()){
+        // V31.60: kcm_id varsa kendi ANA deposu; yoksa (ADMIN) Merkez Depo
+        hedefDepoId = currentUser.kcm_id
+          ? await _donanimAnaDepoId(currentUser.kcm_id)
+          : merkezDepoId;
+      } else {
+        const kcmFiltre = document.getElementById('donanimKcmFiltre')?.value;
+        if(kcmFiltre) hedefDepoId = await _donanimAnaDepoId(parseInt(kcmFiltre));
+      }
     } else if(currentUser.kcm_id){
       hedefDepoId = await _donanimAnaDepoId(currentUser.kcm_id);
     }
@@ -237,7 +255,10 @@ async function loadDonanimListesi(){
     listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`;
     return;
   }
-  window._donanimList = _donanimListeBirlestir(data||[], hedefDepoId, merkezDepoId, sadeceStok);
+  // V31.60: hedef depo zaten Merkez ise (ADMIN + kendi depom), merkez satirlari
+  // 'katalog' sayilip elenmemeli — birlestirmeye merkez kimligi verilmez.
+  const _kendiMerkez = !!(hedefDepoId && merkezDepoId && hedefDepoId === merkezDepoId);
+  window._donanimList = _donanimListeBirlestir(data||[], hedefDepoId, _kendiMerkez ? null : merkezDepoId, sadeceStok);
   _renderDonanimListesi(window._donanimList);
 }
 
@@ -247,6 +268,46 @@ function _donanimSadeceStokAcik(){
 }
 
 function donanimSadeceStokDegisti(){ loadDonanimListesi(); }
+
+// V31.60: "Kendi depom" anahtari ------------------------------------------
+// Gizliyken her zaman kapali sayilir; boylece yetkisiz profilde etkisi olmaz.
+function _donanimKendiDepomAcik(){
+  const wrap = document.getElementById('donanimKendiDepomWrap');
+  if(!wrap || wrap.style.display === 'none') return false;
+  const el = document.getElementById('donanimKendiDepom');
+  return el ? !!el.checked : false;
+}
+
+// Kendi depom acikken KCM filtresi celisir — kilitlenir.
+function _donanimKcmFiltreKilit(){
+  const sel = document.getElementById('donanimKcmFiltre');
+  if(!sel) return;
+  const kilit = _donanimKendiDepomAcik();
+  sel.disabled = kilit;
+  sel.style.opacity = kilit ? '.45' : '';
+  sel.title = kilit ? 'Kendi depom açıkken KÇM filtresi kullanılamaz' : '';
+}
+
+// Anahtar yalnizca baska depolari gorebilen profillerde anlamli:
+// scope=TÜM ve (kendi kcm_id'si var VEYA ADMIN). Depo & Muhasebe gibi
+// kcm_id'si olmayan diger TÜM-kapsam profillerde gizlenir.
+function _donanimKendiDepomGorunurluk(){
+  const wrap = document.getElementById('donanimKendiDepomWrap');
+  if(!wrap) return;
+  const admin = (currentUser.yetki_seviyesi||'').toUpperCase() === 'ADMIN';
+  const gorsun = (getScope('donanim') === 'TÜM') && (!!currentUser.kcm_id || admin);
+  wrap.style.display = gorsun ? 'flex' : 'none';
+  if(!gorsun){
+    const el = document.getElementById('donanimKendiDepom');
+    if(el) el.checked = false;
+  }
+  _donanimKcmFiltreKilit();
+}
+
+function donanimKendiDepomDegisti(){
+  _donanimKcmFiltreKilit();
+  loadDonanimListesi();
+}
 
 // Aynı malzeme_kodu için kendi deposundaki satır önceliklidir; yoksa katalog
 // satırı 0 adetle gösterilir (talep edilebilsin diye).
