@@ -1,4 +1,15 @@
 // ============================================================
+// donanim.js — v1.0.25 (V31.59)
+//   v1.0.25 (V31.59): 48 saat kurali artik IS SAATI olarak sayilir.
+//     Hafta sonu (Cmt/Paz) ve resmi tatiller sureyi DURDURUR; yarim gun
+//     (arife) tarihlerinde saat 13:00'a kadar sayilir. Bitis damgasi
+//     DB'deki is_saati_ekle(p_bas,p_saat) fonksiyonu ile hesaplanir.
+//     RPC'ye ulasilamazsa takvim saatiyle (+48s) devam edilir.
+//     Yeni: _donanimSureBitisHesapla. Degisen: onay damgasi, donanimSureUzat,
+//     _donanimSureRozet (aciklama balonu).
+//     SQL: resmi_tatiller tablosu + is_saati_ekle() fonksiyonu.
+//     NOT: Onaydan SONRA eklenen bir tatil, o an hesaplanmis rezervasyon_bitis
+//     damgasini geriye donuk kaydirmaz.
 // donanim.js — v1.0.24 (V31.58)
 //   v1.0.24 (V31.58): 48 saatlik rezervasyon suresi — platform bagimsiz.
 //     Onay aninda rezervasyon_bitis = now()+48s damgalanir. Kalan sure kartta
@@ -1387,8 +1398,9 @@ async function donanimRezervasyonOnayla(sepetId){
     await sb.from('stok_urunleri').update({on_rezerve_adet:yeniOnRez, rezerve_adet:yeniRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
   }
 
-  // V31.58: onayla birlikte 48 saatlik rezervasyon süresi başlar
-  const _bitis = new Date(Date.now() + DONANIM_SURE_SAAT*3600000).toISOString();
+  // V31.59: onayla birlikte 48 İŞ SAATİ'lik rezervasyon süresi başlar
+  //          (hafta sonu ve resmi tatiller süreye işlemez)
+  const _bitis = await _donanimSureBitisHesapla(new Date().toISOString());
   await sb.from('stok_rezervasyonlari').update({durum:'Onaylandı', rezervasyon_bitis:_bitis, updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
 
   await _donanimRezHareketLog('Rezervasyon Onaylandı', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
@@ -2709,6 +2721,25 @@ async function _donanimSureSupur(zorla){
   }catch(e){ console.warn('[donanim] süre süpürme istisnası:', e.message); return 0; }
 }
 
+// V31.59: 48 İŞ SAATİ sonrasını hesaplar. Hafta sonu ve resmi tatiller sayaci
+// durdurur; yarım gün (arife) tarihlerinde 13:00'a kadar sayar. Hesabı DB'deki
+// is_saati_ekle() yapar (takvim tek yerde tutulur). RPC'ye ulaşılamazsa takvim
+// saatiyle devam eder — süre hesabı hiçbir koşulda kullanıcı akışını kesmez.
+async function _donanimSureBitisHesapla(bastanISO){
+  const taban = bastanISO || new Date().toISOString();
+  try{
+    const {data, error} = await sb.rpc('is_saati_ekle', {p_bas: taban, p_saat: DONANIM_SURE_SAAT});
+    if(error) throw new Error(error.message);
+    if(!data)  throw new Error('boş dönüş');
+    const d = new Date(data);
+    if(isNaN(d.getTime())) throw new Error('geçersiz tarih: '+data);
+    return d.toISOString();
+  }catch(e){
+    console.warn('[donanim] is_saati_ekle kullanılamadı, takvim saati uygulandı:', e.message);
+    return new Date(new Date(taban).getTime() + DONANIM_SURE_SAAT*3600000).toISOString();
+  }
+}
+
 // Kalan süre rozeti — kart üzerinde gösterilir
 function _donanimSureRozet(bitis, durum){
   if(!bitis || !DONANIM_SURE_AKTIF.includes(durum)) return '';
@@ -2723,7 +2754,7 @@ function _donanimSureRozet(bitis, durum){
     metin = '⏳ ' + (saat >= 1 ? (saat + ' sa ' + dk + ' dk') : (dk + ' dk')) + ' kaldı';
     renk  = saat < 6 ? '#e74c3c' : (saat < 24 ? '#f39c12' : '#5d6d7e');
   }
-  return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${renk};color:#fff;margin-left:6px;white-space:nowrap;">${metin}</span>`;
+  return `<span title="Hafta sonu ve resmi tatiller süreye dahil değildir" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${renk};color:#fff;margin-left:6px;white-space:nowrap;cursor:help;">${metin}</span>`;
 }
 
 // Süre uzatma — Depo & Muhasebe (donanim_yonet) veya onay yetkisi olan
@@ -2740,12 +2771,12 @@ async function donanimSureUzat(sepetId){
   if(!DONANIM_SURE_AKTIF.includes(ilk.durum)){
     toast('Bu durumdaki rezervasyonun süresi uzatılamaz','error'); return;
   }
-  if(!confirm(`Rezervasyon süresi ${DONANIM_SURE_SAAT} saat uzatılsın mı?`)) return;
+  if(!confirm(`Rezervasyon süresi ${DONANIM_SURE_SAAT} iş saati uzatılsın mı?\n(Hafta sonu ve resmi tatiller süreye işlemez)`)) return;
 
   // Taban: mevcut bitiş geçmişteyse şimdiden, değilse mevcut bitişten devam
   const mevcut = ilk.rezervasyon_bitis ? new Date(ilk.rezervasyon_bitis).getTime() : 0;
-  const taban  = Math.max(mevcut, Date.now());
-  const yeni   = new Date(taban + DONANIM_SURE_SAAT*3600000).toISOString();
+  const taban  = new Date(Math.max(mevcut, Date.now())).toISOString();
+  const yeni   = await _donanimSureBitisHesapla(taban);   // V31.59: iş saati
   const simdi  = new Date().toISOString();
 
   const hatalar = [];
@@ -2764,6 +2795,6 @@ async function donanimSureUzat(sepetId){
   await _donanimRezHareketLog('Rezervasyon Süresi Uzatıldı', kalemler,
     {ncst: ilk.ncst, satan_my_id: ilk.satan_my_id});
 
-  toast(`Süre ${DONANIM_SURE_SAAT} saat uzatıldı`,'success');
+  toast(`Süre ${DONANIM_SURE_SAAT} iş saati uzatıldı`,'success');
   loadDonanimRezervasyonlar();
 }

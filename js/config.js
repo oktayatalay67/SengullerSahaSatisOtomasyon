@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.2.99
+// config.js — v1.3.00
 // Son güncelleme: 2026-09-05
 // Değişiklikler:
+//   v1.3.00 — APP_VERSION → V31.59. Donanim: 48 saat kurali IS SAATI oldu;
+//     hafta sonu ve resmi tatiller sureyi durdurur, arife gunleri yarim sayilir.
+//     SQL: resmi_tatiller tablosu + is_saati_ekle() fonksiyonu.
 //   v1.2.99 — APP_VERSION → V31.58. Donanim: 48 saatlik rezervasyon suresi
 //             (onayda damga, kartta kalan sure rozeti, Süre Uzat butonu,
 //             firsatci supurme). donanim.js v1.0.24.
@@ -291,7 +294,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.58';
+const APP_VERSION = 'V31.59';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
