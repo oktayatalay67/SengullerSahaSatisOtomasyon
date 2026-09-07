@@ -178,6 +178,9 @@ function loadDashboard(){
   if(pdBtn) pdBtn.style.display = hasPerm('admin_panel') ? '' : 'none';
   const aramaBox=document.getElementById('menuAramaBox');
   if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')));
+  // V31.65: Hızlı Sevkiyat kutusu — hem yönetim hem sevk yetkisi gerekir
+  const svkBox=document.getElementById('menuSevkiyatBox');
+  if(svkBox) svkBox.classList.toggle('hide', !(hasPerm('donanim_yonet')&&hasPerm('donanim_sevk')));
   const ymBox=document.getElementById('yoneticiMenuBox');
   if(ymBox) ymBox.classList.toggle('hide', !hasPerm('yonetici_panel'));
 }

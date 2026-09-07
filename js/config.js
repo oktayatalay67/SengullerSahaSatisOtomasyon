@@ -1,7 +1,13 @@
 // ============================================================
-// config.js — v1.3.04
+// config.js — v1.3.07
 // Son güncelleme: 2026-09-06
 // Değişiklikler:
+//   v1.3.07 — APP_VERSION → V31.66. Donanim sekme seridi sabit iki satir:
+//     ust satir Depolar+Stok, alt satir Rezervasyon+Transfer+Talepler.
+//   v1.3.06 — APP_VERSION → V31.65. Hizli Sevkiyat Donanim sekmesinden
+//     cikarilip ana menude kendi sayfasina alindi; sekme seridi rahatladi.
+//   v1.3.05 — APP_VERSION → V31.64. Donanim: Hizli Sevkiyat konsolu
+//     (MY -> musteri -> cihaz -> IMEI -> fatura -> sevk, tek ekran).
 //   v1.3.04 — APP_VERSION → V31.63. Donanim: sevkiyat artik stoktan dusuyor
 //     (toplam_adet/rezerve_adet + IMEI 'Satildi'); IMEI eslestirme MERKEZ
 //     havuzundan yapilir (Faz 7) — KCM siparislerinde IMEI bulunamiyordu.
@@ -304,7 +310,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.63';
+const APP_VERSION = 'V31.66';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

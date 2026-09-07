@@ -153,6 +153,7 @@ function navTo(pid,reset=false){
   if(pid==='pageFirsatForm'){if(reset)initFirsatForm();else initFirsatForm();}
   if(pid==='pageGorev'){initGorevModulu();}
   if(pid==='pageArama'){ if(typeof initAramaEkrani==='function') initAramaEkrani(); }
+  if(pid==='pageSevkiyat'){ if(typeof initSevkiyatPage==='function') initSevkiyatPage(); }   // V31.65
   if(pid==='pageGorevAdmin'){renderGorevTipleriAdmin();}
   if(pid==='pageAdmin'){ adminMenueGeri(); }
   if(pid==='pageMusteri')initMusteriPage();
