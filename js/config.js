@@ -1,7 +1,31 @@
 // ============================================================
-// config.js — v1.2.98
-// Son güncelleme: 2026-09-05
+// config.js — v1.3.07
+// Son güncelleme: 2026-09-06
 // Değişiklikler:
+//   v1.3.07 — APP_VERSION → V31.66. Donanim sekme seridi sabit iki satir:
+//     ust satir Depolar+Stok, alt satir Rezervasyon+Transfer+Talepler.
+//   v1.3.06 — APP_VERSION → V31.65. Hizli Sevkiyat Donanim sekmesinden
+//     cikarilip ana menude kendi sayfasina alindi; sekme seridi rahatladi.
+//   v1.3.05 — APP_VERSION → V31.64. Donanim: Hizli Sevkiyat konsolu
+//     (MY -> musteri -> cihaz -> IMEI -> fatura -> sevk, tek ekran).
+//   v1.3.04 — APP_VERSION → V31.63. Donanim: sevkiyat artik stoktan dusuyor
+//     (toplam_adet/rezerve_adet + IMEI 'Satildi'); IMEI eslestirme MERKEZ
+//     havuzundan yapilir (Faz 7) — KCM siparislerinde IMEI bulunamiyordu.
+//   v1.3.03 — APP_VERSION → V31.62. Yeni Ürün Ekle tamamlandı. Depo özeti
+//     aile başına tek kart ve ayrı Ana/Cep depo ayrıntı düğmeleri oldu.
+//   v1.3.02 — APP_VERSION → V31.61. Donanim Depolar sekmesi: depo dagitim
+//     izgarasi (urun satir / depo sutun, anlik kayit, donmus basliklar).
+//     Cep depolari yalniz donanim_yonet'te gorunur.
+//   v1.3.01 — APP_VERSION → V31.60. Donanim stok filtresi: aciklama tooltip'e
+//     tasindi, "Kendi depom" anahtari eklendi (scope=TUM + kcm_id/ADMIN).
+//   v1.3.00 — APP_VERSION → V31.59. Donanim: 48 saat kurali IS SAATI oldu;
+//     hafta sonu ve resmi tatiller sureyi durdurur, arife gunleri yarim sayilir.
+//     SQL: resmi_tatiller tablosu + is_saati_ekle() fonksiyonu.
+//   v1.2.99 — APP_VERSION → V31.58. Donanim: 48 saatlik rezervasyon suresi
+//             (onayda damga, kartta kalan sure rozeti, Süre Uzat butonu,
+//             firsatci supurme). donanim.js v1.0.24.
+//             MIGRASYON: sistem_bakim + stok_sure_dolumu_isle() + stok_musait
+//             tembel hesap — onceden calistirildi.
 //   v1.2.98 — APP_VERSION → V31.57. Donanim: MY/FMY gorunurlugu depo bazli,
 //             'Sadece stokta olanlar' anahtari, stokta olmayan urun icin
 //             tedarik talebi + Talepler sekmesi (donanim.js v1.0.23).
@@ -286,7 +310,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.57';
+const APP_VERSION = 'V31.66';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
