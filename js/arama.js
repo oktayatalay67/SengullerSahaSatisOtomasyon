@@ -1,5 +1,22 @@
 // ============================================================
-// arama.js — v1.1.9
+// arama.js — v1.1.13
+//   v1.1.13 (13.09.2026, V31.85): Cagri Analizi'nde TUM kategorilerdeki
+//     kartlara "Takım Lideri" satiri eklendi (liderMap, tek seferlik
+//     users.takim_lideri_id sorgusuyla — satir basina sorgu degil).
+//   v1.1.12 (13.09.2026, V31.84): agent_notu onizlemesi eklendi (bazi
+//     agent'lar aciklamayi sikayet_metni yerine buraya yaziyordu). Görev
+//     Oluştur/Yönlendir secicisi artik tum MY/FMY yerine kaydin MY'sinin
+//     KÇM'sindeki MY/FMY+Takım Lideri+KÇM Müdürü+Operasyon Müdürü ile
+//     sinirli (_analizGorevOptions, window.userSecici.kcm_id kullanilarak).
+//   v1.1.11 (13.09.2026, V31.83): Cagri Analizi Sikayet/Talep kartlarina
+//     MY/FMY secici + "Görev Oluştur"/"Yönlendir" eklendi (window.userSecici
+//     kullanilarak, ekstra sorgu yok). _sikayetTalepGoreviAc'e manualAtananId
+//     parametresi eklendi; Talep varsayilan atamasi artik ziyareti yapan
+//     MY/FMY'nin kendisi (onceden hatali sekilde takim lideri zincirine
+//     gidiyordu), Sikayet varsayilani degismedi (takim lideri zinciri).
+//   v1.1.10 (13.09.2026, V31.82): Cagri Analizi'nde Sikayet/Talep kartlarina
+//     aciklama (sikayet_metni) onizlemesi ve bagli gorevin durum rozetiyle
+//     tiklanabilir baglanti eklendi (bkz. _analizGoreviAc, gorevMap).
 //   v1.1.9 (13.09.2026, V31.81): "Gelecek" kutusu ve sekmesi ARANACAK/
 //     ARANMAYACAK ayrimina kavustu (madde 13). Gelecek kutusunda artik 2
 //     rakam var: toplam gelecek temas + bunlardan gercekten "arama
@@ -2071,20 +2088,32 @@ async function _sikayetTalepHedefBul(visitMyId){
 }
 
 // ctx: {ncst, my_id, taskId, unvan}. tipAdi: 'Şikayet Kaydı' | 'Talep Kaydı'.
-async function _sikayetTalepGoreviAc(ctx, tipAdi, baslikMetni, aciklamaMetni){
-  const hedef=await _sikayetTalepHedefBul(ctx.my_id);
-  if(hedef.hata){ toast(tipAdi+' açılamadı: '+hedef.hata+'. Manuel yönlendirin.','error'); return null; }
+// V31.83: manualAtananId verilirse hedef zinciri (_sikayetTalepHedefBul)
+// atlanir, dogrudan bu kisiye acilir. manualKaynakEtiket sadece log/gorunur
+// metin icin (ornegin 'ziyareti yapan MY/FMY' ya da 'manuel seçim').
+// Kullanim: Sikayet varsayilani hala takim lideri zinciri (manualAtananId
+// verilmez); Talep varsayilani artik ziyareti yapan MY/FMY'nin kendisi
+// (cagiran taraf ctx.my_id'yi manualAtananId olarak geçirir). Ikisi de
+// Cagri Analizi ekranindaki "Yönlendir" ile sonradan degistirilebilir.
+async function _sikayetTalepGoreviAc(ctx, tipAdi, baslikMetni, aciklamaMetni, manualAtananId, manualKaynakEtiket){
+  let atananId, kaynak;
+  if(manualAtananId){ atananId=manualAtananId; kaynak=manualKaynakEtiket||'manuel seçim'; }
+  else {
+    const hedef=await _sikayetTalepHedefBul(ctx.my_id);
+    if(hedef.hata){ toast(tipAdi+' açılamadı: '+hedef.hata+'. Manuel yönlendirin.','error'); return null; }
+    atananId=hedef.atananId; kaynak=hedef.kaynak;
+  }
   const {data:tt,error:ttErr}=await sb.from('task_types').select('type_id').eq('tip_adi',tipAdi).maybeSingle();
   if(ttErr||!tt?.type_id){ toast('Görev tipi bulunamadı: "'+tipAdi+'". '+tipAdi+' açılamadı.','error'); return null; }
   const {data:gorev,error:insErr}=await sb.from('tasks').insert({
     type_id:tt.type_id, baslik:baslikMetni+' — '+(ctx.unvan||ctx.ncst),
     aciklama:aciklamaMetni, ncst:ctx.ncst, parent_task_id:ctx.taskId||null,
-    atayan_id:currentUser.my_id, atanan_id:hedef.atananId, durum:'Atandı',
+    atayan_id:currentUser.my_id, atanan_id:atananId, durum:'Atandı',
     baslama_tarihi:new Date().toISOString(), olusturma_tarihi:new Date().toISOString(),
     deadline:_isGunuEkle(3), guncelleme_tarihi:new Date().toISOString()
   }).select('task_id').single();
   if(insErr){ toast(tipAdi+' açılamadı: '+insErr.message,'error'); return null; }
-  await _anketLog(tipAdi,hedef.kaynak+' (#'+hedef.atananId+') → '+baslikMetni);
+  await _anketLog(tipAdi,kaynak+' (#'+atananId+') → '+baslikMetni);
   return gorev.task_id;
 }
 
@@ -2110,7 +2139,10 @@ async function _anketTalepTaskAc(){
   const st=window._anket, c=st.c;
   if(!(c.sikayet_metni||'').trim()){ toast('Önce talep detayını yazın','error'); return; }
   const ctx={ncst:st.ncst, my_id:st.my_id, taskId:st.taskId, unvan:st.unvan||st.contactAd};
-  const tid=await _sikayetTalepGoreviAc(ctx,'Talep Kaydı','Talep Kaydı','Talep: '+c.sikayet_metni);
+  // V31.83: Talep varsayilan olarak takim lideri zincirine degil, ziyareti
+  // yapan MY/FMY'nin kendisine (ctx.my_id) acilir — Cagri Analizi'ndeki
+  // "Yönlendir" ile sonradan baska birine devredilebilir.
+  const tid=await _sikayetTalepGoreviAc(ctx,'Talep Kaydı','Talep Kaydı','Talep: '+c.sikayet_metni,ctx.my_id,'ziyareti yapan MY/FMY');
   if(tid){ st._talepTaskId=tid; toast('Talep için task oluşturuldu','success'); _anketRender(); }
 }
 
@@ -2204,7 +2236,7 @@ async function loadAramaAnaliz(){
   let rows=[];
 
   if(kat.kaynak==='sonuc'){
-    let q=sb.from('arama_sonuclari').select('task_id,ncst,my_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,memnuniyet_ret,guven,sikayet_var,kayit_turu,sikayet_kimi,sikayet_my_neden,yuzyuze_uyusmazlik,created_at').order('created_at',{ascending:false}).limit(500);
+    let q=sb.from('arama_sonuclari').select('task_id,ncst,my_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,memnuniyet_ret,guven,sikayet_var,kayit_turu,sikayet_kimi,sikayet_my_neden,sikayet_metni,agent_notu,yuzyuze_uyusmazlik,created_at').order('created_at',{ascending:false}).limit(500);
     if(kat.k==='ulasilamayan') q=q.eq('ulasildi',false);
     else if(kat.k==='sahte')   q=q.eq('ziyaret_dogrulandi','Hayır');
     else if(kat.k==='supheli') q=q.eq('ziyaret_dogrulandi','Emin değil');
@@ -2218,7 +2250,7 @@ async function loadAramaAnaliz(){
     if(bit) q=q.lte('created_at',bit+'T23:59:59+03:00');
     if(izinMy) q=q.in('my_id',izinMy);
     const {data}=await q;
-    rows=(data||[]).map(r=>({task_id:r.task_id,ncst:r.ncst,my_id:r.my_id,tarih:r.created_at,ozet:_analizOzet(kat.k,r)}));
+    rows=(data||[]).map(r=>({task_id:r.task_id,ncst:r.ncst,my_id:r.my_id,tarih:r.created_at,ozet:_analizOzet(kat.k,r),sikayet_metni:r.sikayet_metni||null,agent_notu:r.agent_notu||null}));
   } else {
     const durumlar = kat.k==='aranacak'?['Aranacak','Tekrar Aranacak']
       :(kat.k==='tekrar'?['Tekrar Aranacak']
@@ -2237,11 +2269,127 @@ async function loadAramaAnaliz(){
 
   const ncstList=[...new Set(rows.map(r=>r.ncst).filter(Boolean))];
   const unvanMap={}; if(ncstList.length){ const {data}=await sb.from('customers').select('ncst,unvan').in('ncst',ncstList); (data||[]).forEach(c=>unvanMap[c.ncst]=c.unvan); }
+
+  // V31.85: Tum kategorilerde kart uzerinde Takim Lideri de gorunsun —
+  // window.userSecici'de takim_lideri_id yok, bu yuzden gorunen MY'ler icin
+  // tek seferlik ek sorgu (satir basina degil, liste basina 1 sorgu).
+  const myIdList=[...new Set(rows.map(r=>r.my_id).filter(Boolean))];
+  const liderMap={};
+  if(myIdList.length){
+    const {data:liderData}=await sb.from('users').select('my_id,takim_lideri_id').in('my_id',myIdList);
+    (liderData||[]).forEach(u=>{ liderMap[u.my_id]=u.takim_lideri_id||null; });
+  }
+
+  // V31.82: Sikayet/Talep kutularinda, bu aramadan otomatik/manuel acilan
+  // Sikayet Kaydi / Talep Kaydi gorevinin durumunu da goster (parent_task_id
+  // uzerinden baglantili — bkz. _sikayetTalepGoreviAc). Sadece bu 2 kategoride
+  // ekstra sorgu yapilir, diger kategorilerde gereksiz yuk olusmasin.
+  let gorevMap={};
+  if((kat.k==='sikayet'||kat.k==='talep') && rows.length){
+    const taskIds=[...new Set(rows.map(r=>r.task_id).filter(Boolean))];
+    if(taskIds.length){
+      const {data:tt2}=await sb.from('task_types').select('type_id').in('tip_adi',['Şikayet Kaydı','Talep Kaydı']);
+      const ttIds=(tt2||[]).map(x=>x.type_id);
+      if(ttIds.length){
+        const {data:gorevler}=await sb.from('tasks').select('task_id,parent_task_id,durum').in('parent_task_id',taskIds).in('type_id',ttIds);
+        (gorevler||[]).forEach(gv=>{ gorevMap[gv.parent_task_id]=gv; });
+      }
+    }
+  }
+
+  // V31.83: Görev oluştur / Yönlendir için satır bağlamı kaydediliyor
+  // (görev oluştururken ncst/unvan/aciklama lazım). Seçici listesi artık
+  // V31.84'te müşteriye/KÇM'ye göre daraltılıyor — bkz. _analizGorevOptions.
+  if(kat.k==='sikayet'||kat.k==='talep'){
+    ARAMA._analizRowMap=ARAMA._analizRowMap||{};
+    rows.forEach(r=>{ ARAMA._analizRowMap[r.task_id]={ncst:r.ncst, unvan:unvanMap[r.ncst]||r.ncst, my_id:r.my_id, sikayet_metni:r.sikayet_metni}; });
+  }
+
   if(!rows.length){ g.innerHTML='<div class="empty">Bu filtreye uyan kayıt yok.</div>'; return; }
   g.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">${rows.length} kayıt · ${escapeHTML(kat.ad)}</div>`+
-    rows.map(r=>`<div class="visit-card"${r.task_id?` style="cursor:pointer;" onclick="araSonucDetayAc(${r.task_id})"`:''}><div class="visit-firm">${escapeHTML(unvanMap[r.ncst]||r.ncst||'—')}</div>
+    rows.map(r=>{
+      const aciklamaHTML = (kat.k==='sikayet'||kat.k==='talep') && r.sikayet_metni
+        ? `<div class="visit-my" style="color:var(--text2);font-style:italic;">${escapeHTML(r.sikayet_metni.length>100?(r.sikayet_metni.slice(0,100)+'…'):r.sikayet_metni)}</div>` : '';
+      // V31.84: bazi agent'lar aciklamayi sikayet_metni yerine genel arama
+      // notuna (agent_notu) yazmis — o alan da onizlensin (ayni metinse tekrar gosterme).
+      const notHTML = (kat.k==='sikayet'||kat.k==='talep') && r.agent_notu && r.agent_notu!==r.sikayet_metni
+        ? `<div class="visit-my" style="color:var(--text2);">📝 ${escapeHTML(r.agent_notu.length>100?(r.agent_notu.slice(0,100)+'…'):r.agent_notu)}</div>` : '';
+      let gorevHTML='';
+      if(kat.k==='sikayet'||kat.k==='talep'){
+        const gv=gorevMap[r.task_id];
+        const selId=`analizAta_${kat.k}_${r.task_id}`;
+        // V31.84: liste artik bu kaydin MY'sinin KÇM'sine gore daraltiliyor
+        // (o KÇM'deki MY/FMY + Takım Lideri + KÇM Müdürü + Operasyon Müdürü).
+        const visitUser=(window.userSecici||[]).find(u=>u.my_id===r.my_id);
+        const optHTML=_analizGorevOptions(visitUser?visitUser.kcm_id:null);
+        const selectHTML=`<select id="${selId}" style="flex:1;min-width:0;background:var(--navy3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:11px;">${optHTML}</select>`;
+        gorevHTML = gv
+          ? `<div class="visit-my"><span style="cursor:pointer;color:${(typeof GOREV_DURUM_RENK!=='undefined'&&GOREV_DURUM_RENK[gv.durum])||'var(--blue)'};font-weight:600;" onclick="event.stopPropagation();_analizGoreviAc(${gv.task_id})">🔗 Görev: ${escapeHTML(gv.durum)}</span></div>
+             <div class="visit-my" style="display:flex;gap:4px;align-items:center;margin-top:4px;">${selectHTML}<button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px;white-space:nowrap;" onclick="event.stopPropagation();_analizGoreviYonlendir(${gv.task_id},'${kat.k}',${r.task_id})">🔀 Yönlendir</button></div>`
+          : `<div class="visit-my" style="color:var(--text3);">Görev açılmadı</div>
+             <div class="visit-my" style="display:flex;gap:4px;align-items:center;margin-top:4px;">${selectHTML}<button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px;white-space:nowrap;" onclick="event.stopPropagation();_analizGoreviOlustur('${kat.k}',${r.task_id})">📌 Görev Oluştur</button></div>`;
+      }
+      const liderId=liderMap[r.my_id];
+      const liderHTML=`<div class="visit-my" style="color:var(--text3);">Takım Lideri: ${escapeHTML(liderId?(myIdToName[liderId]||('#'+liderId)):'—')}</div>`;
+      return `<div class="visit-card"${r.task_id?` style="cursor:pointer;" onclick="araSonucDetayAc(${r.task_id})"`:''}><div class="visit-firm">${escapeHTML(unvanMap[r.ncst]||r.ncst||'—')}</div>
       <div class="visit-my">MY: ${escapeHTML(r.my_id?(myIdToName[r.my_id]||('#'+r.my_id)):'—')} · ${r.tarih?fmtDate(r.tarih):'—'}</div>
-      <div class="visit-my" style="color:var(--amber);">${escapeHTML(r.ozet||'')}</div></div>`).join('');
+      ${liderHTML}
+      <div class="visit-my" style="color:var(--amber);">${escapeHTML(r.ozet||'')}</div>${aciklamaHTML}${notHTML}${gorevHTML}</div>`;
+    }).join('');
+}
+
+// V31.84: Görev Oluştur/Yönlendir seçicisinin kişi listesi — ilgili kaydin
+// MY'sinin KÇM'sindeki MY/FMY + Takım Lideri + KÇM Müdürü + Operasyon
+// Müdürü ile sınırlandırılır (önceden tüm MY/FMY kadrosu geliyordu).
+// kcmId bulunamazsa (ör. veri eksikse) güvenli tarafta kalıp tüm MY/FMY'ye
+// geri döner — liste tamamen boş kalmasın.
+function _analizGorevOptions(kcmId){
+  const roller=['MY','FMY','TAKIM LİDERİ','KÇM MÜDÜRÜ','OPERASYON MÜDÜRÜ'];
+  const havuz=(window.userSecici||[]).filter(u=>roller.includes((u.rol||'').toUpperCase()) && kcmId!=null && u.kcm_id===kcmId);
+  const liste=havuz.length?havuz:(window.userSecici||[]).filter(u=>['MY','FMY'].includes((u.rol||'').toUpperCase()));
+  const siraliListe=liste.slice().sort((a,b)=>(a.ad_soyad||'').localeCompare(b.ad_soyad||''));
+  return '<option value="">Kişi seçin…</option>'+siraliListe.map(u=>`<option value="${u.my_id}">${escapeHTML(u.ad_soyad)} (${escapeHTML((u.rol||'').replace('TAKIM LİDERİ','T.Lideri').replace('KÇM MÜDÜRÜ','KÇM Müd.').replace('OPERASYON MÜDÜRÜ','Op.Müd.'))})</option>`).join('');
+}
+
+// V31.82: Sikayet/Talep karti uzerindeki "Görev" rozetinden Görev modülünün
+// kendi detay modalini acar. openGorevDetay modal oldugu icin kapatinca
+// otomatik olarak bu ekranda kalinir, ekstra "geri dön" kodu gerekmez.
+async function _analizGoreviAc(taskId){
+  if(typeof openGorevDetay!=='function'){ toast('Görev modülü yüklenemedi','error'); return; }
+  await openGorevDetay(taskId);
+}
+
+// V31.83: Sikayet/Talep icin sonradan (veya ilk kez) gorev acma — kart
+// uzerindeki secicide secilen MY/FMY'ye acar. _sikayetTalepGoreviAc'in
+// mevcut hedef-zinciri mantigina dokunmuyor, sadece manuel atama yolunu
+// kullaniyor (bkz. yukarida eklenen manualAtananId parametresi).
+async function _analizGoreviOlustur(kat, rowTaskId){
+  const sel=document.getElementById('analizAta_'+kat+'_'+rowTaskId);
+  const atananId=sel&&sel.value?Number(sel.value):null;
+  if(!atananId){ toast('Önce kişi seçin','error'); return; }
+  const ctx=ARAMA._analizRowMap&&ARAMA._analizRowMap[rowTaskId];
+  if(!ctx){ toast('Kayıt bilgisi bulunamadı, listeyi yenileyin','error'); return; }
+  const tipAdi = kat==='sikayet' ? 'Şikayet Kaydı' : 'Talep Kaydı';
+  const aciklama = (kat==='sikayet'?'Şikayet':'Talep')+': '+(ctx.sikayet_metni||'-');
+  const tid=await _sikayetTalepGoreviAc({ncst:ctx.ncst, my_id:ctx.my_id, taskId:rowTaskId, unvan:ctx.unvan}, tipAdi, tipAdi, aciklama, atananId, 'manuel seçim (Çağrı Analizi)');
+  if(tid){ toast(tipAdi+' oluşturuldu','success'); loadAramaAnaliz(); }
+}
+
+// V31.83: Var olan Sikayet/Talep gorevini secilen baska bir MY/FMY'ye
+// yeniden atar (gorev silinmez, sadece atanan_id degisir + log dusulur).
+async function _analizGoreviYonlendir(gorevTaskId, kat, rowTaskId){
+  const sel=document.getElementById('analizAta_'+kat+'_'+rowTaskId);
+  const yeniId=sel&&sel.value?Number(sel.value):null;
+  if(!yeniId){ toast('Önce kişi seçin','error'); return; }
+  const {data:eski}=await sb.from('tasks').select('atanan_id').eq('task_id',gorevTaskId).maybeSingle();
+  const {error}=await sb.from('tasks').update({atanan_id:yeniId,guncelleme_tarihi:new Date().toISOString()}).eq('task_id',gorevTaskId);
+  if(error){ toast('Yönlendirilemedi: '+error.message,'error'); return; }
+  await sb.from('task_logs').insert({
+    task_id:gorevTaskId, user_id:currentUser.my_id, user_ad:currentUser.ad_soyad,
+    aksiyon:'Yönlendirildi', detay:'Görev yeniden atandı (#'+(eski?eski.atanan_id:'-')+' → #'+yeniId+')'
+  });
+  toast('Görev yönlendirildi','success');
+  loadAramaAnaliz();
 }
 
 // ============================================================

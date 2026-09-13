@@ -1,7 +1,30 @@
 // ============================================================
-// config.js — v1.3.22
+// config.js — v1.3.26
 // Son güncelleme: 2026-09-13
 // Değişiklikler:
+//   v1.3.26 — APP_VERSION → V31.85. arama.js: Çağrı Analizi'nde TÜM
+//     kategorilerdeki kartlara "Takım Lideri" satırı eklendi (MY listesi
+//     için tek seferlik users sorgusu, satır başına sorgu yok).
+//   v1.3.25 — APP_VERSION → V31.84. arama.js: Çağrı Analizi Şikayet/Talep
+//     kartlarına agent_notu önizlemesi eklendi (bazı agent'lar açıklamayı
+//     sikayet_metni yerine genel arama notuna yazmış). Görev Oluştur/
+//     Yönlendir seçicisi artık tüm MY/FMY kadrosu yerine, kaydın MY'sinin
+//     KÇM'sindeki MY/FMY + Takım Lideri + KÇM Müdürü + Operasyon Müdürü ile
+//     sınırlı (bkz. _analizGorevOptions).
+//   v1.3.24 — APP_VERSION → V31.83. arama.js: Çağrı Analizi Şikayet/Talep
+//     kartlarına MY/FMY seçici + "Görev Oluştur" (görev yoksa) / "Yönlendir"
+//     (görev varsa) eklendi — atanan_id güncellenip task_logs'a kayıt
+//     düşülüyor. Ayrıca varsayılan atama düzeltildi: Şikayet takım lideri
+//     zincirine (değişmedi), Talep artık ziyareti yapan MY/FMY'nin kendisine
+//     açılıyor (_sikayetTalepGoreviAc yeni manualAtananId parametresi).
+//   v1.3.23 — APP_VERSION → V31.82. arama.js: Çağrı Analizi'nde Şikayet/
+//     Talep kartlarına açıklama (sikayet_metni) önizlemesi ve bağlı görevin
+//     durum rozeti eklendi; rozete tıklayınca Görev modülünün detay modalı
+//     açılıyor (parent_task_id üzerinden bağlantı — yeni kolon gerekmedi).
+//     gorev.js: openGorevDetay, GÖREV.tasks önbelleğinde olmayan bir görevi
+//     artık DB'den çekip açabiliyor (V31.75'teki araSonucDetayAc ile aynı
+//     sağlamlaştırma yöntemi) — başka ekranlardan doğrudan görev açmayı
+//     mümkün kılıyor.
 //   v1.3.22 — APP_VERSION → V31.81. arama.js: "Gelecek" kutusu 2 rakam
 //     gösteriyor (toplam/arama yapılacak) ve "Gelecek" sekmesinde Aranacak/
 //     Aranmayacak ayrımı geldi — aranmak istemiyor, son N günde teyit
@@ -373,7 +396,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.81';
+const APP_VERSION = 'V31.85';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,7 +1,12 @@
 // ============================================================
-// gorev.js — v1.2.11
-// Son güncelleme: 2026-09-01
+// gorev.js — v1.2.12
+// Son güncelleme: 2026-09-13
 // Değişiklikler:
+//   v1.2.12 — (V31.82) openGorevDetay artik GOREV.tasks onbelleginde olmayan
+//             bir gorevi DB'den tek satir cekip acabiliyor (araSonucDetayAc
+//             ile ayni yontem, V31.75). Arama modulunun Cagri Analizi ekrani
+//             kendi gorev onbellegi olmadigi icin bagli Sikayet/Talep
+//             gorevini bu sayede acabiliyor.
 //   v1.2.11 — (V31.48) GOREV LISTESI VERI KAYBI DUZELTMESI. Uc ayri kusur:
 //             (1) .order('deadline',asc).limit(200): PostgreSQL NULL'lari sona
 //                 attigi icin, deadline'i BOS gorevler 200'luk pencereye hic
@@ -409,8 +414,30 @@ function renderGorevKarti(t) {
 // GÖREV DETAY MODAL
 // ============================================================
 async function openGorevDetay(taskId) {
-  const t = GOREV.tasks.find(function(x) { return x.task_id === taskId; });
-  if (!t) return;
+  let t = GOREV.tasks.find(function(x) { return x.task_id === taskId; });
+  // V31.82: Görev, çağıran ekranın (örn. Arama/Çağrı Analizi) kendi
+  // önbelleğinde değilse (GOREV.tasks henüz yüklenmemiş olabilir) DB'den
+  // tek satır çekilip aynı şekle getirilir — V31.75'teki araSonucDetayAc
+  // sağlamlaştırmasıyla aynı yöntem.
+  if (!t) {
+    const { data: raw, error } = await sb.from('tasks')
+      .select('task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,olusturma_tarihi,guncelleme_tarihi')
+      .eq('task_id', taskId).maybeSingle();
+    if (error || !raw) { toast('Görev bulunamadı', 'error'); return; }
+    const [{ data: tt }, { data: users }, { data: cust }] = await Promise.all([
+      sb.from('task_types').select('type_id,tip_adi').eq('type_id', raw.type_id).maybeSingle(),
+      sb.from('users').select('my_id,ad_soyad').in('my_id', [raw.atayan_id, raw.atanan_id].filter(Boolean)),
+      raw.ncst ? sb.from('customers').select('ncst,unvan').eq('ncst', raw.ncst).maybeSingle() : Promise.resolve({ data: null })
+    ]);
+    const uMap = {}; (users || []).forEach(function(u) { uMap[u.my_id] = u; });
+    t = Object.assign({}, raw, {
+      task_types: tt || null,
+      atayan: uMap[raw.atayan_id] || { my_id: raw.atayan_id, ad_soyad: '#' + raw.atayan_id },
+      atanan: uMap[raw.atanan_id] || { my_id: raw.atanan_id, ad_soyad: '#' + raw.atanan_id },
+      musteri: cust || (raw.ncst ? { ncst: raw.ncst, unvan: raw.ncst } : null)
+    });
+    GOREV.tasks.push(t); // sonraki açılışlarda (ör. durum güncelleme sonrası) tekrar sorgu gerekmesin
+  }
 
   // Logları yükle
   const { data: logs } = await sb.from('task_logs')
