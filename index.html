@@ -729,7 +729,7 @@
       <div class="menu-box" onclick="navTo('pageMenuRapor')"><div class="menu-box-icon">📈</div><div class="menu-box-title">Raporlar</div></div>
       <div class="menu-box" onclick="navTo('pageGorev')" style="position:relative;"><div class="menu-box-icon">📋</div><div class="menu-box-title">Görevler</div><span id="gorevMenuBadge" style="display:none;position:absolute;top:6px;right:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:18px;text-align:center;"></span></div>
 <div class="menu-box" onclick="navTo('pageDuyuru')" id="menuDuyuruBox" style="position:relative;"><div class="menu-box-icon">📢</div><div class="menu-box-title">Duyurular</div><span id="duyuruMenuBadge" style="display:none;position:absolute;top:6px;right:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:18px;text-align:center;"></span></div>
-      <div class="menu-box hide" onclick="navTo('pageArama')" id="menuAramaBox"><div class="menu-box-icon">📞</div><div class="menu-box-title">Arama</div></div>
+      <div class="menu-box hide" onclick="navTo('pageArama')" id="menuAramaBox"><div class="menu-box-icon">🎧</div><div class="menu-box-title">Ziyaret Teyit</div></div>
     </div>
     <!-- Geri Bildirim -->
     <div class="section-title" style="margin-top:12px;">Geri Bildirim</div>
@@ -2186,6 +2186,7 @@
       <div class="menu-box" onclick="adminSayfaAc('ziyaretOpt')"><div class="menu-box-icon">⚙️</div><div class="menu-box-title">Ziyaret Seç.</div></div>
       <div class="menu-box" onclick="adminSayfaAc('veriSagligi')" style="border-color:rgba(255,180,0,.3);"><div class="menu-box-icon">🔧</div><div class="menu-box-title">Veri Sağlığı</div></div>
       <div class="menu-box" onclick="adminSayfaAc('gorevTipleri')"><div class="menu-box-icon">📋</div><div class="menu-box-title">Görev Tipleri</div></div>
+      <div class="menu-box" onclick="adminSayfaAc('aramaAyarlari')"><div class="menu-box-icon">⏱️</div><div class="menu-box-title">Arama Ayarları</div></div>
       <div class="menu-box" onclick="adminSayfaAc('yetki')" style="border-color:rgba(96,165,250,.35);"><div class="menu-box-icon">🔐</div><div class="menu-box-title">Rol & Yetki</div></div>
       <div class="menu-box" onclick="openImpersonateModal()" style="border-color:rgba(255,180,0,.3);"><div class="menu-box-icon">👁</div><div class="menu-box-title">Profil Görüntüle</div></div>
     </div>
@@ -2219,6 +2220,12 @@
   </div>
   <div class="section-title">Mevcut Görev Tipleri</div>
   <div id="gorevTipleriListesi" style="margin-top:8px;"></div>
+</div>
+  <div id="adminTabAramaAyarlari" class="scroll" style="display:none;padding:14px;">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
+    <div class="section-title">Arama Ayarları</div>
+    <div id="aramaAyarlariListesi" style="margin-top:8px;"></div>
+  </div>
 </div>
   <div id="adminTabUrunler" class="scroll">
     <div style="background:rgba(77,159,255,.08);border:1px solid rgba(77,159,255,.2);border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:12px;color:var(--blue);">
@@ -3235,8 +3242,8 @@
   <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.66"></script>
-<script src="js/yetki.js?v=v31.36"></script>
+<script src="js/config.js?v=v31.81"></script>
+<script src="js/yetki.js?v=v31.70"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/donanim.js?v=v31.66"></script>
 <script src="js/utils.js?v=v31.65"></script>
@@ -3244,13 +3251,13 @@
 <script src="js/gorev.js?v=v31.48"></script>
 <script src="js/talep.js?v=v31.34"></script>
 <script src="js/temas.js?v=v31.50"></script>
-<script src="js/arama.js?v=v31.53"></script>
+<script src="js/arama.js?v=v31.81"></script>
 <script src="js/firsat.js?v=v31.34"></script>
 <script src="js/duyuru.js?v=v31.34"></script>
-<script src="js/musteri.js?v=v31.50"></script>
+<script src="js/musteri.js?v=v31.67"></script>
 <script src="js/hedef.js?v=v31.34"></script>
-<script src="js/admin.js?v=v31.50"></script>
-<script src="js/veriyonetimi.js?v=v31.50"></script>
+<script src="js/admin.js?v=v31.80"></script>
+<script src="js/veriyonetimi.js?v=v31.69"></script>
 <script src="js/rapor.js?v=v31.36"></script>
 
 </body>

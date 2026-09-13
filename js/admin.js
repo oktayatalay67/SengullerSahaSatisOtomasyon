@@ -1,4 +1,8 @@
 // ============================================================
+// admin.js — v1.1.4
+//   v1.1.4 (13.09.2026, V31.80) — Yeni "Arama Ayarları" admin sekmesi:
+//     sistem_ayarlari.arama_sla_gun / arama_cooldown_gun artik ekrandan
+//     duzenlenebiliyor (oncesinde sadece veritabanindan degistirilebiliyordu).
 // admin.js — v1.1.3
 //   v1.1.3 (V31.50) — Kullanici listesinde ham telefon yerine _telG().
 // admin.js — v1.1.2
@@ -843,8 +847,9 @@ function switchAdminTab(tab){
 var _adminTabAdlar = {
   'urunler':'Ürünler','kullanicilar':'Kullanıcılar','talepler':'Talepler',
   'ziyaretOpt':'Ziyaret Seçenekleri','veriSagligi':'Veri Sağlığı','gorevTipleri':'Görev Tipleri',
-  'yetki':'Rol & Yetki Yönetimi'
+  'yetki':'Rol & Yetki Yönetimi','aramaAyarlari':'Arama Ayarları'
 };
+var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri','yetki','aramaAyarlari'];
 
 function adminSayfaAc(tab){
   // Kutu menüyü gizle, nav bar'ı göster
@@ -856,7 +861,7 @@ function adminSayfaAc(tab){
   if(baslik) baslik.textContent   = _adminTabAdlar[tab] || tab;
 
   // Sadece seçili tab'ı göster
-  ['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri','yetki'].forEach(function(t){
+  _adminTabListesi.forEach(function(t){
     const p = document.getElementById('adminTab'+capitalize(t));
     if(p) p.style.display = (t===tab) ? '' : 'none';
   });
@@ -867,6 +872,7 @@ function adminSayfaAc(tab){
   if(tab==='ziyaretOpt')  initZiyaretOpt();
   if(tab==='gorevTipleri')renderGorevTipleriAdmin();
   if(tab==='yetki')       initYetkiYonetim();
+  if(tab==='aramaAyarlari')renderAramaAyarlari();
 }
 
 function adminMenueGeri(){
@@ -875,10 +881,43 @@ function adminMenueGeri(){
   if(menuEl) menuEl.style.display = '';
   if(altEl)  altEl.style.display  = 'none';
   // Tüm tab içeriklerini gizle
-  ['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri','yetki'].forEach(function(t){
+  _adminTabListesi.forEach(function(t){
     const p = document.getElementById('adminTab'+capitalize(t));
     if(p) p.style.display = 'none';
   });
+}
+
+// ============================================================
+// V31.80: ARAMA AYARLARI — sistem_ayarlari tablosundaki arama_sla_gun ve
+// arama_cooldown_gun degerlerini admin ekranindan duzenlenebilir yapar.
+// Onceden bu degerler sadece dogrudan veritabanindan degistirilebiliyordu.
+// ============================================================
+async function renderAramaAyarlari(){
+  const el=document.getElementById('aramaAyarlariListesi');
+  if(!el) return;
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const {data,error}=await sb.from('sistem_ayarlari').select('id,ayar_tipi,deger,gorunen_ad')
+    .in('ayar_tipi',['arama_sla_gun','arama_cooldown_gun']).eq('aktif',true).order('sira');
+  if(error){ el.innerHTML='<div class="empty">Yüklenemedi: '+escapeHTML(error.message)+'</div>'; return; }
+  if(!data || !data.length){ el.innerHTML='<div class="empty">Ayar bulunamadı.</div>'; return; }
+  el.innerHTML=data.map(a=>`
+    <div class="field" style="margin-bottom:12px;">
+      <label>${escapeHTML(a.gorunen_ad||a.ayar_tipi)}</label>
+      <div style="display:flex;gap:8px;">
+        <input type="number" min="1" id="aramaAyar_${a.id}" value="${escapeHTML(String(a.deger))}"
+          style="flex:1;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">
+        <button class="btn btn-sm btn-green" onclick="aramaAyarKaydet(${a.id})">Kaydet</button>
+      </div>
+    </div>`).join('');
+}
+async function aramaAyarKaydet(id){
+  const el=document.getElementById('aramaAyar_'+id);
+  if(!el) return;
+  const v=parseInt(el.value);
+  if(!v || v<1){ toast('Geçerli bir sayı girin (1 veya üzeri)','error'); return; }
+  const {error}=await sb.from('sistem_ayarlari').update({deger:String(v)}).eq('id',id);
+  if(error){ toast('Kaydedilemedi: '+error.message,'error'); return; }
+  toast('Kaydedildi','success');
 }
 function switchYoneticiTab(tab){
   ['hedefKalem','urunHedef','hedefGiris','iptalOnay'].forEach(t=>{

@@ -1,6 +1,27 @@
 // ============================================================
-// veriyonetimi.js — v1.5.1  (2 sekme: Musteri + Kontak)
-// Son güncelleme: 2026-09-01
+// veriyonetimi.js — v1.6.1  (4 sekme: Musteri + Kontak + Atama + Devir)
+// Son güncelleme: 2026-09-12
+// Değişiklikler:
+//   v1.6.1 (V31.69) — B+C: Cift tiklama korumasi + otomatik detayli Excel raporu.
+//     (B) Devir'de "Onayla ve Tasi" ve Atama/Musteri/Kontak'ta "Onayla ve Yaz"
+//     butonlarina _busy/_done bayraklari eklendi: islem surerken veya bittikten
+//     sonra tekrar tiklanirsa uyari cikip engellenir (yeni islem icin MY/analiz
+//     yeniden secilmeli). (C) Tum 4 sekme icin ortak rapor formati: NCST, Unvan,
+//     Yeni KCM ID/Adi, Eski MY ID/Adi, Yeni MY ID/Adi, Diger Degisiklikler —
+//     islem tamamlaninca ozet ekrani + bu formatta Excel OTOMATIK indiriliyor
+//     (manuel indirme butonu da hala mevcut). Devir'de ilk kez Excel raporu
+//     var (onceden hicbir export yoktu).
+//   v1.6.0 (V31.68) — KRİTİK BUG FIX: MY Devri (vyDevirExec) ve Atama'daki
+//     "düşen müşteri" tasima blogu (vyUygula) customers.my_id'yi guncelliyor
+//     ama kcm_id'ye hic dokunmuyordu -> hedef/kaynak farkli KCM'de olursa
+//     musteri yanlis KCM'de gorunmeye devam ediyordu (790 kayitlik birikim
+//     tespit edilip SQL ile duzeltildi, ayri islem). Kalici cozum: MY devri/
+//     atamasinda KCM ASLA degismez kurali koda islendi — kaynak/hedef (ve
+//     Devir'de hedefin eskilerini alacak C) farkli KCM'deyse islem 3 katmanda
+//     engellenir: (1) secim aninda kirmizi uyari + buton gizlenir, (2) ozet
+//     onay asamasinda toast ile red, (3) exec fonksiyonunun basinda son
+//     guvenlik durdurmasi (hicbir DB yazisi yapilmadan iptal).
+// Onceki degisiklikler:
 //   v1.5.1 (V31.47) — TELEFON FORMAT KORUMASI: telefon artik vyCast() icinde,
 //     yani HER modda (musteri importu dahil) normalize/dogrulama huninden gecer.
 //     Onceden yalnizca kontak dalinda vyTel cagriliyordu; musteri Excel yuklemesi
@@ -163,6 +184,28 @@ function vyResetNormalOnly(){
 window.VYDEVIR = window.VYDEVIR || {};
 async function vyMusteriSayisi(myId){ try{ const {count}=await sb.from('customers').select('*',{count:'exact',head:true}).eq('my_id',myId); return count||0; }catch(e){ console.error(e); return 0; } }
 
+// ============================================================
+// RAPOR ORTAK — NCST/KCM/MY detayli Excel raporu (v1.6.0 / V31.68)
+// Tum yazma ekranlari (Devir/Atama/Musteri/Kontak) bu formati kullanir:
+// NCST, Unvan, Yeni KCM ID/Adi, Eski MY ID/Adi, Yeni MY ID/Adi, Diger degisiklikler
+// ============================================================
+window._vyKcmAdiCache = window._vyKcmAdiCache||{};
+async function vyKcmAdi(kcmId){
+  if(kcmId==null) return '';
+  if(window._vyKcmAdiCache[kcmId]!=null) return window._vyKcmAdiCache[kcmId];
+  try{ const {data}=await sb.from('users').select('kcm_adi').eq('kcm_id',kcmId).not('kcm_adi','is',null).limit(1);
+    const adi=(data&&data[0]&&data[0].kcm_adi)||('KCM '+kcmId); window._vyKcmAdiCache[kcmId]=adi; return adi; }
+  catch(e){ return 'KCM '+kcmId; }
+}
+function vyMyAdi(myId){ if(myId==null) return ''; const u=(window.userSecici||[]).find(x=>x.my_id===myId); return u?u.ad_soyad:('my_id '+myId); }
+function vyRaporExcelDetayli(filename, ozetSatirlari, detayRows){
+  const ozet=[['Ozet','']].concat(ozetSatirlari);
+  const det=[['NCST','Unvan','Yeni KCM ID','Yeni KCM Adi','Eski MY ID','Eski MY Adi','Yeni MY ID','Yeni MY Adi','Diger Degisiklikler','Sonuc']];
+  detayRows.forEach(r=>{ det.push([r.ncst||'', r.unvan||'', r.yeni_kcm_id==null?'':r.yeni_kcm_id, r.yeni_kcm_adi||'', r.eski_my_id==null?'':r.eski_my_id, r.eski_my_adi||'', r.yeni_my_id==null?'':r.yeni_my_id, r.yeni_my_adi||'', r.diger||'', r.sonuc||'']); });
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ozet), 'Ozet'); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(det), 'Detay');
+  XLSX.writeFile(wb, filename);
+}
+
 function vyDevirInit(){
   window.VYDEVIR={kaynak:null,hedef:null,cTarget:null,kaynakSayi:0,hedefSayi:0};
   const box=document.getElementById('vyDevirPanel'); if(!box) return;
@@ -185,6 +228,8 @@ function vyDevirRefresh(){
   const K=VYDEVIR.kaynak, H=VYDEVIR.hedef;
   if(!K||!H){ el.innerHTML=''; return; }
   if(K.my_id===H.my_id){ el.innerHTML='<div style="background:rgba(248,113,113,.1);border:1px solid #f87171;border-radius:10px;padding:12px;color:#f87171;font-size:13px;">Kaynak ve hedef ayni kisi olamaz.</div>'; return; }
+  // v1.6.0 (V31.68): MY devrinde KCM ASLA degismez — kaynak/hedef farkli KCM'de ise islem tamamen engellenir
+  if(K.kcm_id!==H.kcm_id){ el.innerHTML='<div style="background:rgba(248,113,113,.1);border:1px solid #f87171;border-radius:10px;padding:12px;color:#f87171;font-size:13px;"><b>KCM uyusmazligi:</b> '+escapeHTML(K.ad_soyad)+' (KCM '+(K.kcm_id==null?'-':K.kcm_id)+') ile '+escapeHTML(H.ad_soyad)+' (KCM '+(H.kcm_id==null?'-':H.kcm_id)+') farkli KCM\'de. Devir islemi KCM degistiremez; farkli KCM\'ler arasi devir yapilamaz.</div>'; return; }
   let h='<div style="background:rgba(96,165,250,.08);border:1px solid #60a5fa;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.7;">';
   h+='Kaynak <b>'+escapeHTML(K.ad_soyad)+'</b>: <b>'+VYDEVIR.kaynakSayi+'</b> musteri<br>';
   h+='Hedef <b>'+escapeHTML(H.ad_soyad)+'</b>: <b>'+VYDEVIR.hedefSayi+'</b> musteri</div>';
@@ -197,16 +242,26 @@ function vyDevirRefresh(){
   h+='<div id="vyDevirOnayKutu"></div>';
   h+='<button class="btn-primary" onclick="vyDevirOzet()" style="padding:10px 20px;font-size:14px;font-weight:700;background:#34d399;">Ozet ve Onay</button>';
   el.innerHTML=h;
-  if(VYDEVIR.hedefSayi>0){ vyMySeciciRender('vyDevirC', function(u){ VYDEVIR.cTarget=u; const inf=document.getElementById('vyDevirCbilgi'); if(inf) inf.textContent=u?('Hedefin eskileri -> '+u.ad_soyad+' (my_id='+u.my_id+')'):''; }, 'Hedefin eskileri icin ara...'); }
+  if(VYDEVIR.hedefSayi>0){ vyMySeciciRender('vyDevirC', function(u){
+    // v1.6.0 (V31.68): C de hedefle ayni KCM'de olmali (aksi halde hedefin musterileri yanlis KCM'ye gecer)
+    if(u && u.kcm_id!==H.kcm_id){ VYDEVIR.cTarget=null; const inf=document.getElementById('vyDevirCbilgi'); if(inf){ inf.style.color='#f87171'; inf.textContent='KCM uyusmazligi: '+escapeHTML(u.ad_soyad)+' farkli KCM\'de, secilemez.'; } return; }
+    VYDEVIR.cTarget=u; const inf=document.getElementById('vyDevirCbilgi'); if(inf){ inf.style.color='#fbbf24'; inf.textContent=u?('Hedefin eskileri -> '+u.ad_soyad+' (my_id='+u.my_id+')'):''; }
+  }, 'Hedefin eskileri icin ara...'); }
 }
 
 function vyDevirOzet(){
   const K=VYDEVIR.kaynak, H=VYDEVIR.hedef, C=VYDEVIR.cTarget;
   const kutu=document.getElementById('vyDevirOnayKutu'); if(!kutu) return;
+  // v1.6.0 (V31.68): cift tiklama korumasi — devam eden veya tamamlanmis islem uzerine tekrar ozet cikarilamaz
+  if(VYDEVIR._busy){ toast('Islem devam ediyor, lutfen bekleyin','error'); return; }
+  if(VYDEVIR._done){ toast('Bu devir zaten tamamlandi. Yeni islem icin MY secimini yeniden yapin.','error'); return; }
   if(!K||!H){ toast('Kaynak ve hedef sec','error'); return; }
   if(K.my_id===H.my_id){ toast('Kaynak ve hedef ayni olamaz','error'); return; }
   if(VYDEVIR.hedefSayi>0 && !C){ toast('Hedefin mevcut musterileri icin bir kisi sec','error'); return; }
   if(C && (C.my_id===K.my_id || C.my_id===H.my_id)){ toast('Hedefin eskileri icin farkli bir kisi sec (kaynak/hedef olamaz)','error'); return; }
+  // v1.6.0 (V31.68): son savunma — KCM uyusmazligi varsa islem kesinlikle baslamaz
+  if(K.kcm_id!==H.kcm_id){ toast('Kaynak ve hedef farkli KCM\'de, devir yapilamaz','error'); return; }
+  if(C && C.kcm_id!==H.kcm_id){ toast('Hedefin eskileri icin secilen kisi farkli KCM\'de, secim gecersiz','error'); return; }
   let h='<div style="background:rgba(52,211,153,.08);border:1px solid #34d399;border-radius:10px;padding:14px;margin-bottom:12px;"><div style="font-weight:700;margin-bottom:8px;">Devir Ozeti</div><div style="font-size:13px;line-height:1.8;">';
   h+='• <b>'+escapeHTML(K.ad_soyad)+'</b> in <b>'+VYDEVIR.kaynakSayi+'</b> musterisi -> <b>'+escapeHTML(H.ad_soyad)+'</b> e tasiniyor<br>';
   if(VYDEVIR.hedefSayi>0) h+='• <b>'+escapeHTML(H.ad_soyad)+'</b> in eski <b>'+VYDEVIR.hedefSayi+'</b> musterisi -> <b>'+escapeHTML(C.ad_soyad)+'</b> e tasiniyor<br>';
@@ -217,12 +272,25 @@ function vyDevirOzet(){
 
 async function vyDevirExec(){
   const K=VYDEVIR.kaynak, H=VYDEVIR.hedef, C=VYDEVIR.cTarget;
-  const kutu=document.getElementById('vyDevirOnayKutu'); if(kutu) kutu.innerHTML='<div style="padding:10px;color:var(--text2);">Tasiniyor...</div>';
+  const kutu=document.getElementById('vyDevirOnayKutu');
+  // v1.6.0 (V31.68): cift tiklama korumasi — ayni devir 2. kez calistirilamaz
+  if(VYDEVIR._busy){ toast('Islem devam ediyor, lutfen bekleyin','error'); return; }
+  if(VYDEVIR._done){ toast('Bu devir zaten tamamlandi. Yeni islem icin MY secimini yeniden yapin.','error'); return; }
+  // v1.6.0 (V31.68): calistirma anindaki son guvenlik durdurmasi — KCM uyusmazligi
+  if(K.kcm_id!==H.kcm_id || (C && C.kcm_id!==H.kcm_id)){
+    if(kutu) kutu.innerHTML='<div style="background:rgba(248,113,113,.1);border:1px solid #f87171;border-radius:10px;padding:14px;color:#f87171;font-size:13px;">Guvenlik durdurmasi: KCM uyusmazligi tespit edildi, islem iptal edildi. Hicbir kayit degistirilmedi.</div>';
+    return;
+  }
+  VYDEVIR._busy=true;
+  if(kutu) kutu.innerHTML='<div style="padding:10px;color:var(--text2);">Tasiniyor...</div>';
   const now=new Date().toISOString();
-  let hataMsg=null, cMoved=0, kMoved=0;
+  let hataMsg=null, cMoved=0, kMoved=0, kList=[], hList=[];
   try{
+    // rapor icin: degisecek musteri listelerini ONCE al (update sonrasi my_id degisir, geriye donuk bulunamaz)
+    try{ const r1=await sb.from('customers').select('ncst,unvan').eq('my_id',K.my_id); kList=r1.data||[]; }catch(e){}
     // 1) Hedefin eskileri -> C (once, karismasin)
     if(VYDEVIR.hedefSayi>0 && C){
+      try{ const r2=await sb.from('customers').select('ncst,unvan').eq('my_id',H.my_id); hList=r2.data||[]; }catch(e){}
       const {error}=await sb.from('customers').update({my_id:C.my_id, guncelleme_tarihi:now}).eq('my_id',H.my_id);
       if(error) throw error; cMoved=VYDEVIR.hedefSayi;
     }
@@ -230,18 +298,33 @@ async function vyDevirExec(){
     const {error:e2}=await sb.from('customers').update({my_id:H.my_id, guncelleme_tarihi:now}).eq('my_id',K.my_id);
     if(e2) throw e2; kMoved=VYDEVIR.kaynakSayi;
   }catch(e){ console.error(e); hataMsg=e.message||String(e); }
+  VYDEVIR._busy=false;
   // dogrulama
   let hSonra=0, kSonra=0;
   try{ hSonra=await vyMusteriSayisi(H.my_id); kSonra=await vyMusteriSayisi(K.my_id); }catch(e){}
   if(kutu){
-    if(hataMsg){ kutu.innerHTML='<div style="background:rgba(248,113,113,.1);border:1px solid #f87171;border-radius:10px;padding:14px;color:#f87171;font-size:13px;">Hata: '+escapeHTML(hataMsg)+'<br>Islem yarim kalmis olabilir; sayilari kontrol edin.</div>'; return; }
+    if(hataMsg){ kutu.innerHTML='<div style="background:rgba(248,113,113,.1);border:1px solid #f87171;border-radius:10px;padding:14px;color:#f87171;font-size:13px;">Hata: '+escapeHTML(hataMsg)+'<br>Islem yarim kalmis olabilir; sayilari kontrol edin.<br><button onclick="vyDevirOzet()" style="margin-top:8px;padding:6px 12px;">Tekrar Dene</button></div>'; return; }
+    VYDEVIR._done=true;
+    // v1.6.0 (V31.68): detayli rapor — NCST/KCM/MY once-sonra
+    const kcmAdi=await vyKcmAdi(H.kcm_id);
+    const detay=[];
+    kList.forEach(c=>detay.push({ncst:c.ncst, unvan:c.unvan, yeni_kcm_id:H.kcm_id, yeni_kcm_adi:kcmAdi, eski_my_id:K.my_id, eski_my_adi:K.ad_soyad, yeni_my_id:H.my_id, yeni_my_adi:H.ad_soyad, sonuc:'DEVREDILDI'}));
+    if(cMoved && C){ const cKcmAdi=await vyKcmAdi(C.kcm_id); hList.forEach(c=>detay.push({ncst:c.ncst, unvan:c.unvan, yeni_kcm_id:C.kcm_id, yeni_kcm_adi:cKcmAdi, eski_my_id:H.my_id, eski_my_adi:H.ad_soyad, yeni_my_id:C.my_id, yeni_my_adi:C.ad_soyad, sonuc:'DEVREDILDI (hedefin eskisi)'})); }
+    window._vyDevirRaporFull={kMoved, cMoved, detay};
     kutu.innerHTML='<div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:13px;line-height:1.8;">'
       +'<div style="font-weight:700;margin-bottom:6px;">✅ Devir Tamamlandi</div>'
       +'• '+kMoved+' musteri '+escapeHTML(K.ad_soyad)+' -> '+escapeHTML(H.ad_soyad)+'<br>'
       +(cMoved?('• '+cMoved+' musteri '+escapeHTML(H.ad_soyad)+' (eski) -> '+escapeHTML(C.ad_soyad)+'<br>'):'')
       +'<br>Simdi: <b>'+escapeHTML(H.ad_soyad)+'</b> = '+hSonra+' musteri, <b>'+escapeHTML(K.ad_soyad)+'</b> = '+kSonra+' musteri'
+      +'<div style="margin:10px 0;"><button onclick="vyDevirRaporExcel()" style="padding:8px 14px;font-size:12px;">📥 Detayli raporu Excel indir</button>'
+      +' <button onclick="vyDevirInit()" style="padding:8px 14px;font-size:12px;">🔄 Yeni Devir Islemi Baslat</button></div>'
       +'</div>';
+    vyDevirRaporExcel(); // v1.6.0 (V31.68): otomatik indirme — kullanici ayrica tiklamak zorunda degil
   }
+}
+function vyDevirRaporExcel(){
+  const R=window._vyDevirRaporFull; if(!R) return;
+  vyRaporExcelDetayli('devir_rapor_'+Date.now()+'.xlsx', [['Devredilen (kaynak->hedef)',R.kMoved],['Devredilen (hedefin eskisi->C)',R.cMoved]], R.detay);
 }
 function vyFileSelected(){ const fi=document.getElementById('vyFile'), btn=document.getElementById('vyOkuBtn'); if(btn) btn.disabled=!(fi&&fi.files&&fi.files.length); }
 
@@ -512,7 +595,16 @@ function vyRenderAnaliz(G, toplam){
   if(G.atla.length){ VY.pagers['atla']={rows:G.atla.map(a=>({ncst:a.ncst, islem:'ATLANACAK', changes:[], sonuc:a.sonuc})), type:'rapor', containerId:'vyPage_atla', page:0}; vyRenderPaged('atla'); }
   // ATAMA: dusen secici + liste
   if(VY.mode==='atama' && (G.dusen||[]).length){
-    vyMySeciciRender('vyDusenSecici', function(u){ VYATAMA.dusenTargetMy=u?u.my_id:null; const inf=document.getElementById('vyDusenBilgi'); if(inf) inf.textContent=u?('Dusenler -> '+u.ad_soyad+' (my_id='+u.my_id+') tasinacak'):'(Dusenler bu MY\'de kalacak)'; }, 'Dusenleri atamak icin MY/FMY ara...');
+    vyMySeciciRender('vyDusenSecici', function(u){
+      // v1.6.0 (V31.68): dusen musteriler icin secilen kisi kaynak MY ile ayni KCM'de olmali
+      if(u && VYATAMA.selectedMy && u.kcm_id!==VYATAMA.selectedMy.kcm_id){
+        VYATAMA.dusenTargetMy=null; VYATAMA.dusenTargetMyObj=null;
+        const inf=document.getElementById('vyDusenBilgi'); if(inf){ inf.style.color='#f87171'; inf.textContent='KCM uyusmazligi: '+escapeHTML(u.ad_soyad)+' farkli KCM\'de, secilemez.'; }
+        return;
+      }
+      VYATAMA.dusenTargetMy=u?u.my_id:null; VYATAMA.dusenTargetMyObj=u||null;
+      const inf=document.getElementById('vyDusenBilgi'); if(inf){ inf.style.color='var(--text2)'; inf.textContent=u?('Dusenler -> '+u.ad_soyad+' (my_id='+u.my_id+') tasinacak'):'(Dusenler bu MY\'de kalacak)'; }
+    }, 'Dusenleri atamak icin MY/FMY ara...');
     VY.pagers['dusen']={rows:G.dusen.map(d=>({ncst:d.ncst, islem:'DUSEN', changes:[], sonuc:d.unvan||''})), type:'rapor', containerId:'vyPage_dusen', page:0}; vyRenderPaged('dusen');
   }
 }
@@ -520,6 +612,9 @@ function vyRenderAnaliz(G, toplam){
 // ---------- UYGULA ----------
 async function vyUygula(){
   const A=VY.analiz; if(!A){ toast('Once analiz edin','error'); return; }
+  // v1.6.0 (V31.68): cift tiklama korumasi
+  if(window._vyUygulaBusy){ toast('Islem devam ediyor, lutfen bekleyin','error'); return; }
+  if(window._vyUygulaDoneFor===A){ toast('Bu analiz sonucu zaten uygulandi. Tekrar uygulamak icin dosyayi yeniden yukleyip analiz edin.','error'); return; }
   const cfg=A.cfg; const prog=document.getElementById('vyUygulaProg');
   const fkFields=A.mapped.map(m=>m.field).filter(f=>cfg.fk[f]); const fkValid={};
   if(fkFields.length){ if(prog) prog.textContent='FK dogrulaniyor...';
@@ -544,6 +639,11 @@ async function vyUygula(){
 
   // ATAMA: dusen musteriler secili hedefe tasinsin (sadece hedef secildiyse)
   if(cfg.atamaMode && VYATAMA.dusenTargetMy && A.G.dusen && A.G.dusen.length){
+    // v1.6.0 (V31.68): son savunma — KCM uyusmazligi varsa dusen tasima islemi hic baslamaz
+    const tObj=VYATAMA.dusenTargetMyObj;
+    if(tObj && VYATAMA.selectedMy && tObj.kcm_id!==VYATAMA.selectedMy.kcm_id){
+      toast('Dusen musteriler icin secilen kisi farkli KCM\'de, islem iptal edildi','error'); return;
+    }
     const t=VYATAMA.dusenTargetMy, kaynak=VYATAMA.selectedMy.my_id;
     A.G.dusen.forEach(d=>{ updates.push({keyVals:{ncst:d.ncst}, obj:{my_id:t, guncelleme_tarihi:now}, detay:[{field:'my_id', eski:kaynak, yeni:t}], ncst:d.ncst}); });
   }
@@ -556,22 +656,29 @@ async function vyUygula(){
 }
 
 async function vyUygulaExec(){
-  const P=window._vyPending; if(!P) return; const {updates, inserts, fkAtla, cfg}=P;
+  const P=window._vyPending; if(!P) return;
+  // v1.6.0 (V31.68): cift tiklama korumasi
+  if(window._vyUygulaBusy){ toast('Islem devam ediyor, lutfen bekleyin','error'); return; }
+  window._vyUygulaBusy=true;
+  const {updates, inserts, fkAtla, cfg}=P;
   document.getElementById('vyOnayKutu').innerHTML='';
   const prog=document.getElementById('vyUygulaProg'); const detayRows=[]; let okU=0, okI=0, hataN=0;
-  const conc=25;
-  for(let i=0;i<updates.length;i+=conc){ const batch=updates.slice(i,i+conc);
-    const res=await Promise.all(batch.map(u=>{ let q=sb.from(cfg.table).update(u.obj); cfg.keyFields.forEach(f=>{ q=q.eq(f, u.keyVals[f]); }); return q.then(r=>({u, error:r.error})); }));
-    res.forEach(x=>{ if(x.error){ hataN++; detayRows.push({ncst:x.u.ncst, islem:'HATA', changes:x.u.detay, sonuc:x.error.message}); } else { okU++; detayRows.push({ncst:x.u.ncst, islem:'GUNCELLENDI', changes:x.u.detay, sonuc:'OK'}); } });
-    if(prog) prog.textContent='Guncelleniyor... '+Math.min(updates.length,i+conc)+'/'+updates.length; }
-  for(let i=0;i<inserts.length;i+=50){ const batch=inserts.slice(i,i+50);
-    const {error}=await sb.from(cfg.table).insert(batch.map(x=>x.obj));
-    if(error){ for(const rec of batch){ const {error:e2}=await sb.from(cfg.table).insert(rec.obj);
-        if(e2){ hataN++; detayRows.push({ncst:rec.ncst, islem:'HATA', changes:rec.detay, sonuc:e2.message}); } else { okI++; detayRows.push({ncst:rec.ncst, islem:'EKLENDI', changes:rec.detay, sonuc:'OK'}); } } }
-    else { batch.forEach(rec=>{ okI++; detayRows.push({ncst:rec.ncst, islem:'EKLENDI', changes:rec.detay, sonuc:'OK'}); }); }
-    if(prog) prog.textContent='Ekleniyor... '+Math.min(inserts.length,i+50)+'/'+inserts.length; }
-  fkAtla.forEach(a=>detayRows.push(a));
+  try{
+    const conc=25;
+    for(let i=0;i<updates.length;i+=conc){ const batch=updates.slice(i,i+conc);
+      const res=await Promise.all(batch.map(u=>{ let q=sb.from(cfg.table).update(u.obj); cfg.keyFields.forEach(f=>{ q=q.eq(f, u.keyVals[f]); }); return q.then(r=>({u, error:r.error})); }));
+      res.forEach(x=>{ if(x.error){ hataN++; detayRows.push({ncst:x.u.ncst, islem:'HATA', changes:x.u.detay, sonuc:x.error.message}); } else { okU++; detayRows.push({ncst:x.u.ncst, islem:'GUNCELLENDI', changes:x.u.detay, sonuc:'OK'}); } });
+      if(prog) prog.textContent='Guncelleniyor... '+Math.min(updates.length,i+conc)+'/'+updates.length; }
+    for(let i=0;i<inserts.length;i+=50){ const batch=inserts.slice(i,i+50);
+      const {error}=await sb.from(cfg.table).insert(batch.map(x=>x.obj));
+      if(error){ for(const rec of batch){ const {error:e2}=await sb.from(cfg.table).insert(rec.obj);
+          if(e2){ hataN++; detayRows.push({ncst:rec.ncst, islem:'HATA', changes:rec.detay, sonuc:e2.message}); } else { okI++; detayRows.push({ncst:rec.ncst, islem:'EKLENDI', changes:rec.detay, sonuc:'OK'}); } } }
+      else { batch.forEach(rec=>{ okI++; detayRows.push({ncst:rec.ncst, islem:'EKLENDI', changes:rec.detay, sonuc:'OK'}); }); }
+      if(prog) prog.textContent='Ekleniyor... '+Math.min(inserts.length,i+50)+'/'+inserts.length; }
+    fkAtla.forEach(a=>detayRows.push(a));
+  } finally { window._vyUygulaBusy=false; }
   if(prog) prog.textContent='';
+  window._vyUygulaDoneFor=VY.analiz;
   window._vyRaporFull={okU, okI, atla:fkAtla.length, hata:hataN, detay:detayRows};
   vyRaporGoster();
 }
@@ -582,14 +689,25 @@ function vyRaporGoster(){
   box.innerHTML=h;
   VY.pagers['rapor']={rows:R.detay, type:'rapor', containerId:'vyPage_rapor', page:0}; vyRenderPaged('rapor');
   box.scrollIntoView({behavior:'smooth', block:'start'});
+  vyRaporExcel(); // v1.6.0 (V31.68): otomatik indirme — kullanici ayrica tiklamak zorunda degil
 }
-function vyRaporExcel(){
+// v1.6.0 (V31.68): NCST/KCM/MY detayli format — eski generic ncst/islem/alan/eski/yeni yerine
+async function vyRaporExcel(){
   const R=window._vyRaporFull; if(!R) return;
-  const ozet=[['Ozet',''],['Guncellenen',R.okU],['Eklenen',R.okI],['Atlanan',R.atla],['Hata',R.hata]];
-  const det=[['ncst','islem','alan','eski','yeni','sonuc']];
-  R.detay.forEach(row=>{ if(row.changes&&row.changes.length){ row.changes.forEach(ch=>det.push([row.ncst,row.islem,ch.field,ch.eski==null?'':ch.eski,ch.yeni==null?'(NULL)':ch.yeni,row.sonuc])); } else det.push([row.ncst,row.islem,'','','',row.sonuc]); });
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ozet), 'Ozet'); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(det), 'Detay');
-  XLSX.writeFile(wb,'veri_yonetimi_rapor.xlsx');
+  const detay=[];
+  for(const row of R.detay){
+    const myCh=(row.changes||[]).find(c=>c.field==='my_id');
+    const kcmCh=(row.changes||[]).find(c=>c.field==='kcm_id');
+    const diger=(row.changes||[]).filter(c=>c.field!=='my_id'&&c.field!=='kcm_id')
+      .map(c=>c.field+': '+(c.eski==null?'(bos)':c.eski)+' -> '+(c.yeni==null?'(NULL)':c.yeni)).join('; ');
+    const eskiMy=myCh?myCh.eski:null, yeniMy=myCh?myCh.yeni:null;
+    const yeniKcm=kcmCh?kcmCh.yeni:null;
+    const yeniKcmAdi=yeniKcm!=null?await vyKcmAdi(yeniKcm):'';
+    detay.push({ncst:row.ncst, unvan:'', yeni_kcm_id:yeniKcm, yeni_kcm_adi:yeniKcmAdi,
+      eski_my_id:eskiMy, eski_my_adi:eskiMy!=null?vyMyAdi(eskiMy):'', yeni_my_id:yeniMy, yeni_my_adi:yeniMy!=null?vyMyAdi(yeniMy):'',
+      diger, sonuc:row.islem+((row.sonuc&&row.sonuc!=='OK')?(' - '+row.sonuc):'')});
+  }
+  vyRaporExcelDetayli('veri_yonetimi_rapor_'+Date.now()+'.xlsx', [['Guncellenen',R.okU],['Eklenen',R.okI],['Atlanan',R.atla],['Hata',R.hata]], detay);
 }
 
 function vyRenderPreview(headers, rows){

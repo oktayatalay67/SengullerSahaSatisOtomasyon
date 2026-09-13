@@ -1,7 +1,70 @@
 // ============================================================
-// config.js — v1.3.07
-// Son güncelleme: 2026-09-06
+// config.js — v1.3.22
+// Son güncelleme: 2026-09-13
 // Değişiklikler:
+//   v1.3.22 — APP_VERSION → V31.81. arama.js: "Gelecek" kutusu 2 rakam
+//     gösteriyor (toplam/arama yapılacak) ve "Gelecek" sekmesinde Aranacak/
+//     Aranmayacak ayrımı geldi — aranmak istemiyor, son N günde teyit
+//     edilmiş, aynı gün aynı kişi tekrarı nedenleriyle otomatik ayıklama
+//     (detay: arama.js v1.1.9, madde 13).
+//   v1.3.21 — APP_VERSION → V31.80. admin.js: Yeni "Arama Ayarları" sekmesi
+//     eklendi — arama_sla_gun/arama_cooldown_gun artık admin ekranından
+//     düzenlenebiliyor (detay: admin.js v1.1.4). Ayrıca eksik olan
+//     arama_sla_gun satırı sistem_ayarlari'na SQL ile eklendi.
+//   v1.3.20 — APP_VERSION → V31.79. arama.js: "MY Kırılım / Liderlik
+//     Tablosu" başlığı "MY/FMY Ziyaret Performans Değerlendirme" oldu
+//     (detay: arama.js v1.1.8).
+//   v1.3.19 — APP_VERSION → V31.78. arama.js: Çağrı Analizi kategori
+//     kutuları sadeleşti (üstteki özet kutularıyla tekrar edenler ve "Yüz
+//     yüze uyuşmazlık" kaldırıldı), "Memnuniyetsiz" → "Düşük Puan" oldu,
+//     kalan 7 kutu 3+4 iki satıra düzenlendi (detay: arama.js v1.1.7).
+//   v1.3.18 — APP_VERSION → V31.77. arama.js: BUG FIX — Talep seçilince
+//     metin yazarken "task oluştur" butonu hiç görünmüyordu, artık her tuş
+//     vuruşunda görünürlüğü güncelleniyor (detay: arama.js v1.1.6).
+//   v1.3.17 — APP_VERSION → V31.76. arama.js: Şikayet/Talep ayrıldı, şikayet
+//     kategorisi (kimi/ne için) detaylandırıldı, şikayet kaydı otomatik takım
+//     liderine/müdüre task açıyor, talep için manuel tek-tık task butonu
+//     eklendi (detay: arama.js v1.1.5). SQL önkoşulu vardı, uygulandı.
+//   v1.3.16 — APP_VERSION → V31.75. arama.js: Çağrı Analizi ekranındaki
+//     filtrelenmiş kayıtlar artık tıklanınca tam görüşme detayını açıyor
+//     (detay: arama.js v1.1.4).
+//   v1.3.15 — APP_VERSION → V31.74. arama.js: "Çağrı Analizi" tuşunun eni
+//     üstteki 2'li özet kutu satırı (Gelecek/Tamamlanan) ile aynı genişliğe
+//     getirildi, yüksekliği ~3-4px arttı (detay: arama.js v1.1.3).
+//   v1.3.14 — APP_VERSION → V31.73. arama.js: "Gelecek" sekmesindeki kartlar
+//     artık Aktif sekmedeki fonksiyonlarla bire bir aynı — Ara/Aramadan Kapat
+//     butonu ve aynı kişi uyarısı da çalışıyor (detay: arama.js v1.1.2).
+//   v1.3.13 — APP_VERSION → V31.72. arama.js: Tamamlanan sayacı "300+" yerine
+//     tam rakam gösteriyor (detay: arama.js v1.1.1 değişiklik notu).
+//   v1.3.12 — APP_VERSION → V31.71. Ana menüde "Arama" ifadesi "Ziyaret Teyit"
+//     olarak değiştirildi, ikonu 📞'dan 🎧 (çağrı merkezi) olarak güncellendi
+//     (index.html, menuAramaBox).
+//   v1.3.11 — APP_VERSION → V31.70. KRİTİK GÜVENLİK FIX: Arama (Ziyaret Teyit)
+//     modülünde hiçbir KÇM/rol kısıtı yoktu, herkes tüm KÇM'lerin arama
+//     kayıtlarını görebiliyordu. yetki.js'e 'arama' scope modülü eklendi,
+//     arama.js artık customers.kcm_id üzerinden veri kısıtlıyor (detay: arama.js
+//     v1.1.0, yetki.js v1.2.6 değişiklik notları).
+//   v1.3.10 — APP_VERSION → V31.69. veriyonetimi.js: Devir + Atama/Musteri/
+//     Kontak yazma butonlarina cift-tiklama korumasi (islem surerken/bittikten
+//     sonra tekrar basilamaz) ve tum 4 sekme icin ortak NCST/KCM/MY detayli
+//     Excel raporu (islem bitince otomatik iniyor) eklendi.
+//   v1.3.09 — APP_VERSION → V31.68. KRİTİK BUG FIX: veriyonetimi.js — MY Devri
+//     (vyDevirExec) ve Atama'daki "düşen müşteri" tasima (vyUygula) customers.
+//     my_id'yi guncelliyor ama kcm_id'ye dokunmuyordu; kaynak/hedef farkli
+//     KCM'de olursa musteri yanlis KCM'de kalmaya devam ediyordu. 790 kayitlik
+//     mevcut birikim SQL ile duzeltildi (ayri islem, kod fix'inden bagimsiz).
+//     Koda kalici kural islendi: MY devri/atamasinda KCM ASLA degismez —
+//     kaynak/hedef (ve Devir'de C) farkli KCM'deyse islem 3 katmanda engellenir.
+//     Ayrica: 9 adet gecersiz customers kaydi (ncst alanina kisi adi/DUMMY
+//     yazilmis, hicbir ziyaret/firsati olmayan cop kayitlar) silindi; users.
+//     kcm_adi'daki yazim tutarsizliklari (ayni kcm_id icin "KÇM3"/"Şengüller
+//     KÇM 3" gibi varyantlar) normalize edildi.
+//   v1.3.08 — APP_VERSION → V31.67. KRİTİK BUG FIX: searchMusteri() (musteri.js)
+//     .select() içine my_id,kcm_id eklendi. Arama kutusundan müşteri seçildiğinde
+//     (selC/selFirsatC/selectPrMusteri vb.) döndürülen obje my_id taşımadığı için
+//     visits.musteri_my_id ve opportunities.musteri_my_id NULL yazılıyordu —
+//     portföy sahibi bilgisi kaydedilmiyordu (giren = güncel sahip olsa bile).
+//     ~3.505 temas + ilgili fırsat kayıtları etkilenmiş, ayrı SQL ile düzeltilecek.
 //   v1.3.07 — APP_VERSION → V31.66. Donanim sekme seridi sabit iki satir:
 //     ust satir Depolar+Stok, alt satir Rezervasyon+Transfer+Talepler.
 //   v1.3.06 — APP_VERSION → V31.65. Hizli Sevkiyat Donanim sekmesinden
@@ -310,7 +373,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.66';
+const APP_VERSION = 'V31.81';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

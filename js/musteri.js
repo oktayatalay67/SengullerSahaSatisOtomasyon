@@ -55,7 +55,10 @@ async function searchMusteri(val, opts){
   }
   _searchTimers[opts.timerId] = setTimeout(async()=>{
     const {data} = await getCustomerBaseQuery(true)  // v1.2.1: forForm=true — KÇM scope
-      .select('ncst,unvan,vergi_no')
+      // v1.3.08: my_id,kcm_id eklendi — searchMusteri sonucundan seçilen obje
+      // doğrudan selC/selFirsatC vb. ile kullanılıyordu; my_id eksik olduğu için
+      // visits/opportunities.musteri_my_id NULL yazılıyordu (portföy sahibi kaybı bug'ı)
+      .select('ncst,unvan,vergi_no,my_id,kcm_id')
       .or(`ncst.ilike.%${val}%,unvan.ilike.%${val}%,vergi_no.ilike.%${val}%`)
       .limit(opts.limit||20);
     if(!data?.length){

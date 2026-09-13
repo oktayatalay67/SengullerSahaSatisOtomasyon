@@ -1,7 +1,11 @@
 // ============================================================
-// yetki.js — v1.2.5
-// Son güncelleme: 2026-08-26
+// yetki.js — v1.2.6
+// Son güncelleme: 2026-09-12
 // Değişiklikler:
+//   v1.2.6 — (V31.70) KRİTİK GÜVENLİK FIX'in parçası: YETKI_MODUL_ADLARI'na
+//     'arama' (Ziyaret Teyit) eklendi — Rol & Yetki ekranında bu modül için de
+//     artık diğerleri gibi TÜM/KÇM/BAĞLI/PRT+/PRT kapsam seçici çıkıyor.
+//     Detay: arama.js v1.1.0 değişiklik notu.
 //   v1.2.5 — (V31.35) 'portfoy_yukle' izni 'veri_yonetimi' olarak yeniden
 //            adlandırıldı (Veri Yönetimi modülüne bağlandı). DB tarafında
 //            role_permissions.perm_key migrasyonu ayrı SQL ile yapılır.
@@ -40,7 +44,8 @@ const YETKI_SCOPE_TANIM = [
 const YETKI_MODUL_ADLARI = {
   musteri:'Müşteri', temas:'Temas / Ziyaret', firsat:'Fırsat',
   gorev:'Görev', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
-  donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)'
+  donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)',
+  arama:'Ziyaret Teyit (Arama)' // v1.2.6 (V31.7x): kritik guvenlik fix — daha once bu modulun HIC scope kisiti yoktu
 };
 
 const YETKI_ACTION_GRUP = [
