@@ -677,7 +677,7 @@
 <!-- SheetJS (repo-içi, js/ altında, DB-bağımsız) — Temas Raporu Excel çıktısı için -->
 <script src="js/xlsx.full.min.js?v=v30.79"></script>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/main.css?v=v31.66">
+<link rel="stylesheet" href="css/main.css?v=v31.99">
 </head>
 <body>
 <div class="toast-container" id="toastContainer" style="z-index:10001;"></div>
@@ -724,7 +724,6 @@
       <div class="menu-box" onclick="navTo('pageMenuTemas')"><div class="menu-box-icon">📍</div><div class="menu-box-title">Temas</div></div>
       <div class="menu-box" onclick="navTo('pagePipeline')"><div class="menu-box-icon">💼</div><div class="menu-box-title">Fırsat</div></div>
       <div class="menu-box" onclick="navTo('pageMenuDonanim')" id="menuDonanimBox" style="position:relative;"><div class="menu-box-icon">📦</div><div class="menu-box-title">Donanım Takip</div><span id="donanimMenuBadge" style="display:none;position:absolute;top:6px;right:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:18px;text-align:center;"></span></div>
-      <div class="menu-box hide" onclick="navTo('pageSevkiyat')" id="menuSevkiyatBox"><div class="menu-box-icon">⚡</div><div class="menu-box-title">Hızlı Sevkiyat</div></div>
       <div class="menu-box" onclick="navTo('pageMenuHedef')"><div class="menu-box-icon">🎯</div><div class="menu-box-title">Hedef Takip</div></div>
       <div class="menu-box" onclick="navTo('pageMenuRapor')"><div class="menu-box-icon">📈</div><div class="menu-box-title">Raporlar</div></div>
       <div class="menu-box" onclick="navTo('pageGorev')" style="position:relative;"><div class="menu-box-icon">📋</div><div class="menu-box-title">Görevler</div><span id="gorevMenuBadge" style="display:none;position:absolute;top:6px;right:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:18px;text-align:center;"></span></div>
@@ -759,8 +758,6 @@
 <div class="page" id="pageMenuDonanim">
   <div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Donanım Takip</div></div>
   <div class="scroll">
-    <button id="donanimYeniUrunBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="openDonanimYeniUrun()">+ Yeni Ürün Ekle</button>
-    <button id="donanimExcelYukleBtn" class="btn btn-ghost" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimExcelYukle()">📤 Excel ile Stok Yükle</button>
     <!-- V31.66: SABIT iki satir. Ust satir envanter (Depolar, Stok),
          alt satir surec kuyruklari (Rezervasyon, Transfer, Talepler).
          Satir kirilimi ekran genisliginden BAGIMSIZ — sekmeler hicbir
@@ -774,6 +771,13 @@
       <button id="donanimTabTalepBtn" class="btn btn-ghost btn-sm" style="display:none;" onclick="donanimTabGeç('talep')">📥 Talepler</button>
     </div>
     <div id="donanimStokSekme">
+      <!-- V31.97: Hızlı Sevkiyat kısayolu — Stok ve Rezervasyon sekmelerinin en
+           üstünde (admin + Stok&Muhasebe = donanim_yonet+donanim_sevk yetkisi). -->
+      <button id="donanimStokSvkKisayol" class="btn" style="width:100%;background:var(--green);color:#04301f;margin-bottom:10px;display:none;" onclick="navTo('pageSevkiyat')">⚡ Hızlı sevkiyat başlat</button>
+      <!-- V31.97: Yeni Ürün Ekle / Excel ile Stok Yükle — eskiden tüm sekmelerde
+           sabit üstteydi, artık sadece Stok sekmesinde. -->
+      <button id="donanimYeniUrunBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="openDonanimYeniUrun()">+ Yeni Ürün Ekle</button>
+      <button id="donanimExcelYukleBtn" class="btn btn-ghost" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimExcelYukle()">📤 Excel ile Stok Yükle</button>
       <div id="donanimKcmFiltreWrap" style="display:none;margin-bottom:8px;">
         <select id="donanimKcmFiltre" onchange="donanimFiltreDegisti()" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">
           <option value="">Tüm KÇM'ler</option>
@@ -795,6 +799,9 @@
       <div id="donanimListesi"></div>
     </div>
     <div id="donanimRezSekme" class="hide">
+      <!-- V31.97: Yeni Rezervasyon — Stok sekmesindeki "📌 Rezervasyon" tuşuyla
+           birebir aynı akışı açar (o sekmeye geçip seçim modunu başlatır). -->
+      <button id="donanimRezYeniBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="donanimTabGeç('stok');donanimSecimModunuAc();">📌 Yeni Rezervasyon</button>
       <!-- V31.65: Hızlı Sevkiyat kısayolu — sonucu bu listeye düştüğü için burada -->
       <button id="donanimRezSvkKisayol" class="btn" style="width:100%;background:var(--green);color:#04301f;margin-bottom:10px;display:none;" onclick="navTo('pageSevkiyat')">⚡ Hızlı sevkiyat başlat</button>
       <div id="donanimRezFiltreWrap" style="display:none;margin-bottom:8px;">
@@ -833,6 +840,10 @@
     </div>
     <!-- V31.57: TEDARİK TALEPLERİ -->
     <div id="donanimTalepSekme" class="hide">
+      <!-- V31.97: Yeni Talep — stokta (musait_adet=0) olmayan ürünler arasından
+           seçim yaptırıp mevcut tek-ürün Talep modalını (donanimTalepModalAc)
+           birebir aynı şekilde açar. Depo & Muhasebe (donanim_yonet) için. -->
+      <button id="donanimTalepYeniBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="donanimTalepUrunSecAc()">➕ Yeni Talep</button>
       <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;">
         Stokta olmayan bir cihaz için açılan tedarik talepleri. MY/FMY kendi taleplerini,
         Depo &amp; Muhasebe tümünü görür ve sonuçlandırır.
@@ -851,23 +862,28 @@
 </div>
 
 <!-- DONANIM: TEDARİK TALEBİ MODALI (V31.57) -->
+<!-- V31.97: TALEPLER > YENİ TALEP — ürün seçim listesi (musait_adet=0) -->
+<div class="modal-overlay" id="donanimTalepUrunSecModal" onclick="if(event.target===this)closeModal('donanimTalepUrunSecModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Talep Edilecek Ürün</div>
+    <input type="text" id="donanimTalepUrunSecAra" placeholder="Ara (marka, model, kod...)" oninput="donanimTalepUrunSecFiltrele()" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;margin-bottom:10px;">
+    <div id="donanimTalepUrunSecListesi" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- V31.98: sepet mantığına çevrildi — tek ürün yerine birden fazla ürün eklenebilir -->
 <div class="modal-overlay" id="donanimTalepModal" onclick="if(event.target===this)closeModal('donanimTalepModal')">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">Tedarik Talebi</div>
-    <div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">Ürün</div>
-      <div id="donanimTalepUrun" style="font-size:13px;font-weight:700;line-height:1.35;">—</div>
-    </div>
+    <div id="donanimTalepSepetListesi" style="margin-bottom:8px;"></div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:14px;" onclick="donanimTalepUrunSecAc(true)">+ Ürün Ekle</button>
     <div class="field" style="margin-bottom:10px;">
       <label>Müşteri <span style="color:var(--red);">*</span></label>
       <input type="text" id="donanimTalepMusteriArama" placeholder="Müşteri ara (ünvan/NCST)..." oninput="donanimTalepMusteriAramaDebounce()" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
       <div id="donanimTalepMusteriSonuc" style="margin-top:6px;max-height:180px;overflow-y:auto;"></div>
       <div id="donanimTalepMusteriSecili" class="hide" style="margin-top:6px;font-size:12px;color:var(--green);"></div>
-    </div>
-    <div class="field" style="margin-bottom:10px;">
-      <label>Adet <span style="color:var(--red);">*</span></label>
-      <input type="number" id="donanimTalepAdet" min="1" step="1" value="1" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
     </div>
     <div class="field" style="margin-bottom:16px;">
       <label>Not (opsiyonel)</label>
@@ -3303,13 +3319,13 @@
   <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.96"></script>
+<script src="js/config.js?v=v31.99"></script>
 <script src="js/yetki.js?v=v31.96"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
-<script src="js/donanim.js?v=v31.66"></script>
+<script src="js/donanim.js?v=v31.98"></script>
 <script src="js/utils.js?v=v31.65"></script>
-<script src="js/auth.js?v=v31.65"></script>
+<script src="js/auth.js?v=v31.97"></script>
 <script src="js/gorev.js?v=v31.95"></script>
 <script src="js/talep.js?v=v31.34"></script>
 <script src="js/temas.js?v=v31.50"></script>

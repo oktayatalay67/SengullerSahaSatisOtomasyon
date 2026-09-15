@@ -174,6 +174,21 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
 @media(min-width:900px){
   .page.genis{max-width:1280px;}
   .page.genis .scroll{padding-left:22px;padding-right:22px;}
+  /* V31.98 FIX: topbar'ın arka planı (--navy2) sayfa arka planından (--navy)
+     daha açık — kutuyu 480px'e sıkıştırıp ortalamak, geniş sayfanın ortasında
+     "yüzen dar kutu" görüntüsü yaratıyordu (koyu boşluklar iki yanda görünüyor,
+     sekmeler arası geçişte de rahatsız edici bir zıplama gibi algılanıyordu).
+     Çözüm: topbar'ın arka planı TÜM geniş sayfayı kaplamaya devam etsin
+     (dikişsiz görünüm), sadece İÇERİĞİ (geri tuşu + başlık) padding ile
+     480px'lik bir alana ortalansın. */
+  .page.genis .topbar{
+    padding-left:calc(50% - 240px + 16px);
+    padding-right:calc(50% - 240px + 16px);
+  }
+  /* Sekme şeridinin (Depolar/Stok/Rezervasyon/Transfer/Talepler) kendi arka
+     planı yok, bu yüzden bleed sorunu yok — diğer sekmelerle aynı 480px
+     ölçüsünde kalması istendiği gibi merkezde daraltılıyor. */
+  .page.genis .donanim-sekmeler{max-width:480px;margin-left:auto;margin-right:auto;}
 }
 .izg-arac{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
 .izg-arac input[type=text]{flex:1 1 170px;min-width:0;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 10px;font-size:13px;font-family:inherit;outline:none;}

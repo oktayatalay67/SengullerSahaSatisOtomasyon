@@ -1,7 +1,28 @@
 // ============================================================
-// config.js — v1.3.37
+// config.js — v1.3.40
 // Son güncelleme: 2026-09-15
 // Değişiklikler:
+//   v1.3.40 — APP_VERSION → V31.99. FIX: Donanım Takip > Depolar sekmesi
+//     genişleyince (.page.genis) üst çubuk (topbar) 480px'e sıkıştırılıp
+//     ortalanıyordu — bu, açık renkli (--navy2) topbar'ın koyu (--navy) sayfa
+//     zemininin ortasında dar/yüzen bir kutu gibi görünmesine ve sekmeler
+//     arası geçişte rahatsız edici bir görünüme yol açıyordu. Artık topbar'ın
+//     arka planı geniş sayfayı dikişsiz kaplıyor, sadece içeriği (geri tuşu +
+//     başlık) padding ile 480px'lik alana ortalanıyor (css/main.css).
+//   v1.3.39 — APP_VERSION → V31.98. FIX: Talepler > Yeni Talep akışı artık
+//     GERÇEK sepet mantığıyla çalışıyor — ürün seçilince tek ürün modalı
+//     yerine sepete ekleniyor, "+ Ürün Ekle" ile başka ürün de eklenebiliyor,
+//     her satırın kendi adet kutusu ve silme tuşu var, sepet tek seferde
+//     (tek müşteri ile) gönderiliyor. Stok sekmesindeki tekli "🛒 Talep Et"
+//     kartı da artık aynı sepete ekliyor (donanim.js v1.0.34).
+//   v1.3.38 — APP_VERSION → V31.97. Donanım Takip ekran düzeni: Hızlı Sevkiyat
+//     Ana Menü'den kaldırıldı, Stok+Rezervasyon sekmelerinin üstüne taşındı;
+//     Yeni Ürün Ekle/Excel ile Stok Yükle sadece Stok sekmesine taşındı.
+//     Rezervasyon sekmesine "Yeni Rezervasyon", Talepler sekmesine stokta
+//     olmayan ürünlerden seçim yaptıran "Yeni Talep" eklendi. Depolar
+//     sekmesinin geniş modu artık sadece dağıtım ızgarasını genişletiyor,
+//     üst bölüm (başlık+sekme şeridi) diğer sekmelerle aynı ölçüde kalıyor
+//     (donanim.js v1.0.33, auth.js v1.2.20, index.html, css/main.css).
 //   v1.3.37 — APP_VERSION → V31.96. FIX: Yönetici Paneli > Hedef Yönetimi >
 //     Hedef Girişi ekranı hiç kapsam kontrolü yapmıyordu, her yönetici tüm
 //     şirket personelini görüyordu (hedef.js v1.2.8, yetki.js v1.2.8, bkz.
@@ -463,7 +484,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.96';
+const APP_VERSION = 'V31.99';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

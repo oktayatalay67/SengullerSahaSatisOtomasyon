@@ -1,7 +1,10 @@
 // ============================================================
-// auth.js — v1.2.19
-// Son güncelleme: 2026-08-26
+// auth.js — v1.2.20
+// Son güncelleme: 2026-09-15
 // Değişiklikler:
+//   v1.2.20 — (V31.97) Ana Menü'deki "Hızlı Sevkiyat" kutusu (menuSevkiyatBox)
+//     kaldırıldı — Donanım Takip içine taşındı (bkz. donanim.js v1.0.33,
+//     index.html). loadDashboard'daki ilgili görünürlük kodu temizlendi.
 //   v1.2.19 — (V31.42) loadKcmMyIds ext_kod da yukler; myIdToExt + window.userSecici
 //             (isim/EXT ile MY arama) — Veri Yonetimi Toplu Atama secicisi icin.
 //   v1.2.18 — (V31.33) initApp'te girişte duyuru.js:_duyuruBadgeGuncelle()
@@ -178,9 +181,8 @@ function loadDashboard(){
   if(pdBtn) pdBtn.style.display = hasPerm('admin_panel') ? '' : 'none';
   const aramaBox=document.getElementById('menuAramaBox');
   if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')));
-  // V31.65: Hızlı Sevkiyat kutusu — hem yönetim hem sevk yetkisi gerekir
-  const svkBox=document.getElementById('menuSevkiyatBox');
-  if(svkBox) svkBox.classList.toggle('hide', !(hasPerm('donanim_yonet')&&hasPerm('donanim_sevk')));
+  // V31.97: Hızlı Sevkiyat Ana Menü'den kaldırıldı — Donanım Takip > Stok/
+  // Rezervasyon sekmelerinin içine taşındı (bkz. donanim.js initDonanimPage).
   const ymBox=document.getElementById('yoneticiMenuBox');
   if(ymBox) ymBox.classList.toggle('hide', !hasPerm('yonetici_panel'));
 }

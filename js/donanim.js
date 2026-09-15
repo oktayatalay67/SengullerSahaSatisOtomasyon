@@ -1,4 +1,40 @@
 // ============================================================
+// donanim.js — v1.0.34 (V31.98)
+//   v1.0.34 (V31.98): Talepler > Yeni Talep akışı GERÇEK sepet mantığına
+//     çevrildi. Önceki sürümde ürün seçilince doğrudan tek-ürün gönderim
+//     modalı açılıyordu; şimdi seçilen ürün window._donanimTalepSepet.items
+//     listesine EKLENİYOR ve aynı modal (donanimTalepModal) artık bu listeyi
+//     gösteriyor, altında "+ Ürün Ekle" ile tekrar ürün seçim ekranına
+//     dönülüp yeni ürün eklenebiliyor. Her satırın kendi adet kutusu var,
+//     silme (✕) ile satır çıkarılabiliyor. Müşteri seçimi ve gönderim tüm
+//     sepet için tek seferde yapılıyor — donanimTalepGonder() artık sepetteki
+//     her ürün için ayrı stok_tedarik_talepleri + stok_hareketleri satırı
+//     oluşturuyor. Stok sekmesindeki tekli "🛒 Talep Et" kartı da (aynı
+//     donanimTalepModalAc fonksiyonu üzerinden) artık aynı sepete ekliyor —
+//     iki giriş noktası (Stok kartı / Talepler ekranı) tek sepet akışında
+//     birleşti. donanimTalepAdet global input'u kaldırıldı (adet artık
+//     satır başına).
+// donanim.js — v1.0.33 (V31.97)
+//   v1.0.33 (V31.97): Hızlı Sevkiyat kısayolu Ana Menü'den kaldırıldı, Donanım
+//     Takip içine taşındı. Stok sekmesinin en üstüne yeni bir kısayol eklendi
+//     (donanimStokSvkKisayol) — Rezervasyon sekmesindeki (donanimRezSvkKisayol)
+//     zaten oradaydı, ikisi de aynı koşulla görünür (donanim_yonet+donanim_sevk).
+//     "+ Yeni Ürün Ekle" / "Excel ile Stok Yükle" butonları da tüm sekmelerde
+//     sabit üstten kaldırılıp sadece Stok sekmesine taşındı (index.html).
+//     AYRICA: (1) Rezervasyon sekmesine "📌 Yeni Rezervasyon" eklendi — Stok
+//     sekmesindeki 📌 Rezervasyon tuşuyla birebir aynı akışı (seçim moduna
+//     geçiş) tetikler. (2) Talepler sekmesine "➕ Yeni Talep" eklendi — stokta
+//     olmayan (musait_adet<=0) ürünleri listeleyen yeni bir seçim ekranı
+//     açar, seçilen üründe MEVCUT tek-ürün Talep modalını (donanimTalepModalAc)
+//     aynen açar; talep akışının kendisi değişmedi. Bu ekrana Depo & Muhasebe
+//     (donanim_yonet) de girebilsin diye donanimTalepModalAc/donanimTalepGonder
+//     içindeki yetki kontrolü donanim_on_rezerve_et VEYA donanim_yonet oldu.
+//     loadDonanimListesi'nin sorgu+birleştirme mantığı _donanimStokListesiGetir()
+//     adıyla ayrı fonksiyona çıkarıldı (Yeni Talep ekranı da kullanıyor,
+//     "Sadece stokta olanlar" anahtarından bağımsız, sadeceStok:false ile).
+//     (3) css/main.css: Depolar sekmesi genişleyince (.page.genis) artık
+//     sadece alttaki dağıtım ızgarası genişliyor — üst bölüm (başlık çubuğu +
+//     sekme şeridi) diğer sekmelerle aynı 480px ölçüsünde kalıyor.
 // donanim.js — v1.0.32 (V31.66)
 //   v1.0.32 (V31.66): Sekme seridi SABIT iki satira alindi.
 //     Ust satir: Depolar, Stok (envanter) — Alt satir: Rezervasyon,
@@ -228,6 +264,10 @@ async function initDonanimPage(){
   if(excelBtn) excelBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
   const rezBtn = document.getElementById('donanimRezervasyonBtn');
   if(rezBtn) rezBtn.style.display = hasPerm('donanim_on_rezerve_et') ? '' : 'none';
+  // V31.97: Rezervasyon sekmesinin üstündeki "Yeni Rezervasyon" — Stok
+  // sekmesindeki 📌 Rezervasyon tuşuyla aynı yetki.
+  const rezYeniBtn = document.getElementById('donanimRezYeniBtn');
+  if(rezYeniBtn) rezYeniBtn.style.display = hasPerm('donanim_on_rezerve_et') ? '' : 'none';
   // v30.97: Transfer sekmesi yalnız transfer yetkisi (talep VEYA onay) olanda görünür
   const transferTabBtn = document.getElementById('donanimTabTransferBtn');
   if(transferTabBtn){
@@ -241,8 +281,17 @@ async function initDonanimPage(){
   // V31.65: Hızlı Sevkiyat artık ayrı sayfa — burada yalnız kısayol düğmesi
   const svkKisayol = document.getElementById('donanimRezSvkKisayol');
   if(svkKisayol) svkKisayol.style.display = (hasPerm('donanim_yonet') && hasPerm('donanim_sevk')) ? '' : 'none';
+  // V31.97: Aynı kısayol artık Stok sekmesinin de en üstünde (Ana Menü'deki
+  // ayrı "Hızlı Sevkiyat" kutusu kaldırıldı, bkz. auth.js loadDashboard).
+  const svkKisayolStok = document.getElementById('donanimStokSvkKisayol');
+  if(svkKisayolStok) svkKisayolStok.style.display = (hasPerm('donanim_yonet') && hasPerm('donanim_sevk')) ? '' : 'none';
   const talepTabBtn = document.getElementById('donanimTabTalepBtn');
   if(talepTabBtn) talepTabBtn.style.display = (hasPerm('donanim_on_rezerve_et') || hasPerm('donanim_yonet')) ? '' : 'none';
+  // V31.97: Talepler sekmesindeki "Yeni Talep" — Depo & Muhasebe (donanim_yonet)
+  // için. donanimTalepModalAc/donanimTalepGonder içindeki yetki kontrolü de
+  // aynı şekilde genişletildi (aşağıda, bkz. o fonksiyonlar).
+  const talepYeniBtn = document.getElementById('donanimTalepYeniBtn');
+  if(talepYeniBtn) talepYeniBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
   window._donanimSepet = {};
   window._donanimSecimModu = false;
   window._donanimDepoCache = null;   // V31.57: her açılışta depo haritası tazelenir
@@ -326,9 +375,23 @@ async function loadDonanimListesi(){
   const listEl = document.getElementById('donanimListesi');
   if(!listEl) return;
   listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  const {data, error} = await _donanimStokListesiGetir();
+  if(error){
+    listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error)}</div>`;
+    return;
+  }
+  window._donanimList = data;
+  _renderDonanimListesi(window._donanimList);
+}
 
+// V31.97: loadDonanimListesi'nin sorgu+birleştirme mantığı, Talepler > Yeni Talep
+// ürün seçim listesinin de kullanabilmesi için ayrı bir fonksiyona çıkarıldı.
+// `overrides.sadeceStok` verilirse "Sadece stokta olanlar" anahtarı yerine geçer
+// (Yeni Talep her zaman false ile çağırır — stokta OLMAYAN ürünleri görmek için).
+async function _donanimStokListesiGetir(overrides){
+  overrides = overrides || {};
   const scope = getScope('donanim');
-  const sadeceStok = _donanimSadeceStokAcik();
+  const sadeceStok = (overrides.sadeceStok !== undefined) ? overrides.sadeceStok : _donanimSadeceStokAcik();
 
   let hedefDepoId = null;   // kullanıcının (veya seçili KÇM'nin) ANA deposu
   let merkezDepoId = null;
@@ -360,7 +423,7 @@ async function loadDonanimListesi(){
   // hedefDepoId yoksa (admin, KÇM filtresi seçilmemiş) kapsam kısıtı uygulanmaz
 
   // v30.85: kelime-bazlı arama (sıra önemsiz) — aciklama + malzeme_kodu içinde
-  const aramaMetni = document.getElementById('donanimMarkaFiltre')?.value?.trim();
+  const aramaMetni = (overrides.aramaMetni !== undefined) ? overrides.aramaMetni : document.getElementById('donanimMarkaFiltre')?.value?.trim();
   if(aramaMetni){
     const kelimeler = aramaMetni.split(/\s+/).filter(Boolean);
     kelimeler.forEach(kelime=>{
@@ -369,10 +432,7 @@ async function loadDonanimListesi(){
   }
 
   const {data, error} = await q;
-  if(error){
-    listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`;
-    return;
-  }
+  if(error) return {data:[], error: error.message};
   // V31.61: CEP depo satirlari donanim_yonet disindaki hicbir role gosterilmez
   let _satirlar = data || [];
   if(!hasPerm('donanim_yonet')){
@@ -382,8 +442,8 @@ async function loadDonanimListesi(){
   // V31.60: hedef depo zaten Merkez ise (ADMIN + kendi depom), merkez satirlari
   // 'katalog' sayilip elenmemeli — birlestirmeye merkez kimligi verilmez.
   const _kendiMerkez = !!(hedefDepoId && merkezDepoId && hedefDepoId === merkezDepoId);
-  window._donanimList = _donanimListeBirlestir(_satirlar, hedefDepoId, _kendiMerkez ? null : merkezDepoId, sadeceStok);
-  _renderDonanimListesi(window._donanimList);
+  const birlesik = _donanimListeBirlestir(_satirlar, hedefDepoId, _kendiMerkez ? null : merkezDepoId, sadeceStok);
+  return {data: birlesik, error: null};
 }
 
 function _donanimSadeceStokAcik(){
@@ -3216,7 +3276,7 @@ function donanimRaporExcelIndir(){
    ============================================================ */
 
 window._donanimDepoCache = window._donanimDepoCache || null;
-window._donanimTalep     = window._donanimTalep     || null;
+window._donanimTalepSepet = window._donanimTalepSepet || {items:[], musteri:null};
 
 // depolar_v -> {merkez: depo_id, kcm: {kcm_id: depo_id}} (yalnız ANA depolar)
 async function _donanimDepoHaritasi(){
@@ -3245,25 +3305,141 @@ async function _donanimMerkezDepoId(){
 
 /* ---- Talep modalı ---- */
 
-function donanimTalepModalAc(urunId){
-  if(!hasPerm('donanim_on_rezerve_et')){ toast('Yetkiniz yok','error'); return; }
-  const u = (window._donanimList||[]).find(x=> x.urun_id === urunId);
+// ============================================================
+// V31.98: TALEPLER > YENİ TALEP — ürün seçim ekranı + SEPET
+// Stokta (musait_adet<=0) olmayan ürünleri listeler; birine tıklanınca ürün
+// window._donanimTalepSepet.items sepetine EKLENİR ve sepet modalı
+// (donanimTalepModal) gösterilir. "+ Ürün Ekle" ile tekrar bu seçim ekranına
+// dönülüp sepete yeni ürün eklenebilir; sepet tek seferde gönderilir.
+// ============================================================
+window._donanimTalepUrunSecListesi = [];
+
+// devam=true: mevcut sepeti KORUYARAK tekrar ürün seçim ekranını açar
+// ("+ Ürün Ekle"). devam=false/boş: "Yeni Talep" tuşundan çağrılır, sepeti
+// sıfırlar (yeni bir talep oturumu başlatır).
+async function donanimTalepUrunSecAc(devam){
+  if(!hasPerm('donanim_yonet') && !hasPerm('donanim_on_rezerve_et')){ toast('Yetkiniz yok','error'); return; }
+  if(!devam){ window._donanimTalepSepet = {items:[], musteri:null}; }
+  const listEl = document.getElementById('donanimTalepUrunSecListesi');
+  const araEl = document.getElementById('donanimTalepUrunSecAra');
+  if(araEl) araEl.value = '';
+  if(listEl) listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  openModal('donanimTalepUrunSecModal');
+
+  const {data, error} = await _donanimStokListesiGetir({sadeceStok:false, aramaMetni:''});
+  if(error){
+    if(listEl) listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error)}</div>`;
+    return;
+  }
+  window._donanimTalepUrunSecListesi = (data||[]).filter(u => (u.musait_adet||0) <= 0);
+  _donanimTalepUrunSecRenderla(window._donanimTalepUrunSecListesi);
+}
+
+function donanimTalepUrunSecFiltrele(){
+  const terim = (document.getElementById('donanimTalepUrunSecAra')?.value||'').trim().toLowerCase();
+  const tumu = window._donanimTalepUrunSecListesi||[];
+  if(!terim){ _donanimTalepUrunSecRenderla(tumu); return; }
+  const filtreli = tumu.filter(u=>{
+    const metin = [u.aciklama, u.malzeme_kodu, u.marka, u.model].filter(Boolean).join(' ').toLowerCase();
+    return metin.includes(terim);
+  });
+  _donanimTalepUrunSecRenderla(filtreli);
+}
+
+function _donanimTalepUrunSecRenderla(list){
+  const listEl = document.getElementById('donanimTalepUrunSecListesi');
+  if(!listEl) return;
+  if(!list.length){ listEl.innerHTML = '<div class="empty">Stokta olmayan ürün bulunamadı.</div>'; return; }
+  listEl.innerHTML = list.map(u=>{
+    const baslik = u.aciklama || [u.marka,u.model,u.renk,u.gb_hafiza].filter(Boolean).join(' ') || 'İsimsiz ürün';
+    return `<div class="visit-card" style="margin-bottom:8px;cursor:pointer;" onclick='_donanimTalepUrunSecSecildi(${u.urun_id})'>
+      <div style="font-weight:700;font-size:13px;line-height:1.3;">${escapeHTML(baslik)}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px;">${u.malzeme_kodu?'Kod: '+escapeHTML(u.malzeme_kodu):''}</div>
+    </div>`;
+  }).join('');
+}
+
+function _donanimTalepUrunSecSecildi(urunId){
+  const u = (window._donanimTalepUrunSecListesi||[]).find(x=>x.urun_id===urunId);
   if(!u){ toast('Ürün bulunamadı','error'); return; }
-  window._donanimTalep = {
-    urun_id: urunId,
-    ad: u.aciklama || u.malzeme_kodu || 'İsimsiz ürün',
-    kod: u.malzeme_kodu || '',
-    musteri: null
-  };
-  const setEl = (id, val)=>{ const e=document.getElementById(id); if(e) e.value = val; };
-  const bas = document.getElementById('donanimTalepUrun');
-  if(bas) bas.textContent = window._donanimTalep.ad;
-  setEl('donanimTalepAdet', 1);
-  setEl('donanimTalepNot', '');
-  setEl('donanimTalepMusteriArama', '');
+  closeModal('donanimTalepUrunSecModal');
+  donanimTalepModalAc(urunId, u);
+}
+
+// V31.98: `urunObj` opsiyonel — Talepler > Yeni Talep ekranı, kendi ayrı (stokta
+// olmayan ürünler) listesinden ürün nesnesini doğrudan geçirir; verilmezse eskisi
+// gibi window._donanimList içinden aranır (Stok sekmesindeki tekli "🛒 Talep Et"
+// kartı için). Artık tek-ürün modalı AÇMIYOR — ürünü sepete EKLEYİP sepet
+// modalını gösteriyor; aynı fonksiyon her iki giriş noktasından da çağrılır.
+function donanimTalepModalAc(urunId, urunObj){
+  // Depo & Muhasebe (donanim_yonet), Talepler ekranındaki "Yeni Talep" ile de
+  // buraya girebiliyor — izin buna göre genişletildi.
+  if(!hasPerm('donanim_on_rezerve_et') && !hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
+  const u = urunObj || (window._donanimList||[]).find(x=> x.urun_id === urunId);
+  if(!u){ toast('Ürün bulunamadı','error'); return; }
+  if(!window._donanimTalepSepet) window._donanimTalepSepet = {items:[], musteri:null};
+  const mevcut = window._donanimTalepSepet.items.find(x=>x.urun_id===urunId);
+  if(mevcut){
+    mevcut.adet = (mevcut.adet||1) + 1;
+  } else {
+    window._donanimTalepSepet.items.push({
+      urun_id: urunId,
+      ad: u.aciklama || u.malzeme_kodu || 'İsimsiz ürün',
+      kod: u.malzeme_kodu || '',
+      adet: 1
+    });
+  }
+  donanimTalepSepetGoster();
+}
+
+// Sepeti modal içinde render edip modalı açar/günceller. Müşteri seçimi
+// sepette kalıcı olduğundan (window._donanimTalepSepet.musteri) tekrar
+// açılışta korunur ve arayüzde yeniden gösterilir.
+function donanimTalepSepetGoster(){
+  _donanimTalepSepetRenderla();
+  const sec = document.getElementById('donanimTalepMusteriSecili');
+  const c = window._donanimTalepSepet.musteri;
+  if(sec){
+    if(c){
+      sec.classList.remove('hide');
+      sec.innerHTML = `✓ <b>${escapeHTML(c.unvan||c.ncst)}</b> (NCST: ${escapeHTML(c.ncst)}) <a href="#" onclick="event.preventDefault();donanimTalepMusteriTemizle()" style="color:var(--red);margin-left:8px;">✕</a>`;
+    } else {
+      sec.classList.add('hide');
+      sec.innerHTML = '';
+    }
+  }
+  const ara = document.getElementById('donanimTalepMusteriArama'); if(ara) ara.value = '';
   const son = document.getElementById('donanimTalepMusteriSonuc'); if(son) son.innerHTML = '';
-  const sec = document.getElementById('donanimTalepMusteriSecili'); if(sec) sec.classList.add('hide');
   openModal('donanimTalepModal');
+}
+
+function _donanimTalepSepetRenderla(){
+  const el = document.getElementById('donanimTalepSepetListesi');
+  if(!el) return;
+  const items = (window._donanimTalepSepet && window._donanimTalepSepet.items) || [];
+  if(!items.length){
+    el.innerHTML = '<div class="empty" style="padding:10px 0;">Sepet boş — ürün ekleyin.</div>';
+    return;
+  }
+  el.innerHTML = items.map(it=>`
+    <div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;line-height:1.3;">${escapeHTML(it.ad)}</div>
+        ${it.kod?`<div style="font-size:11px;color:var(--text3);">Kod: ${escapeHTML(it.kod)}</div>`:''}
+      </div>
+      <input type="number" min="1" step="1" value="${it.adet}" style="width:56px;background:var(--navy2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px;font-size:13px;text-align:center;" onchange="_donanimTalepSepetAdetGuncelle(${it.urun_id}, this.value)">
+      <a href="#" onclick="event.preventDefault();_donanimTalepSepetUrunSil(${it.urun_id})" style="color:var(--red);font-size:16px;padding:4px;">✕</a>
+    </div>`).join('');
+}
+
+function _donanimTalepSepetAdetGuncelle(urunId, val){
+  const it = (window._donanimTalepSepet.items||[]).find(x=>x.urun_id===urunId);
+  if(it) it.adet = Math.max(1, parseInt(val)||1);
+}
+
+function _donanimTalepSepetUrunSil(urunId){
+  window._donanimTalepSepet.items = (window._donanimTalepSepet.items||[]).filter(x=>x.urun_id!==urunId);
+  _donanimTalepSepetRenderla();
 }
 
 let _donanimTalepAraTimer = null;
@@ -3289,8 +3465,8 @@ async function _donanimTalepMusteriAra(){
 }
 
 function donanimTalepMusteriSec(c){
-  if(!window._donanimTalep) return;
-  window._donanimTalep.musteri = c;
+  if(!window._donanimTalepSepet) window._donanimTalepSepet = {items:[], musteri:null};
+  window._donanimTalepSepet.musteri = c;
   const son = document.getElementById('donanimTalepMusteriSonuc'); if(son) son.innerHTML='';
   const ara = document.getElementById('donanimTalepMusteriArama'); if(ara) ara.value='';
   const el = document.getElementById('donanimTalepMusteriSecili');
@@ -3301,48 +3477,55 @@ function donanimTalepMusteriSec(c){
 }
 
 function donanimTalepMusteriTemizle(){
-  if(window._donanimTalep) window._donanimTalep.musteri = null;
+  if(window._donanimTalepSepet) window._donanimTalepSepet.musteri = null;
   const el = document.getElementById('donanimTalepMusteriSecili');
   if(el) el.classList.add('hide');
 }
 
 async function donanimTalepGonder(){
-  const T = window._donanimTalep;
-  if(!T){ toast('Talep bilgisi kayboldu, tekrar deneyin','error'); return; }
-  if(!hasPerm('donanim_on_rezerve_et')){ toast('Yetkiniz yok','error'); return; }
-  if(!T.musteri){ toast('Müşteri seçin (zorunlu)','error'); return; }
-  const adet = parseInt(document.getElementById('donanimTalepAdet')?.value);
-  if(!adet || adet < 1){ toast('Geçerli adet girin','error'); return; }
+  const S = window._donanimTalepSepet;
+  if(!S || !S.items || !S.items.length){ toast('Sepette ürün yok','error'); return; }
+  // V31.98: bkz. donanimTalepModalAc — aynı genişletilmiş yetki kontrolü.
+  if(!hasPerm('donanim_on_rezerve_et') && !hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
+  if(!S.musteri){ toast('Müşteri seçin (zorunlu)','error'); return; }
+  for(const it of S.items){
+    if(!it.adet || it.adet < 1){ toast(`"${it.ad}" için geçerli adet girin`,'error'); return; }
+  }
   const not = (document.getElementById('donanimTalepNot')?.value||'').trim();
 
   const btn = document.getElementById('donanimTalepGonderBtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Gönderiliyor...'; }
 
-  const {error} = await sb.from('stok_tedarik_talepleri').insert({
-    urun_id: T.urun_id,
-    kcm_id: currentUser.kcm_id || null,
-    talep_eden_id: currentUser.my_id,
-    ncst: T.musteri.ncst,
-    musteri_unvani: T.musteri.unvan || null,
-    adet: adet,
-    durum: 'Talep Edildi',
-    aciklama: not || null
-  });
+  for(const it of S.items){
+    const {error} = await sb.from('stok_tedarik_talepleri').insert({
+      urun_id: it.urun_id,
+      kcm_id: currentUser.kcm_id || null,
+      talep_eden_id: currentUser.my_id,
+      ncst: S.musteri.ncst,
+      musteri_unvani: S.musteri.unvan || null,
+      adet: it.adet,
+      durum: 'Talep Edildi',
+      aciklama: not || null
+    });
+    if(error){
+      if(btn){ btn.disabled = false; btn.textContent = 'Talebi Gönder'; }
+      toast(`"${it.ad}" için talep gönderilemedi: `+error.message,'error');
+      return;
+    }
+    const {error:logErr} = await sb.from('stok_hareketleri').insert({
+      urun_id: it.urun_id,
+      aksiyon: 'Tedarik Talebi',
+      detay: `${it.adet} adet — ${it.ad} · ${S.musteri.unvan || S.musteri.ncst}`,
+      user_id: currentUser.my_id,
+      user_ad: currentUser.ad_soyad || String(currentUser.my_id)
+    });
+    if(logErr) console.error('[donanim] talep log hatası:', logErr.message);
+  }
 
   if(btn){ btn.disabled = false; btn.textContent = 'Talebi Gönder'; }
-  if(error){ toast('Talep gönderilemedi: '+error.message,'error'); return; }
-
-  const {error:logErr} = await sb.from('stok_hareketleri').insert({
-    urun_id: T.urun_id,
-    aksiyon: 'Tedarik Talebi',
-    detay: `${adet} adet — ${T.ad} · ${T.musteri.unvan || T.musteri.ncst}`,
-    user_id: currentUser.my_id,
-    user_ad: currentUser.ad_soyad || String(currentUser.my_id)
-  });
-  if(logErr) console.error('[donanim] talep log hatası:', logErr.message);
-
   toast('Tedarik talebi gönderildi','success');
   closeModal('donanimTalepModal');
+  window._donanimTalepSepet = {items:[], musteri:null};
   _donanimTalepBadge();
 }
 
