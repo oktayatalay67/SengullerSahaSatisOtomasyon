@@ -1,4 +1,19 @@
 'use strict';
+// ============================================================
+// hedef.js — v1.2.8
+// Son güncelleme: 2026-09-15
+// Değişiklikler:
+//   v1.2.8 — (V31.96) KAPSAM GÜVENLİK FIX: loadHedefGirisTable ve
+//     downloadHedefTemplate, ekranı kim açarsa açsın 'users' tablosundan TÜM
+//     aktif çalışanları filtresiz çekiyordu — Rol modülünde bu ekran için hiç
+//     kapsam tanımı yoktu. Yeni 'hedef_giris' kapsam modülü eklendi (bkz.
+//     yetki.js v1.2.8) ve _hedefGirisScopeliUsersQuery() ile TÜM/KÇM/BAĞLI/
+//     PRT davranışı uygulanıyor. applyScope()'un genel PRT+ dalı bu tabloda
+//     olmayan 'musteri_my_id' kolonuna referans verdiği için (çalışan listesi,
+//     müşteri sahipliği değil) applyScope kullanılmadı; ayrı, güvenli bir
+//     sarmalayıcı yazıldı — PRT+ seçilirse de güvenli tarafta kalıp sadece
+//     kendisini görür.
+// ============================================================
 /* ===== HEDEF SİSTEMİ ===== */
 function ayStr(d){return d.toISOString().slice(0,7)+'-01';}
 function ayLabel(s){const d=new Date(s+'T00:00:00');return d.toLocaleDateString('tr-TR',{month:'long',year:'numeric'});}
@@ -113,6 +128,25 @@ async function toggleProductTargetMap(productId,targetId,checked){
 
 // ---- HEDEF GİRİŞİ ----
 let hedefGirisData={};
+// v1.2.8: applyScope()'un genel PRT+ dalı 'musteri_my_id' kolonuna referans
+// veriyor — bu kolon users tablosunda yok, sorguyu patlatır. Bu ekran için
+// PRT+ anlamsız olduğundan (çalışan listesi, müşteri sahipliği değil) ayrı,
+// güvenli bir kapsam sarmalayıcı kullanılıyor.
+function _hedefGirisScopeliUsersQuery(){
+  let q = sb.from('users').select('my_id,ad_soyad,kcm_adi').eq('aktif',true).order('kcm_adi').order('ad_soyad');
+  const scope = (typeof getScope === 'function') ? getScope('hedef_giris') : 'PRT';
+  if (scope === 'TÜM') return q;
+  if (scope === 'KÇM' && currentUser.kcm_id && typeof kcmMyIds !== 'undefined' && kcmMyIds.length) {
+    return q.in('my_id', kcmMyIds);
+  }
+  if (scope === 'BAĞLI' && typeof bagliMyIds !== 'undefined' && bagliMyIds.length) {
+    return q.in('my_id', bagliMyIds);
+  }
+  // KÇM/BAĞLI seçili ama liste boşsa, ya da PRT/PRT+ seçiliyse: güvenli tarafta
+  // kal, sadece kendisini görsün.
+  return q.eq('my_id', currentUser.my_id);
+}
+
 async function initHedefGirisAylar(){
   const sel=document.getElementById('hedefGirisAy');
   if(!sel||sel.options.length>0)return;
@@ -133,7 +167,7 @@ async function loadHedefGirisTable(){
   c.innerHTML='<div class="loader"><div class="spinner"></div></div>';
   try{
     const[{data:users},{data:targets},{data:existing}]=await Promise.all([
-      sb.from('users').select('my_id,ad_soyad,kcm_adi').eq('aktif',true).order('kcm_adi').order('ad_soyad'),
+      _hedefGirisScopeliUsersQuery(),
       sb.from('target_items').select('target_id,target_name,unit_type').eq('is_active',true).order('sira'),
       sb.from('user_targets').select('*').eq('ay',ay)
     ]);
@@ -202,7 +236,7 @@ async function saveAllHedefler(){
 async function downloadHedefTemplate(){
   const[{data:targets},{data:users}]=await Promise.all([
     sb.from('target_items').select('target_id,target_name').eq('is_active',true).order('sira'),
-    sb.from('users').select('my_id,ad_soyad,kcm_adi').eq('aktif',true).order('kcm_adi').order('ad_soyad')
+    _hedefGirisScopeliUsersQuery()
   ]);
   if(!targets||!users){toast('Veri yüklenemedi','error');return;}
   const sep=',';
