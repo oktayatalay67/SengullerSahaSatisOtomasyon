@@ -1,7 +1,12 @@
 // ============================================================
-// yetki.js — v1.2.7
-// Son güncelleme: 2026-09-13
+// yetki.js — v1.2.8
+// Son güncelleme: 2026-09-15
 // Değişiklikler:
+//   v1.2.8 — (V31.96) KAPSAM GÜVENLİK FIX: YETKI_MODUL_ADLARI'na 'hedef_giris'
+//     eklendi — Yönetici Paneli > Hedef Yönetimi > Hedef Girişi ekranı hiç
+//     kapsam kontrolü yapmıyordu, her yönetici tüm şirket personelini görüyordu.
+//     Rol & Yetki > Görüntüleme sekmesinde artık bu modül için de TÜM/KÇM/BAĞLI/
+//     PRT+/PRT seçici çıkıyor. Detay: hedef.js v1.2.8 değişiklik notu.
 //   v1.2.7 — (V31.86) Veri Kalitesi Denetim Modülü izinleri eklendi:
 //     veri_kalite_gor, veri_kalite_calistir, veri_kalite_duzelt_onayla
 //     ('Yönetim' grubuna, KÇM/TÜM scope'suz — modül tüm veriyi tarar).
@@ -48,7 +53,12 @@ const YETKI_MODUL_ADLARI = {
   musteri:'Müşteri', temas:'Temas / Ziyaret', firsat:'Fırsat',
   gorev:'Görev', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
   donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)',
-  arama:'Ziyaret Teyit (Arama)' // v1.2.6 (V31.7x): kritik guvenlik fix — daha once bu modulun HIC scope kisiti yoktu
+  arama:'Ziyaret Teyit (Arama)', // v1.2.6 (V31.7x): kritik guvenlik fix — daha once bu modulun HIC scope kisiti yoktu
+  hedef_giris:'Hedef Girişi (Çalışan Listesi)' // v1.2.8 (V31.96): Yönetici Paneli > Hedef Yönetimi > Hedef Girişi
+    // ekranı hiç kapsam kontrolü yapmıyordu, her yönetici tüm şirket personelini görüyordu.
+    // NOT: Bu modül DB'de henüz tanımlı değilse getScope() varsayılan olarak 'PRT' (sadece
+    // kendi) döner — ilk deploy sonrası her rol için Görüntüleme sekmesinden değer seçilmeli
+    // (ADMIN/SATIŞ DİREKTÖRÜ=TÜM önerilir, aksi halde onlar da sadece kendini görür).
 };
 
 const YETKI_ACTION_GRUP = [

@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.3.36
+// config.js — v1.3.37
 // Son güncelleme: 2026-09-15
 // Değişiklikler:
+//   v1.3.37 — APP_VERSION → V31.96. FIX: Yönetici Paneli > Hedef Yönetimi >
+//     Hedef Girişi ekranı hiç kapsam kontrolü yapmıyordu, her yönetici tüm
+//     şirket personelini görüyordu (hedef.js v1.2.8, yetki.js v1.2.8, bkz.
+//     o dosyalar). Yeni 'hedef_giris' kapsam modülü Rol & Yetki ekranında
+//     ayarlanabilir hale geldi.
 //   v1.3.36 — APP_VERSION → V31.95. FIX: KÇM Müdürleri Görev modülünde tüm
 //     KÇM'lerin görevlerini görebiliyordu — kapsam kontrolü Rol ekranındaki
 //     ayarı hiç okumuyordu (gorev.js v1.2.13, bkz. o dosya).
@@ -458,7 +463,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.95';
+const APP_VERSION = 'V31.96';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
