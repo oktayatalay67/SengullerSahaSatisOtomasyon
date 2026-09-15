@@ -846,10 +846,11 @@ function switchAdminTab(tab){
 
 var _adminTabAdlar = {
   'urunler':'Ürünler','kullanicilar':'Kullanıcılar','talepler':'Talepler',
-  'ziyaretOpt':'Ziyaret Seçenekleri','veriSagligi':'Veri Sağlığı','gorevTipleri':'Görev Tipleri',
-  'yetki':'Rol & Yetki Yönetimi','aramaAyarlari':'Arama Ayarları'
+  'ziyaretOpt':'Ziyaret Seçenekleri','gorevTipleri':'Görev Tipleri',
+  'yetki':'Rol & Yetki Yönetimi','aramaAyarlari':'Arama Ayarları',
+  'veriKalite':'Veri Kalitesi Denetim'
 };
-var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri','yetki','aramaAyarlari'];
+var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','gorevTipleri','yetki','aramaAyarlari','veriKalite'];
 
 function adminSayfaAc(tab){
   // Kutu menüyü gizle, nav bar'ı göster
@@ -873,6 +874,7 @@ function adminSayfaAc(tab){
   if(tab==='gorevTipleri')renderGorevTipleriAdmin();
   if(tab==='yetki')       initYetkiYonetim();
   if(tab==='aramaAyarlari')renderAramaAyarlari();
+  if(tab==='veriKalite')   initVeriKaliteDenetim();
 }
 
 function adminMenueGeri(){
@@ -1538,258 +1540,6 @@ function showSifreUnuttum(){
 // ============================================================
 // v30.18: VERİ SAĞLIĞI — KÇM bilgisi eksik kayıtları tespit ve düzelt
 // ============================================================
-// v30.83: ÇİFT KAYIT TESPİTİ — 10 dk penceresi, gerçek zaman farkı
-// records içinde keyFn ile gruplar, her grupta anchor'dan <=windowMs olanları çift sayar.
-function _ciftGruplaBul(records, keyFn, timeFn, windowMs){
-  const groups={};
-  (records||[]).forEach(r=>{ const k=keyFn(r); if(k==null) return; (groups[k]=groups[k]||[]).push(r); });
-  const dup=[];
-  Object.values(groups).forEach(arr=>{
-    if(arr.length<2) return;
-    arr.sort((a,b)=> timeFn(a)-timeFn(b));
-    let chain=[arr[0]];
-    for(let i=1;i<arr.length;i++){
-      if(timeFn(arr[i]) - timeFn(chain[0]) <= windowMs){ chain.push(arr[i]); }
-      else { if(chain.length>1) dup.push(chain.slice()); chain=[arr[i]]; }
-    }
-    if(chain.length>1) dup.push(chain.slice());
-  });
-  return dup; // [[rec,rec,...], ...]
-}
-
-// Son 30 gün içinde temas/fırsat/görev çiftlerini bulur
-async function _vsCiftKayitBul(){
-  const since = new Date(Date.now() - 30*24*60*60*1000).toISOString();
-  const WIN = 10*60*1000;
-  const {data:vis} = await sb.from('visits')
-    .select('visit_id,my_id,ncst,tarih_saat').eq('durum','Gerçekleşti')
-    .gte('tarih_saat',since).not('tarih_saat','is',null);
-  const visDup=_ciftGruplaBul(vis, r=>r.my_id+'|'+r.ncst, r=>new Date(r.tarih_saat).getTime(), WIN);
-  const {data:opp} = await sb.from('opportunities')
-    .select('opp_id,my_id,ncst,urun_adi,olusturma_tarihi')
-    .gte('olusturma_tarihi',since).not('olusturma_tarihi','is',null);
-  const oppDup=_ciftGruplaBul(opp, r=>r.my_id+'|'+r.ncst+'|'+(r.urun_adi||''), r=>new Date(r.olusturma_tarihi).getTime(), WIN);
-  const {data:tsk} = await sb.from('tasks')
-    .select('task_id,atayan_id,atanan_id,ncst,baslik,olusturma_tarihi')
-    .gte('olusturma_tarihi',since).not('olusturma_tarihi','is',null);
-  const tskDup=_ciftGruplaBul(tsk, r=>r.atayan_id+'|'+r.atanan_id+'|'+r.ncst+'|'+(r.baslik||''), r=>new Date(r.olusturma_tarihi).getTime(), WIN);
-  return {visDup, oppDup, tskDup};
-}
-
-// Çift grupları HTML tabloya çevirir + silinecek id'leri döndürür
-function _vsCiftRender(dupGroups, idKey, zamanKey, etiket){
-  if(!dupGroups.length) return {html:'', silId:[]};
-  const rowStyle='padding:7px;border-bottom:1px solid var(--border);font-size:12px;';
-  const thStyle='padding:7px;font-size:10px;color:var(--text3);text-transform:uppercase;';
-  let silId=[];
-  let rows='';
-  dupGroups.forEach(g=>{
-    const ids=g.map(r=>r[idKey]).sort((a,b)=>a-b);
-    const tut=ids[0]; const sil=ids.slice(1);
-    silId=silId.concat(sil);
-    const zaman=new Date(g[0][zamanKey]).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'});
-    rows+=`<tr>
-      <td style="${rowStyle}">${escapeHTML(String(g[0].ncst||'?'))}</td>
-      <td style="${rowStyle}">${escapeHTML(String(g[0].my_id||g[0].atanan_id||'?'))}</td>
-      <td style="${rowStyle}">${escapeHTML(zaman)}</td>
-      <td style="${rowStyle}">${g.length}</td>
-      <td style="${rowStyle};color:var(--green);">#${tut}</td>
-      <td style="${rowStyle};color:var(--red);">${sil.map(x=>'#'+x).join(', ')}</td>
-    </tr>`;
-  });
-  const html=`<div style="margin-bottom:16px;">
-    <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">${etiket} (${dupGroups.length} grup, ${silId.length} fazla)</div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:auto;">
-      <table style="width:100%;border-collapse:collapse;">
-        <tr style="background:var(--navy2);"><th style="${thStyle}">Müşteri</th><th style="${thStyle}">MY/Atanan</th><th style="${thStyle}">İlk Kayıt</th><th style="${thStyle}">Adet</th><th style="${thStyle}">Tutulacak</th><th style="${thStyle}">Silinecek</th></tr>
-        ${rows}
-      </table>
-    </div>
-  </div>`;
-  return {html, silId};
-}
-
-async function veriSagligiTara(){
-  const sonucDiv=document.getElementById('veriSagligiSonuc');
-  sonucDiv.innerHTML='<div class="loader"><div class="spinner"></div></div><div style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;">Taranıyor...</div>';
-
-  try{
-    // 1. KÇM eksik fırsatlar
-    const{data:oppNull,error:e1}=await sb.from('opportunities')
-      .select('opp_id,ncst,my_id,musteri_my_id,adim,beklenen_ciro,kcm_id')
-      .is('kcm_id',null).order('opp_id');
-    if(e1) throw e1;
-
-    // 2. KÇM eksik temas kayıtları
-    const{data:visNull,error:e2}=await sb.from('visits')
-      .select('visit_id,ncst,my_id,musteri_my_id,durum,kcm_id')
-      .is('kcm_id',null).order('visit_id');
-    if(e2) throw e2;
-
-    const oppList=oppNull||[];
-    const visList=visNull||[];
-
-    if(oppList.length===0&&visList.length===0){
-      sonucDiv.innerHTML='<div style="padding:20px;text-align:center;color:var(--green);font-size:14px;">✅ Tüm kayıtlarda KÇM bilgisi mevcut. Sorun yok!</div>';
-      return;
-    }
-
-    // 3. Etkilenen NCST'lerin müşteri KÇM bilgisini çek
-    const allNcst=[...new Set([...oppList.map(o=>o.ncst),...visList.map(v=>v.ncst)].filter(Boolean))];
-    let custKcmMap={}, custMyMap={};
-    if(allNcst.length){
-      const{data:custs}=await sb.from('customers').select('ncst,kcm_id,my_id,unvan').in('ncst',allNcst);
-      (custs||[]).forEach(c=>{custKcmMap[c.ncst]=c.kcm_id; custMyMap[c.ncst]={my_id:c.my_id,unvan:c.unvan};});
-    }
-
-    // 4. Aynı zamanda my_id'den kcm_id çek (fallback)
-    const allMyIds=[...new Set([...oppList.map(o=>o.my_id),...visList.map(v=>v.my_id)].filter(Boolean))];
-    let userKcmMap={};
-    if(allMyIds.length){
-      const{data:usrs}=await sb.from('users').select('my_id,kcm_id,ad_soyad').in('my_id',allMyIds);
-      (usrs||[]).forEach(u=>{userKcmMap[u.my_id]={kcm_id:u.kcm_id,ad:u.ad_soyad};});
-    }
-
-    // Tablo oluştur
-    const rowStyle='padding:8px;border-bottom:1px solid var(--border);font-size:12px;';
-    const thStyle='padding:8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;';
-
-    let html=`<div style="margin-bottom:12px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">
-        📊 Eksik: <span style="color:var(--red);">${oppList.length} fırsat</span> + <span style="color:var(--amber);">${visList.length} temas</span>
-      </div>`;
-
-    if(oppList.length>0){
-      html+=`<div style="margin-bottom:16px;">
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">💼 KÇM Eksik Fırsatlar (${oppList.length})</div>
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-          <table style="width:100%;border-collapse:collapse;">
-            <tr style="background:var(--navy2);">
-              <th style="${thStyle}">opp_id</th><th style="${thStyle}">Müşteri</th>
-              <th style="${thStyle}">Giren MY</th><th style="${thStyle}">Adım</th>
-              <th style="${thStyle}">Düzeltme KÇM</th>
-            </tr>
-            ${oppList.map(o=>{
-              const cust=custMyMap[o.ncst]||{};
-              const guessKcm=custKcmMap[o.ncst]||userKcmMap[o.my_id]?.kcm_id;
-              const girenAd=userKcmMap[o.my_id]?.ad||('MY#'+o.my_id);
-              return `<tr>
-                <td style="${rowStyle}">#${o.opp_id}</td>
-                <td style="${rowStyle}">${escapeHTML(cust.unvan||o.ncst||'?')}</td>
-                <td style="${rowStyle}">${escapeHTML(girenAd)}</td>
-                <td style="${rowStyle}">${escapeHTML(o.adim||'?')}</td>
-                <td style="${rowStyle};color:${guessKcm?'var(--green)':'var(--red);'}">
-                  ${guessKcm?'KÇM#'+guessKcm:'❌ Bulunamadı'}
-                </td>
-              </tr>`;
-            }).join('')}
-          </table>
-        </div>
-      </div>`;
-    }
-
-    if(visList.length>0){
-      html+=`<div style="margin-bottom:16px;">
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">📞 KÇM Eksik Temas Kayıtları (${visList.length})</div>
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-          <table style="width:100%;border-collapse:collapse;">
-            <tr style="background:var(--navy2);">
-              <th style="${thStyle}">visit_id</th><th style="${thStyle}">Müşteri</th>
-              <th style="${thStyle}">Giren MY</th><th style="${thStyle}">Durum</th>
-              <th style="${thStyle}">Düzeltme KÇM</th>
-            </tr>
-            ${visList.map(v=>{
-              const cust=custMyMap[v.ncst]||{};
-              const guessKcm=custKcmMap[v.ncst]||userKcmMap[v.my_id]?.kcm_id;
-              const girenAd=userKcmMap[v.my_id]?.ad||('MY#'+v.my_id);
-              return `<tr>
-                <td style="${rowStyle}">#${v.visit_id}</td>
-                <td style="${rowStyle}">${escapeHTML(cust.unvan||v.ncst||'?')}</td>
-                <td style="${rowStyle}">${escapeHTML(girenAd)}</td>
-                <td style="${rowStyle}">${escapeHTML(v.durum||'?')}</td>
-                <td style="${rowStyle};color:${guessKcm?'var(--green)':'var(--red);'}">
-                  ${guessKcm?'KÇM#'+guessKcm:'❌ Bulunamadı'}
-                </td>
-              </tr>`;
-            }).join('')}
-          </table>
-        </div>
-      </div>`;
-    }
-
-    // Düzelt butonu
-    const duzeltilebilenOpp=oppList.filter(o=>custKcmMap[o.ncst]||userKcmMap[o.my_id]?.kcm_id);
-    const duzeltilebilenVis=visList.filter(v=>custKcmMap[v.ncst]||userKcmMap[v.my_id]?.kcm_id);
-    html+=`<button class="btn" style="width:100%;background:var(--green);" onclick="veriSagligiDuzelt()">
-      ✅ ${duzeltilebilenOpp.length} fırsat + ${duzeltilebilenVis.length} temas kaydını otomatik düzelt
-    </button>`;
-    html+='</div>';
-
-    // Düzeltme verisini sakla
-    window._vsDuzeltOpp=oppList.map(o=>({id:o.opp_id,kcm:custKcmMap[o.ncst]||userKcmMap[o.my_id]?.kcm_id,musteri_my_id:custMyMap[o.ncst]?.my_id||o.musteri_my_id})).filter(x=>x.kcm);
-    window._vsDuzeltVis=visList.map(v=>({id:v.visit_id,kcm:custKcmMap[v.ncst]||userKcmMap[v.my_id]?.kcm_id,musteri_my_id:custMyMap[v.ncst]?.my_id||v.musteri_my_id})).filter(x=>x.kcm);
-
-    // v30.83: ÇİFT KAYIT bölümü
-    const _cift = await _vsCiftKayitBul();
-    const _cv=_vsCiftRender(_cift.visDup,'visit_id','tarih_saat','📝 Çift Temas');
-    const _co=_vsCiftRender(_cift.oppDup,'opp_id','olusturma_tarihi','💼 Çift Fırsat (aynı ürün, 10 dk)');
-    const _ct=_vsCiftRender(_cift.tskDup,'task_id','olusturma_tarihi','✅ Çift Görev (aynı başlık, 10 dk)');
-    window._vsCiftSil={ visits:_cv.silId, opportunities:_co.silId, tasks:_ct.silId };
-    const _toplamCift=_cv.silId.length+_co.silId.length+_ct.silId.length;
-    if(_toplamCift>0){
-      html+=`<div style="margin-top:20px;border-top:2px solid var(--border);padding-top:14px;">`;
-      html+=`<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;">🔁 Çift Kayıtlar — toplam ${_toplamCift} fazla</div>`;
-      html+=_cv.html+_co.html+_ct.html;
-      html+=`</div>`;
-    } else {
-      html+=`<div style="margin-top:20px;border-top:2px solid var(--border);padding-top:14px;color:var(--green);font-size:13px;">✅ Son 30 günde çift kayıt yok.</div>`;
-    }
-
-    sonucDiv.innerHTML=html;
-  }catch(err){
-    sonucDiv.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;
-    console.error(err);
-  }
-}
-
-async function veriSagligiDuzelt(){
-  const oList=window._vsDuzeltOpp||[];
-  const vList=window._vsDuzeltVis||[];
-  if(!oList.length&&!vList.length){toast('Düzeltilecek kayıt yok','info');return;}
-  if(!confirm(`${oList.length} fırsat ve ${vList.length} temas kaydı güncellenecek. Onaylıyor musunuz?`)) return;
-
-  const sonucDiv=document.getElementById('veriSagligiSonuc');
-  sonucDiv.innerHTML='<div class="loader"><div class="spinner"></div></div><div style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;">Düzeltiliyor...</div>';
-
-  let hatalar=[], ok=0;
-  try{
-    // Fırsatları güncelle
-    for(const o of oList){
-      const upd={kcm_id:o.kcm};
-      if(o.musteri_my_id) upd.musteri_my_id=o.musteri_my_id;
-      const{error}=await sb.from('opportunities').update(upd).eq('opp_id',o.id);
-      if(error) hatalar.push('opp#'+o.id+': '+error.message);
-      else ok++;
-    }
-    // Temas kayıtlarını güncelle
-    for(const v of vList){
-      const upd={kcm_id:v.kcm};
-      if(v.musteri_my_id) upd.musteri_my_id=v.musteri_my_id;
-      const{error}=await sb.from('visits').update(upd).eq('visit_id',v.id);
-      if(error) hatalar.push('visit#'+v.id+': '+error.message);
-      else ok++;
-    }
-    if(hatalar.length){
-      sonucDiv.innerHTML=`<div style="color:var(--red);font-size:12px;">${ok} başarılı, ${hatalar.length} hata:<br>${hatalar.join('<br>')}</div>`;
-    } else {
-      sonucDiv.innerHTML=`<div style="padding:20px;text-align:center;color:var(--green);font-size:14px;">✅ ${ok} kayıt başarıyla güncellendi!</div>
-        <button class="btn" style="width:100%;margin-top:8px;" onclick="veriSagligiTara()">🔍 Tekrar Tara</button>`;
-      toast(`${ok} kayıt düzeltildi!`,'success');
-    }
-  }catch(err){
-    sonucDiv.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;
-  }
-}
 
 
 // ============================================================
@@ -1839,4 +1589,232 @@ async function impersonateUser(myId){
   if(!user){toast('Kullanıcı bulunamadı','error');return;}
   closeModal('impersonateModal');
   await startImpersonation(user);
+}
+
+// ============================================================
+// V31.86: VERİ KALİTESİ DENETİM MODÜLÜ — admin ekranı
+//   Devir notu: claude/DEVIR-NOTU_Veri-Kalitesi-Denetim-Modulu_2026-09-13.md
+//   Çekirdek tarama motoru: js/veri_kalite_denetim.js (veriKaliteTara()).
+//   Bu bölüm SADECE ekranı yönetir — hiçbir yazma işlemi burada yapılmaz.
+// ============================================================
+async function initVeriKaliteDenetim(){
+  const el = document.getElementById('veriKaliteSonuc');
+  if(!el) return;
+  if(typeof hasPerm==='function' && !hasPerm('veri_kalite_gor')){
+    el.innerHTML = '<div class="empty">Bu ekranı görüntüleme yetkiniz yok.</div>';
+    return;
+  }
+  const yetkiliCalistir = (typeof hasPerm==='function') ? hasPerm('veri_kalite_calistir') : false;
+  el.innerHTML = `
+    <button class="btn" style="width:100%;background:var(--red);margin-bottom:10px;"
+      onclick="veriKaliteTaraBaslat()" ${yetkiliCalistir?'':'disabled title="Tarama çalıştırma yetkiniz yok"'}>
+      🔍 Veri Kalitesi Taramasını Başlat
+    </button>
+    <div id="veriKaliteSonucIcerik"></div>`;
+}
+
+async function veriKaliteTaraBaslat(){
+  const el = document.getElementById('veriKaliteSonucIcerik');
+  if(!el) return;
+  el.innerHTML = '<div class="loader"><div class="spinner"></div></div><div style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;">Taranıyor — bu işlem veritabanı büyüklüğüne göre zaman alabilir...</div>';
+  try{
+    const sonuc = await veriKaliteTara();
+    await _vkSonucRenderla(sonuc, el);
+  }catch(err){
+    el.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;
+    console.error(err);
+  }
+}
+
+async function _vkSonucRenderla(sonuc, el){
+  if(sonuc.toplamBulgu===0){
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--green);font-size:14px;">✅ Tutarsızlık bulunamadı.</div>';
+    return;
+  }
+
+  const KONTROL_ETIKET = {
+    NCST:'NCST tutarsızlığı/orphan', MY_ID:'MY ID tutarsızlığı/orphan',
+    KCM_ID:'KÇM ID tutarsızlığı/orphan', KCM_ADI:'KÇM Adı cache tutarsızlığı',
+    MY_ADI:'MY Adı cache tutarsızlığı', MUSTERI_UNVANI:'Müşteri Ünvanı cache tutarsızlığı',
+    KONTAK_MUKERRER:'Mükerrer kontak (farklı firma)'
+  };
+
+  let html = `<div style="margin-bottom:14px;font-size:13px;font-weight:700;">
+    📊 Toplam ${sonuc.toplamBulgu} bulgu</div>`;
+  html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">';
+  sonuc.kontrolOzet.forEach(k=>{
+    html += `<div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;">
+      ${escapeHTML(KONTROL_ETIKET[k.kontrol_tipi]||k.kontrol_tipi)}: <b>${k.adet}</b></div>`;
+  });
+  html += '</div>';
+
+  // Detay tablosu — düzeltilebilir (öneri var) ve diğer (insan kararı) satırlar AYRI sorgulanır.
+  // Not: tek sorguda .limit(500) kullanılırsa, öneri taşımayan bulgu sayısı çoksa (örn. NCST orphan)
+  // öneri taşıyan satırlar (örn. KÇM Adı) önizleme penceresinin dışında kalıp checkbox hiç görünmüyordu.
+  const { data: duzeltilebilirler, count: duzeltilebilirToplam } = await sb.from('veri_kalite_tespit')
+    .select('*', { count:'exact' }).eq('tarama_id', sonuc.taramaId)
+    .not('onerilen_deger','is',null).order('id').limit(500);
+  const { data: digerBulgular } = await sb.from('veri_kalite_tespit')
+    .select('*').eq('tarama_id', sonuc.taramaId)
+    .is('onerilen_deger', null).order('id').limit(200);
+
+  const detaylar = [...(duzeltilebilirler||[]), ...(digerBulgular||[])];
+  const yetkiliOnayla = (typeof hasPerm==='function') ? hasPerm('veri_kalite_duzelt_onayla') : false;
+  const duzeltilebilirSayisi = duzeltilebilirToplam ?? (duzeltilebilirler||[]).length;
+
+  html += `<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">
+    ${detaylar.length} satır önizleniyor (ekranda en fazla ${detaylar.length} satır, tüm bulgular Excel raporunda).
+    ${duzeltilebilirSayisi} satır otomatik düzeltilebilir (öneri var), diğerleri insan kararı gerektiriyor.</div>`;
+
+  const yetkiliCalistir = (typeof hasPerm==='function') ? hasPerm('veri_kalite_calistir') : false;
+  if(yetkiliCalistir){
+    html += `<button class="btn" style="width:100%;background:var(--navy2);border:1px solid var(--border);margin-bottom:10px;"
+      onclick="veriKaliteExcelIndir('${sonuc.taramaId}')">📊 Detaylı Excel Rapor İndir</button>`;
+  }
+  if(yetkiliOnayla && duzeltilebilirSayisi>0){
+    html += `<button class="btn" style="width:100%;background:var(--green);margin-bottom:10px;"
+      onclick="veriKaliteDuzeltUygula('${sonuc.taramaId}')">✅ Seçilenleri Düzelt</button>`;
+  }
+
+  html += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:500px;">
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <tr style="background:var(--navy2);position:sticky;top:0;">
+      <th style="padding:6px;"></th>
+      <th style="padding:6px;text-align:left;">Kontrol</th><th style="padding:6px;text-align:left;">Tablo</th>
+      <th style="padding:6px;text-align:left;">Kayıt</th><th style="padding:6px;text-align:left;">Kolon</th>
+      <th style="padding:6px;text-align:left;">Mevcut</th><th style="padding:6px;text-align:left;">Önerilen</th>
+    </tr>`;
+  (detaylar||[]).forEach(d=>{
+    const duzeltilebilir = d.onerilen_deger!==null && d.onerilen_deger!==undefined;
+    html += `<tr style="border-top:1px solid var(--border);" data-vk-durum="${escapeHTML(d.durum||'bekliyor')}">
+      <td style="padding:6px;">${(duzeltilebilir && yetkiliOnayla)
+        ? `<input type="checkbox" class="vk-secim" value="${d.id}" ${d.durum==='uygulandi'?'disabled checked':''}>`
+        : ''}</td>
+      <td style="padding:6px;">${escapeHTML(KONTROL_ETIKET[d.kontrol_tipi]||d.kontrol_tipi)}</td>
+      <td style="padding:6px;">${escapeHTML(d.tablo_adi||'')}</td>
+      <td style="padding:6px;">${escapeHTML(d.kayit_pk||'')}</td>
+      <td style="padding:6px;">${escapeHTML(d.kolon_adi||'')}</td>
+      <td style="padding:6px;color:var(--red);">${escapeHTML(d.mevcut_deger||'')}</td>
+      <td style="padding:6px;color:var(--green);">${duzeltilebilir?escapeHTML(d.onerilen_deger):'<span style="color:var(--text3);">(insan kararı gerekli)</span>'}
+        ${d.durum==='uygulandi'?' <span style="color:var(--green);">✓ uygulandı</span>':''}</td>
+    </tr>`;
+  });
+  html += '</table></div>';
+  html += `<button class="btn" style="width:100%;margin-top:10px;" onclick="veriKaliteTaraBaslat()">🔍 Tekrar Tara</button>`;
+
+  el.innerHTML = html;
+}
+
+/* ------------------------------------------------------------
+   DÜZELTME UYGULAMA — sadece onerilen_deger dolu (otomatik hesaplanmış)
+   satırlar için, sadece işaretlenenler, sadece bu yetkiyle.
+   Kaynak tabloya YAZAN TEK NOKTA budur.
+   ------------------------------------------------------------ */
+async function veriKaliteDuzeltUygula(taramaId){
+  if(typeof hasPerm==='function' && !hasPerm('veri_kalite_duzelt_onayla')){
+    toast('Bu işlem için yetkiniz yok','error'); return;
+  }
+  const secililer = [...document.querySelectorAll('.vk-secim:checked')].map(el=>parseInt(el.value));
+  if(secililer.length===0){ toast('Düzeltilecek satır seçilmedi','info'); return; }
+  if(!confirm(`${secililer.length} satır düzeltilecek. Bu işlem veritabanını değiştirir. Onaylıyor musunuz?`)) return;
+
+  const { data: tespitler, error: tErr } = await sb.from('veri_kalite_tespit').select('*').in('id', secililer);
+  if(tErr){ toast('Tespitler okunamadı: '+tErr.message,'error'); return; }
+
+  let ok=0, hata=[];
+  for(const t of (tespitler||[])){
+    if(t.onerilen_deger===null || t.onerilen_deger===undefined){
+      hata.push(`#${t.id}: önerilen değer yok, atlandı`); continue;
+    }
+    const pkKolon = (typeof _VK_PK_KOLONLARI!=='undefined') ? _VK_PK_KOLONLARI[t.tablo_adi] : null;
+    if(!pkKolon){
+      hata.push(`#${t.id}: ${t.tablo_adi} için birincil anahtar kolonu tanımlı değil, atlandı`); continue;
+    }
+    try{
+      const { error: uErr } = await sb.from(t.tablo_adi).update({ [t.kolon_adi]: t.onerilen_deger }).eq(pkKolon, t.kayit_pk);
+      if(uErr) throw uErr;
+      await sb.from('veri_kalite_tespit').update({
+        durum:'uygulandi', karar_tarihi:new Date().toISOString(),
+        karar_my_id: (typeof currentUser!=='undefined' && currentUser)?currentUser.my_id:null
+      }).eq('id', t.id);
+      ok++;
+    }catch(e){
+      hata.push(`#${t.id}: ${e.message}`);
+      await sb.from('veri_kalite_tespit').update({ uygulama_hatasi: e.message }).eq('id', t.id);
+    }
+  }
+
+  if(hata.length){
+    toast(`${ok} düzeltildi, ${hata.length} hata`,'error');
+    console.error('Veri kalitesi düzeltme hataları:', hata);
+  } else {
+    toast(`${ok} satır düzeltildi`,'success');
+  }
+  await veriKaliteTaraBaslat(); // ekranı tazele
+}
+
+/* ------------------------------------------------------------
+   EXCEL RAPOR — bu taramanın TÜM bulgularını (ekran önizlemesiyle
+   sınırlı değil) XLSX olarak indirir. js/xlsx.full.min.js (SheetJS)
+   kullanır — sayfa zaten yüklüyor. Salt okuma, veritabanına yazmaz.
+   ------------------------------------------------------------ */
+async function veriKaliteExcelIndir(taramaId){
+  if(typeof hasPerm==='function' && !hasPerm('veri_kalite_calistir')){
+    toast('Bu işlem için yetkiniz yok','error'); return;
+  }
+  if(typeof XLSX==='undefined'){
+    toast('Excel kütüphanesi yüklenemedi (xlsx.full.min.js)','error'); return;
+  }
+  toast('Rapor hazırlanıyor…','info');
+
+  const KONTROL_ETIKET = {
+    NCST:'NCST tutarsızlığı/orphan', MY_ID:'MY ID tutarsızlığı/orphan',
+    KCM_ID:'KÇM ID tutarsızlığı/orphan', KCM_ADI:'KÇM Adı cache tutarsızlığı',
+    MY_ADI:'MY Adı cache tutarsızlığı', MUSTERI_UNVANI:'Müşteri Ünvanı cache tutarsızlığı',
+    KONTAK_MUKERRER:'Mükerrer kontak (farklı firma)'
+  };
+
+  // Tüm satırları sayfalayarak çek (PostgREST varsayılan limiti aşabilir)
+  const tumSatirlar = [];
+  const SAYFA = 1000;
+  for(let i=0;;i+=SAYFA){
+    const { data, error } = await sb.from('veri_kalite_tespit')
+      .select('*').eq('tarama_id', taramaId).order('id').range(i, i+SAYFA-1);
+    if(error){ toast('Rapor verisi okunamadı: '+error.message,'error'); return; }
+    tumSatirlar.push(...(data||[]));
+    if(!data || data.length < SAYFA) break;
+  }
+
+  if(tumSatirlar.length===0){ toast('Bu taramada bulgu yok','info'); return; }
+
+  const detaySatirlari = tumSatirlar.map(d=>({
+    'Kontrol': KONTROL_ETIKET[d.kontrol_tipi]||d.kontrol_tipi,
+    'Tablo': d.tablo_adi||'',
+    'Kayıt (PK)': d.kayit_pk||'',
+    'Kolon': d.kolon_adi||'',
+    'Mevcut Değer': d.mevcut_deger||'',
+    'Önerilen Değer': (d.onerilen_deger!==null && d.onerilen_deger!==undefined) ? d.onerilen_deger : '(insan kararı gerekli)',
+    'Durum': d.durum||'bekliyor',
+    'Bağlam Bilgisi': d.baglam_bilgisi ? JSON.stringify(d.baglam_bilgisi) : '',
+    'Karar Tarihi': d.karar_tarihi||'',
+    'Uygulama Hatası': d.uygulama_hatasi||''
+  }));
+
+  const ozetMap = {};
+  tumSatirlar.forEach(d=>{ ozetMap[d.kontrol_tipi] = (ozetMap[d.kontrol_tipi]||0)+1; });
+  const ozetSatirlari = Object.keys(ozetMap).map(k=>({
+    'Kontrol Tipi': KONTROL_ETIKET[k]||k, 'Adet': ozetMap[k]
+  }));
+  ozetSatirlari.push({ 'Kontrol Tipi': 'TOPLAM', 'Adet': tumSatirlar.length });
+
+  const wb = XLSX.utils.book_new();
+  const wsOzet = XLSX.utils.json_to_sheet(ozetSatirlari);
+  const wsDetay = XLSX.utils.json_to_sheet(detaySatirlari);
+  XLSX.utils.book_append_sheet(wb, wsOzet, 'Özet');
+  XLSX.utils.book_append_sheet(wb, wsDetay, 'Detay');
+
+  const tarih = new Date().toISOString().slice(0,10);
+  const dosyaAdi = `Veri_Kalitesi_Raporu_${tarih}_${taramaId.slice(0,8)}.xlsx`;
+  XLSX.writeFile(wb, dosyaAdi);
+  toast(`Excel raporu indirildi (${tumSatirlar.length} satır)`,'success');
 }

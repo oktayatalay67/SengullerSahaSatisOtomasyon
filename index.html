@@ -1689,72 +1689,133 @@
 <div class="page" id="pageTemasRapor">
   <div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Temas Raporu</div></div>
   <div class="scroll">
-    <div class="form-section">
-      <!-- Statü filtresi -->
-      <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Statü</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px;">
-        <div class="chip-btn selected" onclick="toggleRepStatus('Gerçekleşti',this)">✅ Gerçekleşen</div>
-        <div class="chip-btn selected" onclick="toggleRepStatus('Planlandı',this)">📅 Planlanan</div>
-      </div>
-      <!-- Temas şekli -->
-      <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Temas Şekli</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px;" id="repTypeGrid">
-        <div class="chip-btn selected" onclick="toggleRepType('Ziyaret',this)">🚗 Ziyaret</div>
-        <div class="chip-btn selected" onclick="toggleRepType('Online Toplantı',this)">💻 Online</div>
-        <div class="chip-btn selected" onclick="toggleRepType('Telefon',this)">📞 Telefon</div>
-        <div class="chip-btn selected" onclick="toggleRepType('Email',this)">📧 Email</div>
-        <div class="chip-btn selected" onclick="toggleRepType('SMS/Whatsapp',this)">💬 SMS/WA</div>
-      </div>
-      <!-- KÇM Filtresi -->
+    <div style="display:flex;gap:6px;padding:10px 14px 0;">
+      <button class="chip-btn selected" id="temasSekmeBtnRapor" onclick="temasSekmeDegistir('rapor')">📊 Temas Raporu</button>
+      <button class="chip-btn" id="temasSekmeBtnAnaliz" onclick="temasSekmeDegistir('analiz')">📍 Temas Analizi</button>
+    </div>
+
+    <!-- KÇM/Takım Lideri/MY filtreleri her iki sekme için ortak (musteri.js:initTemasRapor doldurur) -->
+    <div class="form-section" style="margin-top:8px;">
       <div id="repKcmFilterDiv" style="display:none;margin-bottom:8px;">
         <label style="font-size:11px;color:var(--text3);font-weight:700;">KÇM</label>
         <select id="repKcmFilter" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;" onchange="repKcmChanged()">
           <option value="">Tüm KÇM'ler</option>
         </select>
       </div>
-      <!-- Takım Lideri -->
       <div id="repTakimFilterDiv" style="display:none;margin-bottom:8px;">
         <label style="font-size:11px;color:var(--text3);font-weight:700;">Takım Lideri</label>
         <select id="repTakimFilter" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;" onchange="repTakimChanged()">
           <option value="">Tümü</option>
         </select>
       </div>
-      <!-- MY Filtresi -->
-      <div id="repMyFilterDiv" style="display:none;margin-bottom:8px;">
+      <div id="repMyFilterDiv" style="display:none;">
         <label style="font-size:11px;color:var(--text3);font-weight:700;">MY / FMY</label>
         <select id="repMyFilter" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
           <option value="">Tümü</option>
         </select>
       </div>
-      <!-- Müşteri -->
-      <div style="margin-bottom:8px;position:relative;">
-        <label style="font-size:11px;color:var(--text3);font-weight:700;">Müşteri</label>
-        <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
-          <input type="text" id="repMusteriAra" placeholder="NCST veya ünvan ara..."
-            style="flex:1;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"
-            oninput="searchRepMusteri(this.value)" autocomplete="off">
-          <button onclick="clearRepMusteri()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text2);cursor:pointer;">✕</button>
-        </div>
-        <div id="repMusteriResults" style="position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;display:none;"></div>
-        <div id="repMusteriSecili" style="display:none;margin-top:4px;padding:6px 10px;background:rgba(77,159,255,.1);border:1px solid var(--blue);border-radius:6px;font-size:12px;color:var(--blue);"></div>
-        <input type="hidden" id="repMusteriNcst">
-      </div>
-      <!-- Tarih -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:700;">Başlangıç</label><input type="date" id="repStartDate" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:700;">Bitiş</label><input type="date" id="repEndDate" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px;">
-        <div class="chip-btn" onclick="setRepPeriod('bugun',this)">Bugün</div>
-        <div class="chip-btn" onclick="setRepPeriod('hafta',this)">Bu Hafta</div>
-        <div class="chip-btn" onclick="setRepPeriod('ay',this)">Bu Ay</div>
-      </div>
-      <button class="btn" onclick="fetchAdvancedReport()" style="width:100%;background:var(--blue);">🔍 Raporu Getir</button>
-      <button id="repExcelBtn" onclick="downloadTemasExcel()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir (2 Sekme: Detay + MY Özet)</button>
     </div>
-    <div id="reportListContent"><div class="empty">Filtreleyin.</div></div>
+
+    <!-- ===== Sekme 1: Temas Raporu (mevcut) ===== -->
+    <div id="temasSekmeRaporIcerik">
+      <div class="form-section">
+        <!-- Statü filtresi -->
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Statü</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px;">
+          <div class="chip-btn selected" onclick="toggleRepStatus('Gerçekleşti',this)">✅ Gerçekleşen</div>
+          <div class="chip-btn selected" onclick="toggleRepStatus('Planlandı',this)">📅 Planlanan</div>
+        </div>
+        <!-- Temas şekli -->
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Temas Şekli</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px;" id="repTypeGrid">
+          <div class="chip-btn selected" onclick="toggleRepType('Ziyaret',this)">🚗 Ziyaret</div>
+          <div class="chip-btn selected" onclick="toggleRepType('Online Toplantı',this)">💻 Online</div>
+          <div class="chip-btn selected" onclick="toggleRepType('Telefon',this)">📞 Telefon</div>
+          <div class="chip-btn selected" onclick="toggleRepType('Email',this)">📧 Email</div>
+          <div class="chip-btn selected" onclick="toggleRepType('SMS/Whatsapp',this)">💬 SMS/WA</div>
+        </div>
+        <!-- Müşteri -->
+        <div style="margin-bottom:8px;position:relative;">
+          <label style="font-size:11px;color:var(--text3);font-weight:700;">Müşteri</label>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+            <input type="text" id="repMusteriAra" placeholder="NCST veya ünvan ara..."
+              style="flex:1;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"
+              oninput="searchRepMusteri(this.value)" autocomplete="off">
+            <button onclick="clearRepMusteri()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text2);cursor:pointer;">✕</button>
+          </div>
+          <div id="repMusteriResults" style="position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;display:none;"></div>
+          <div id="repMusteriSecili" style="display:none;margin-top:4px;padding:6px 10px;background:rgba(77,159,255,.1);border:1px solid var(--blue);border-radius:6px;font-size:12px;color:var(--blue);"></div>
+          <input type="hidden" id="repMusteriNcst">
+        </div>
+        <!-- Tarih -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div><label style="font-size:11px;color:var(--text3);font-weight:700;">Başlangıç</label><input type="date" id="repStartDate" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:700;">Bitiş</label><input type="date" id="repEndDate" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px;">
+          <div class="chip-btn" onclick="setRepPeriod('bugun',this)">Bugün</div>
+          <div class="chip-btn" onclick="setRepPeriod('hafta',this)">Bu Hafta</div>
+          <div class="chip-btn" onclick="setRepPeriod('ay',this)">Bu Ay</div>
+        </div>
+        <button class="btn" onclick="fetchAdvancedReport()" style="width:100%;background:var(--blue);">🔍 Raporu Getir</button>
+        <button id="repExcelBtn" onclick="downloadTemasExcel()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir (2 Sekme: Detay + MY Özet)</button>
+      </div>
+      <div id="reportListContent"><div class="empty">Filtreleyin.</div></div>
+    </div>
+
+    <!-- ===== Sekme 2: Temas Analizi (Ziyaret Analizi, V31.92) ===== -->
+    <div id="temasSekmeAnalizIcerik" style="display:none;">
+      <div class="form-section">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div><label style="font-size:11px;color:var(--text3);font-weight:700;">Başlangıç</label><input type="date" id="zaBaslangic" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:700;">Bitiş</label><input type="date" id="zaBitis" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button class="btn" onclick="ziyaretAnaliziGetir()" style="background:var(--blue);">🔍 Raporu Getir</button>
+          <span id="zaProg" style="font-size:11px;color:var(--text3);"></span>
+        </div>
+        <button id="zaExcelBtn" onclick="ziyaretAnaliziExcelIndir()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir (4 Sekme)</button>
+      </div>
+
+      <!-- Özet kutuları -->
+      <div class="form-section" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">
+        <div style="background:var(--card);border:1px solid rgba(77,159,255,.3);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:20px;font-weight:700;" id="zaOzPortfoy">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:4px;">Portföy Müşteri</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(0,214,143,.3);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:20px;font-weight:700;" id="zaOzIciMusteri">—</div>
+          <div style="font-size:11px;color:var(--green);" id="zaOzIciZiyaret">— ziyaret</div>
+          <div style="font-size:11px;color:var(--green);font-weight:700;" id="zaOzIciPen">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Portföy İçi Ziyaret Edilen<br>Toplam Ziyaret / Penetrasyon</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,90,90,.3);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:20px;font-weight:700;" id="zaOzEdilmeyen">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:4px;">Hiç Ziyaret Edilmeyen<br>(Portföy İçi)</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(168,85,247,.3);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:20px;font-weight:700;" id="zaOzIciMbz">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:4px;">Müşteri Başı Ort. Ziyaret<br>(Portföy İçi)</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,180,0,.3);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:20px;font-weight:700;" id="zaOzDisiMusteri">—</div>
+          <div style="font-size:11px;color:var(--amber);" id="zaOzDisiZiyaret">— ziyaret</div>
+          <div style="font-size:15px;font-weight:700;" id="zaOzDisiMbz">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Portföy Dışı Ziyaret Edilen<br>Toplam Ziyaret / Müş. Başı</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);padding:0 14px 8px;" id="zaOzAciklama"></div>
+
+      <!-- Alt sekme çubuğu -->
+      <div style="display:flex;gap:5px;padding:0 14px 8px;">
+        <button class="chip-btn selected" id="zaTab_ic" onclick="ziyaretAnaliziSekmeDegistir('ic')">📍 Portföy İçi</button>
+        <button class="chip-btn" id="zaTab_dis" onclick="ziyaretAnaliziSekmeDegistir('dis')">🔀 Portföy Dışı</button>
+        <button class="chip-btn" id="zaTab_edilmeyen" onclick="ziyaretAnaliziSekmeDegistir('edilmeyen')">⚠ Ziyaret Edilmeyen</button>
+      </div>
+      <div id="zaTableWrap" style="padding:0 14px;"><div class="empty">Filtrelerinizi seçip Raporu Getir'e tıklayın.</div></div>
+    </div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.66</span> | Temas Raporu</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.94</span> | Temas Raporu</div>
 </div>
 
 <div class="page" id="pageHedefRapor"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Hedef Raporu</div></div><div class="scroll"><div class="empty">Yakında eklenecek.</div></div><div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.66</span></div></div>
@@ -2184,7 +2245,7 @@
       <div class="menu-box" onclick="adminSayfaAc('kullanicilar')"><div class="menu-box-icon">👥</div><div class="menu-box-title">Kullanıcılar</div></div>
       <div class="menu-box" onclick="adminSayfaAc('talepler')"><div class="menu-box-icon">📋</div><div class="menu-box-title">Talepler</div></div>
       <div class="menu-box" onclick="adminSayfaAc('ziyaretOpt')"><div class="menu-box-icon">⚙️</div><div class="menu-box-title">Ziyaret Seç.</div></div>
-      <div class="menu-box" onclick="adminSayfaAc('veriSagligi')" style="border-color:rgba(255,180,0,.3);"><div class="menu-box-icon">🔧</div><div class="menu-box-title">Veri Sağlığı</div></div>
+      <div class="menu-box" onclick="adminSayfaAc('veriKalite')" style="border-color:rgba(239,68,68,.3);"><div class="menu-box-icon">🕵️</div><div class="menu-box-title">Veri Kalitesi Denetim</div></div>
       <div class="menu-box" onclick="adminSayfaAc('gorevTipleri')"><div class="menu-box-icon">📋</div><div class="menu-box-title">Görev Tipleri</div></div>
       <div class="menu-box" onclick="adminSayfaAc('aramaAyarlari')"><div class="menu-box-icon">⏱️</div><div class="menu-box-title">Arama Ayarları</div></div>
       <div class="menu-box" onclick="adminSayfaAc('yetki')" style="border-color:rgba(96,165,250,.35);"><div class="menu-box-icon">🔐</div><div class="menu-box-title">Rol & Yetki</div></div>
@@ -2318,14 +2379,14 @@
       </div>
     </div>
   </div>
-  <!-- v30.18: Veri Sağlığı Sekmesi -->
-  <div id="adminTabVeriSagligi" class="scroll" style="display:none;padding:16px;">
-    <div style="background:rgba(255,180,0,.1);border:1px solid rgba(255,180,0,.3);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--amber);">
-      <b>⚠️ Veri Sağlığı:</b> KÇM bilgisi eksik kayıtları tespit edip düzeltir.
-      Eksik <code>kcm_id</code> olan fırsat/temas kayıtları, ilgili müşterinin KÇM'iyle güncellenir.
+  <!-- V31.86: Veri Kalitesi Denetim Modülü (eski Veri Sağlığı sekmesi kaldırıldı) -->
+  <div id="adminTabVeriKalite" class="scroll" style="display:none;padding:16px;">
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);">
+      <b>🕵️ Veri Kalitesi Denetim:</b> Tüm veritabanında referans veri tutarsızlıklarını
+      (NCST/MY ID/KÇM ID/KÇM Adı) ve mükerrer kontak kayıtlarını tarar. Hiçbir şeyi
+      otomatik değiştirmez — sadece tespit eder ve raporlar.
     </div>
-    <button class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;" onclick="veriSagligiTara()">🔍 Eksik KÇM Kayıtlarını Tara</button>
-    <div id="veriSagligiSonuc"></div>
+    <div id="veriKaliteSonuc"></div>
   </div>
 
   <div id="adminTabKullanicilar" class="scroll" style="display:none;">
@@ -3242,13 +3303,14 @@
   <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.85"></script>
-<script src="js/yetki.js?v=v31.70"></script>
+<script src="js/config.js?v=v31.95"></script>
+<script src="js/yetki.js?v=v31.86"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
+<script src="js/veri_kalite_denetim.js?v=v31.91"></script>
 <script src="js/donanim.js?v=v31.66"></script>
 <script src="js/utils.js?v=v31.65"></script>
 <script src="js/auth.js?v=v31.65"></script>
-<script src="js/gorev.js?v=v31.82"></script>
+<script src="js/gorev.js?v=v31.95"></script>
 <script src="js/talep.js?v=v31.34"></script>
 <script src="js/temas.js?v=v31.50"></script>
 <script src="js/arama.js?v=v31.85"></script>
@@ -3256,9 +3318,9 @@
 <script src="js/duyuru.js?v=v31.34"></script>
 <script src="js/musteri.js?v=v31.67"></script>
 <script src="js/hedef.js?v=v31.34"></script>
-<script src="js/admin.js?v=v31.80"></script>
+<script src="js/admin.js?v=v31.91"></script>
 <script src="js/veriyonetimi.js?v=v31.69"></script>
-<script src="js/rapor.js?v=v31.36"></script>
+<script src="js/rapor.js?v=v31.94"></script>
 
 </body>
 </html>

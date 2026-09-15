@@ -1,6 +1,26 @@
 // ============================================================
-// rapor.js — v1.2.4
-// Son güncelleme: 2026-08-26
+// rapor.js — v1.2.7
+// Son güncelleme: 2026-09-14
+//   v1.2.7 — (V31.94) FIX: "Portföy Dışı" satırlarında (ve buna bağlı MY Özet
+//            sekmesinde) KÇM sütunu ziyaret edilen müşterinin KÇM'siydi, ziyareti
+//            yapan MY'nin kendi KÇM'si değil. KÇM/MY filtresiyle seçilenin
+//            dışında KÇM adları görünüp "filtre kayboluyor / tüm veri geliyor"
+//            izlenimi veriyordu. myQ'ya kcm_id eklendi, myInfo() artık ziyareti
+//            yapan MY'nin kendi kcm'sini döndürüyor, _ziyaretDisRows.kcm bunu
+//            kullanıyor (müşterinin kcm'si değil).
+//   v1.2.6 — (V31.93) FIX: Ziyaret Analizi'nde "Excel İndir" butonu rapor
+//            geldikten sonra hiç görünmüyordu. Sebep: main.css .hide{display:
+//            none!important} — style.display='' bunu ezemiyor. excelBtn artık
+//            classList.add/remove('hide') ile açılıp kapatılıyor (repExcelBtn
+//            ile aynı desen).
+//   v1.2.5 — (V31.92) ZİYARET ANALİZİ: standalone "Ziyaret Raporu V2.0" HTML
+//            aracı Temas Raporu ekranına 2. sekme olarak entegre edildi
+//            (temasSekmeDegistir / ziyaretAnaliziGetir ve yardımcıları).
+//            KÇM/Takım Lideri/MY filtreleri mevcut repKcmFilter/repTakimFilter/
+//            repMyFilter ile paylaşılıyor (musteri.js:initTemasRapor). Tarih
+//            aralığı ayrı (zaBaslangic/zaBitis, varsayılan bu ay). Kimlik/
+//            Supabase client kaynak dosyadan atıldı — sb/currentUser/toast/
+//            escapeHTML/ensureXLSX ana uygulamadan kullanılıyor.
 //   v1.2.4 — (V31.35) parsePortfoyFile yetkisi portfoy_yukle -> veri_yonetimi.
 // Değişiklikler:
 //   v1.2.3 — FIX (V30.68): "Excel kütüphanesi yüklenemedi". Kütüphane artık
@@ -182,6 +202,376 @@ async function downloadTemasExcel(){
 }
 
 
+
+/* ===== ZİYARET ANALİZİ (Temas Raporu'nun 2. sekmesi, V31.92) =====
+   Kaynak: standalone "Ziyaret Raporu V2.0" HTML aracı. Kimlik/Supabase client
+   atıldı; sb/currentUser/toast/escapeHTML/ensureXLSX ana uygulamadan kullanılıyor.
+   KÇM/Takım Lideri/MY filtreleri repKcmFilter/repTakimFilter/repMyFilter ile
+   paylaşılıyor (bkz. musteri.js:initTemasRapor). Tarih aralığı ayrı. */
+
+function ziyaretAnaliziChunk(a,n){const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r;}
+
+let _ziyaretMyMap={};
+let _ziyaretTlMap={};
+let _ziyaretKcmMap={};
+let _ziyaretIcRows=[];
+let _ziyaretDisRows=[];
+let _ziyaretEdilmeyenRows=[];
+let _ziyaretAktifSekme='ic';
+let _ziyaretSiralamaAnahtari='unvan';
+let _ziyaretSiralamaTers=false;
+
+// Temas Raporu / Temas Analizi üst sekmesi
+function temasSekmeDegistir(sekme){
+  const rapBtn=document.getElementById('temasSekmeBtnRapor');
+  const anaBtn=document.getElementById('temasSekmeBtnAnaliz');
+  const rapIcerik=document.getElementById('temasSekmeRaporIcerik');
+  const anaIcerik=document.getElementById('temasSekmeAnalizIcerik');
+  if(sekme==='analiz'){
+    rapBtn?.classList.remove('selected');anaBtn?.classList.add('selected');
+    if(rapIcerik)rapIcerik.style.display='none';
+    if(anaIcerik)anaIcerik.style.display='';
+    const sd=document.getElementById('zaBaslangic');
+    const ed=document.getElementById('zaBitis');
+    if(sd&&ed&&!sd.value&&!ed.value){
+      const now=new Date();
+      sd.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';
+      ed.value=now.toISOString().slice(0,10);
+    }
+  } else {
+    anaBtn?.classList.remove('selected');rapBtn?.classList.add('selected');
+    if(anaIcerik)anaIcerik.style.display='none';
+    if(rapIcerik)rapIcerik.style.display='';
+  }
+}
+
+async function ziyaretAnaliziGetir(){
+  const sd=document.getElementById('zaBaslangic')?.value||'';
+  const ed=document.getElementById('zaBitis')?.value||'';
+  if(!sd||!ed){toast('Tarih aralığı seçin','error');return;}
+
+  const wrap=document.getElementById('zaTableWrap');
+  const excelBtn=document.getElementById('zaExcelBtn');
+  const progEl=document.getElementById('zaProg');
+  const setProg=t=>{if(progEl)progEl.textContent=t;};
+  wrap.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  if(excelBtn)excelBtn.classList.add('hide');
+  _ziyaretIcRows=[];_ziyaretDisRows=[];_ziyaretEdilmeyenRows=[];
+
+  try{
+    const r=(currentUser.yetki_seviyesi||'').toUpperCase();
+    const ROL_TAM=['ADMIN','SATIŞ DİREKTÖRÜ'];
+    const kcmVal=document.getElementById('repKcmFilter')?.value||'';
+    const tlVal=document.getElementById('repTakimFilter')?.value||'';
+    const myVal=document.getElementById('repMyFilter')?.value||'';
+    const sdISO=sd+'T00:00:00+03:00';
+    const edISO=ed+'T23:59:59+03:00';
+
+    if(!Object.keys(_ziyaretKcmMap).length){
+      const{data:kcmler}=await sb.from('kcm_groups').select('kcm_id,kcm_adi');
+      (kcmler||[]).forEach(k=>{_ziyaretKcmMap[k.kcm_id]=k.kcm_adi;});
+    }
+
+    setProg('MY listesi alınıyor...');
+    let myQ=sb.from('users')
+      .select('my_id,ad_soyad,yetki_seviyesi,takim_lideri_id,kcm_id')
+      .eq('aktif',true).in('yetki_seviyesi',['MY','FMY','USER']).not('is_sanal','eq',true);
+    if(!ROL_TAM.includes(r)&&currentUser.kcm_id) myQ=myQ.eq('kcm_id',currentUser.kcm_id);
+    if(kcmVal) myQ=myQ.eq('kcm_id',parseInt(kcmVal));
+    if(myVal) myQ=myQ.eq('my_id',parseInt(myVal));
+    else if(tlVal) myQ=myQ.eq('takim_lideri_id',parseInt(tlVal));
+    const{data:myList}=await myQ.order('ad_soyad');
+    const myArr=myList||[];
+    if(!myArr.length){wrap.innerHTML='<div class="empty">Bu filtreler için MY/FMY bulunamadı.</div>';setProg('');return;}
+
+    _ziyaretMyMap={};_ziyaretTlMap={};
+    myArr.forEach(u=>{_ziyaretMyMap[u.my_id]=u;});
+
+    const tlIds=[...new Set(myArr.map(u=>u.takim_lideri_id).filter(Boolean))];
+    if(tlIds.length){
+      const{data:tls}=await sb.from('users').select('my_id,ad_soyad').in('my_id',tlIds);
+      (tls||[]).forEach(u=>{_ziyaretTlMap[u.my_id]=u.ad_soyad;});
+    }
+    const myIds=myArr.map(u=>u.my_id);
+
+    // Portföy (customers.my_id IN myIds)
+    setProg('Portföy müşterileri alınıyor...');
+    let portfoy=[];
+    const portfoySet=new Set();
+    const portfoyOwner={};
+    const CCHUNK=50;
+    let portfoyCount=0;
+    for(const cids of ziyaretAnaliziChunk(myIds,CCHUNK)){
+      const{count:chunkCount}=await sb.from('customers')
+        .select('ncst',{count:'exact',head:true})
+        .eq('aktif',true).in('my_id',cids).not('my_id','is',null);
+      portfoyCount+=(chunkCount||0);
+      let pFrom=0;const PPAGE=1000;
+      while(true){
+        const{data:pg,error}=await sb.from('customers')
+          .select('ncst,unvan,my_id,kcm_id,il,ilce,musteri_tipi')
+          .eq('aktif',true).in('my_id',cids).not('my_id','is',null)
+          .order('ncst').range(pFrom,pFrom+PPAGE-1);
+        if(error) throw error;
+        if(!pg||!pg.length) break;
+        pg.forEach(m=>{portfoy.push(m);portfoySet.add(m.ncst);portfoyOwner[m.ncst]=m.my_id;});
+        if(pg.length<PPAGE) break;
+        pFrom+=PPAGE;
+      }
+    }
+
+    // Dönem içi ziyaretler (visits.my_id IN myIds)
+    setProg('Ziyaretler alınıyor...');
+    let visArr=[];
+    const VIS_PAGE=1000;
+    for(const vids of ziyaretAnaliziChunk(myIds,20)){
+      let vFrom=0;
+      while(true){
+        let vq=sb.from('visits')
+          .select('ncst,my_id,musteri_my_id,tarih_saat')
+          .in('my_id',vids).eq('durum','Gerçekleşti');
+        if(sdISO) vq=vq.gte('tarih_saat',sdISO);
+        if(edISO) vq=vq.lte('tarih_saat',edISO);
+        vq=vq.range(vFrom,vFrom+VIS_PAGE-1);
+        const{data:vData,error:vErr}=await vq;
+        if(vErr) throw vErr;
+        if(!vData||!vData.length) break;
+        visArr=visArr.concat(vData);
+        if(vData.length<VIS_PAGE) break;
+        vFrom+=VIS_PAGE;
+      }
+    }
+
+    // Portföy içi / dışı ayrımı: ziyaret eden = müşterinin güncel sahibi mi?
+    const icCount={};const icLastVis={};
+    const disCount={};const disNcstSet=new Set();
+    visArr.forEach(v=>{
+      const curOwner=portfoyOwner[v.ncst];
+      const isIci=(curOwner!==undefined)&&(v.my_id===curOwner);
+      if(isIci){
+        icCount[v.ncst]=(icCount[v.ncst]||0)+1;
+        if(!icLastVis[v.ncst]||v.tarih_saat>icLastVis[v.ncst]) icLastVis[v.ncst]=v.tarih_saat;
+      } else {
+        const k=v.my_id+'||'+v.ncst;
+        disCount[k]=(disCount[k]||0)+1;
+        disNcstSet.add(v.ncst);
+      }
+    });
+
+    // Son ziyaret tarihi (tüm zamanlar, portföy içi — sahibinin bizzat yaptığı)
+    setProg('Son ziyaret tarihleri alınıyor...');
+    const portfoyNcsts=[...portfoySet];
+    const lastVisMap={};
+    const lvResults=await Promise.all(
+      ziyaretAnaliziChunk(portfoyNcsts,200).map(ids=>
+        sb.from('visits').select('ncst,my_id,tarih_saat').in('ncst',ids)
+          .eq('durum','Gerçekleşti').order('tarih_saat',{ascending:false}).limit(5000)
+      )
+    );
+    lvResults.forEach(res=>{
+      (res.data||[]).forEach(v=>{
+        if(portfoyOwner[v.ncst]===v.my_id){
+          if(!lastVisMap[v.ncst]||v.tarih_saat>lastVisMap[v.ncst]) lastVisMap[v.ncst]=v.tarih_saat;
+        }
+      });
+    });
+
+    // Portföy dışı ziyaret edilen müşterilerin bilgileri
+    const disNcstAll=[...disNcstSet];
+    const disCustMap={};
+    if(disNcstAll.length){
+      const dcResults=await Promise.all(
+        ziyaretAnaliziChunk(disNcstAll,200).map(ids=>
+          sb.from('customers').select('ncst,unvan,my_id,kcm_id,il,ilce,musteri_tipi').in('ncst',ids)
+        )
+      );
+      dcResults.forEach(res=>{(res.data||[]).forEach(m=>{disCustMap[m.ncst]=m;});});
+    }
+
+    // Özet hesapla
+    const portfoyToplam=portfoyCount||portfoy.length;
+    const icZiyaretEdilen=new Set(Object.keys(icCount).map(Number)).size;
+    const icToplamZiyaret=Object.values(icCount).reduce((a,b)=>a+b,0);
+    const pen=portfoyToplam>0?Math.round(icZiyaretEdilen/portfoyToplam*100):0;
+
+    const disKaydlari=Object.entries(disCount).map(([k,cnt])=>{
+      const sep=k.indexOf('||');
+      const myId=parseInt(k.slice(0,sep));
+      const ncst=k.slice(sep+2);
+      return{myId,ncst:isNaN(ncst)?ncst:parseInt(ncst),cnt};
+    });
+    const disZiyaretEdilen=new Set(disKaydlari.map(d=>d.ncst)).size;
+    const disToplamZiyaret=disKaydlari.reduce((a,b)=>a+b.cnt,0);
+
+    const ftZ=(n,d=1)=>n%1===0?n:n.toFixed(d);
+    const icMbz=icZiyaretEdilen>0?ftZ(icToplamZiyaret/icZiyaretEdilen):0;
+    const disMbz=disZiyaretEdilen>0?ftZ(disToplamZiyaret/disZiyaretEdilen):0;
+
+    const se=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    se('zaOzPortfoy',portfoyToplam.toLocaleString('tr-TR'));
+    se('zaOzIciMusteri',icZiyaretEdilen.toLocaleString('tr-TR'));
+    se('zaOzIciZiyaret',icToplamZiyaret.toLocaleString('tr-TR')+' ziyaret');
+    se('zaOzIciPen','%'+pen);
+    se('zaOzDisiMusteri',disZiyaretEdilen.toLocaleString('tr-TR'));
+    se('zaOzDisiZiyaret',disToplamZiyaret.toLocaleString('tr-TR')+' ziyaret');
+    se('zaOzEdilmeyen',(portfoyToplam-icZiyaretEdilen).toLocaleString('tr-TR'));
+    se('zaOzIciMbz',icMbz);
+    se('zaOzDisiMbz',disMbz);
+    const aciklamaEl=document.getElementById('zaOzAciklama');
+    if(aciklamaEl)aciklamaEl.innerHTML='Dönem: <b>'+sd+'</b> — <b>'+ed+'</b> &nbsp;|&nbsp; '+myArr.length+' MY/FMY &nbsp;|&nbsp; '+portfoyToplam+' portföy müşterisi';
+
+    // Satır verilerini hazırla
+    const fmtGunTR=ts=>ts?new Date(ts).toLocaleDateString('tr-TR',{timeZone:'Europe/Istanbul'}):'—';
+    const myInfo=id=>{
+      const u=_ziyaretMyMap[id]||{};
+      return{myAdi:u.ad_soyad||('MY#'+id),myRol:u.yetki_seviyesi||'—',takim:_ziyaretTlMap[u.takim_lideri_id]||'—',kcm:_ziyaretKcmMap[u.kcm_id]||'—'};
+    };
+
+    _ziyaretIcRows=portfoy.filter(c=>icCount[c.ncst]>0).map(c=>{
+      const mi=myInfo(c.my_id);
+      return{kcm:_ziyaretKcmMap[c.kcm_id]||'—',takim:mi.takim,my_adi:mi.myAdi,my_rol:mi.myRol,
+        ncst:c.ncst,unvan:c.unvan||'—',il:c.il||'',ilce:c.ilce||'',musteri_tipi:c.musteri_tipi||'',
+        donem_ziyaret:icCount[c.ncst]||0,son_ziyaret:fmtGunTR(icLastVis[c.ncst])};
+    });
+
+    _ziyaretEdilmeyenRows=portfoy.filter(c=>!(icCount[c.ncst]>0)).map(c=>{
+      const mi=myInfo(c.my_id);
+      return{kcm:_ziyaretKcmMap[c.kcm_id]||'—',takim:mi.takim,my_adi:mi.myAdi,my_rol:mi.myRol,
+        ncst:c.ncst,unvan:c.unvan||'—',il:c.il||'',ilce:c.ilce||'',musteri_tipi:c.musteri_tipi||'',
+        donem_ziyaret:0,son_ziyaret:fmtGunTR(lastVisMap[c.ncst])};
+    });
+
+    _ziyaretDisRows=disKaydlari.map(d=>{
+      const mi=myInfo(d.myId);
+      const c=disCustMap[d.ncst]||{};
+      const portfoyOwnerAdi=c.my_id?(_ziyaretMyMap[c.my_id]?.ad_soyad||'—'):'Atamasız';
+      return{kcm:mi.kcm,takim:mi.takim,my_adi:mi.myAdi,my_rol:mi.myRol,
+        ncst:d.ncst,unvan:c.unvan||'—',il:c.il||'',ilce:c.ilce||'',musteri_tipi:c.musteri_tipi||'',
+        donem_ziyaret:d.cnt,portfoy_sahibi:portfoyOwnerAdi,son_ziyaret:'—'};
+    });
+
+    if(excelBtn)excelBtn.classList.remove('hide');
+    setProg('');
+    ziyaretAnaliziSekmeDegistir(_ziyaretAktifSekme);
+
+  }catch(e){
+    console.error('ziyaretAnaliziGetir hatası:',e);
+    wrap.innerHTML='<div class="empty" style="color:var(--red);">Hata: '+escapeHTML(e.message)+'</div>';
+    setProg('');
+  }
+}
+
+// Portföy İçi / Portföy Dışı / Ziyaret Edilmeyen alt sekmesi
+function ziyaretAnaliziSekmeDegistir(tab){
+  _ziyaretAktifSekme=tab;
+  ['ic','dis','edilmeyen'].forEach(t=>document.getElementById('zaTab_'+t)?.classList.remove('selected'));
+  document.getElementById('zaTab_'+tab)?.classList.add('selected');
+  _ziyaretSiralamaAnahtari=tab==='dis'?'my_adi':'unvan';
+  _ziyaretSiralamaTers=false;
+  ziyaretAnaliziTabloRenderla();
+}
+
+function ziyaretAnaliziTabloRenderla(){
+  const wrap=document.getElementById('zaTableWrap');
+  if(!wrap) return;
+  let rows=_ziyaretAktifSekme==='ic'?_ziyaretIcRows:_ziyaretAktifSekme==='dis'?_ziyaretDisRows:_ziyaretEdilmeyenRows;
+  const toplam=_ziyaretIcRows.length+_ziyaretDisRows.length+_ziyaretEdilmeyenRows.length;
+  if(!rows.length){
+    wrap.innerHTML=toplam?'<div class="empty">Bu sekme için kayıt yok.</div>':'<div class="empty">Filtrelerinizi seçip Raporu Getir\'e tıklayın.</div>';
+    return;
+  }
+  rows=[...rows].sort((a,b)=>{
+    let av=a[_ziyaretSiralamaAnahtari]??'',bv=b[_ziyaretSiralamaAnahtari]??'';
+    if(typeof av==='number') return _ziyaretSiralamaTers?bv-av:av-bv;
+    return _ziyaretSiralamaTers?String(bv).localeCompare(String(av),'tr'):String(av).localeCompare(String(bv),'tr');
+  });
+  const ok=k=>k===_ziyaretSiralamaAnahtari?(_ziyaretSiralamaTers?' ▼':' ▲'):'';
+  const th=(k,l)=>'<th onclick="ziyaretAnaliziSirala(\''+k+'\')" style="cursor:pointer;white-space:nowrap;padding:7px 8px;border-bottom:2px solid var(--border);text-align:left;font-size:11px;color:var(--text3);text-transform:uppercase;">'+escapeHTML(l)+ok(k)+'</th>';
+  const colsIC=[['kcm','KÇM'],['takim','Takım Lideri'],['my_adi','MY / Rol'],['ncst','NCST'],['unvan','Müşteri'],['il','İl'],['musteri_tipi','Tip'],['donem_ziyaret','Dönem Ziyaret'],['son_ziyaret','Son Ziyaret (Sahip)']];
+  const colsDIS=[['kcm','KÇM'],['takim','Takım Lideri'],['my_portfoy','Ziyaret Eden → Portföy Sahibi'],['ncst','NCST'],['unvan','Müşteri'],['il','İl'],['musteri_tipi','Tip'],['donem_ziyaret','Dönem Ziyaret']];
+  const cols=_ziyaretAktifSekme==='dis'?colsDIS:colsIC;
+  const thead='<tr>'+cols.map(c=>th(c[0],c[1])).join('')+'</tr>';
+  const tdS='padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;';
+  const tbody=rows.map(d=>{
+    const myTag=d.my_rol==='FMY'?'<span style="font-size:10px;font-weight:700;color:var(--amber);">FMY</span>':'<span style="font-size:10px;font-weight:700;color:var(--blue);">MY</span>';
+    const vcIC=d.donem_ziyaret>0?'<b style="color:var(--green);">'+d.donem_ziyaret+'</b>':'<b style="color:var(--red);">0</b>';
+    const vcDIS='<b style="color:var(--amber);">'+d.donem_ziyaret+'</b>';
+    const vc=_ziyaretAktifSekme==='dis'?vcDIS:vcIC;
+    const cells=cols.map(c=>{
+      if(c[0]==='my_adi') return '<td style="'+tdS+'">'+escapeHTML(d.my_adi)+' '+myTag+'</td>';
+      if(c[0]==='my_portfoy') return '<td style="'+tdS+'white-space:nowrap;">'+escapeHTML(d.my_adi)+' '+myTag+' <span style="color:var(--text3);">→</span> <b style="color:var(--amber);">'+escapeHTML(d.portfoy_sahibi||'—')+'</b></td>';
+      if(c[0]==='ncst') return '<td style="'+tdS+'font-family:monospace;color:var(--text2);">'+escapeHTML(String(d.ncst||''))+'</td>';
+      if(c[0]==='unvan') return '<td style="'+tdS+'max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+escapeHTML(d.unvan)+'">'+escapeHTML(d.unvan)+'</td>';
+      if(c[0]==='donem_ziyaret') return '<td style="'+tdS+'text-align:center;">'+vc+'</td>';
+      if(c[0]==='son_ziyaret') return '<td style="'+tdS+'color:var(--text2);white-space:nowrap;">'+escapeHTML(d.son_ziyaret)+'</td>';
+      return '<td style="'+tdS+'">'+escapeHTML(d[c[0]]||'')+'</td>';
+    }).join('');
+    return '<tr>'+cells+'</tr>';
+  }).join('');
+  const lbl=_ziyaretAktifSekme==='ic'?'portföy içi ziyaret edilen':_ziyaretAktifSekme==='dis'?'portföy dışı ziyaret':'ziyaret edilmeyen';
+  wrap.innerHTML='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:700px;">'+
+    '<thead>'+thead+'</thead><tbody>'+tbody+'</tbody></table></div>'+
+    '<div style="padding:8px 0;font-size:11px;color:var(--text3);">'+rows.length+' '+lbl+' müşteri</div>';
+}
+
+function ziyaretAnaliziSirala(key){
+  if(_ziyaretSiralamaAnahtari===key) _ziyaretSiralamaTers=!_ziyaretSiralamaTers;
+  else{_ziyaretSiralamaAnahtari=key;_ziyaretSiralamaTers=false;}
+  ziyaretAnaliziTabloRenderla();
+}
+
+async function ziyaretAnaliziExcelIndir(){
+  if(!_ziyaretIcRows.length&&!_ziyaretDisRows.length&&!_ziyaretEdilmeyenRows.length){toast('Önce raporu getirin','error');return;}
+  const xlsxHazir=await ensureXLSX();
+  if(!xlsxHazir){toast('Excel kütüphanesi yüklenemedi — js/xlsx.full.min.js sunucuda bulunamadı.','error');return;}
+  toast('Excel hazırlanıyor...','success');
+
+  const sd=document.getElementById('zaBaslangic')?.value||'';
+  const ed=document.getElementById('zaBitis')?.value||'';
+  const h1=['KÇM','Takım Lideri','MY Adı','MY Rol','NCST','Müşteri','İl','İlçe','Müşteri Tipi','Dönem Ziyaret','Son Ziyaret (Sahip)'];
+  const toR1=d=>[d.kcm,d.takim,d.my_adi,d.my_rol,d.ncst,d.unvan,d.il,d.ilce,d.musteri_tipi,d.donem_ziyaret,d.son_ziyaret];
+  const h2=['KÇM','Takım Lideri','Ziyaret Eden MY','MY Rol','NCST','Müşteri','İl','Tip','Portföy Sahibi','Dönem Ziyaret'];
+  const toR2=d=>[d.kcm,d.takim,d.my_adi,d.my_rol,d.ncst,d.unvan,d.il,d.musteri_tipi,d.portfoy_sahibi||'—',d.donem_ziyaret];
+
+  const myOzet={};
+  [..._ziyaretIcRows,..._ziyaretEdilmeyenRows].forEach(d=>{
+    const k=d.my_adi+'|'+d.takim+'|'+d.kcm;
+    if(!myOzet[k])myOzet[k]={my_adi:d.my_adi,my_rol:d.my_rol,takim:d.takim,kcm:d.kcm,portfoy:0,ic_edilen:0,ic_edilmeyen:0,ic_ziyaret:0};
+    myOzet[k].portfoy++;
+    if(d.donem_ziyaret>0){myOzet[k].ic_edilen++;myOzet[k].ic_ziyaret+=d.donem_ziyaret;}
+    else myOzet[k].ic_edilmeyen++;
+  });
+  _ziyaretDisRows.forEach(d=>{
+    const k=d.my_adi+'|'+d.takim+'|'+d.kcm;
+    if(!myOzet[k])myOzet[k]={my_adi:d.my_adi,my_rol:d.my_rol,takim:d.takim,kcm:d.kcm,portfoy:0,ic_edilen:0,ic_edilmeyen:0,ic_ziyaret:0};
+  });
+  const ftZ=(n,d=1)=>n%1===0?n:n.toFixed(d);
+  const h3=['KÇM','Takım Lideri','MY Adı','MY Rol','Portföy','Portföy İçi Ziyaret Edilen','Portföy İçi Edilmeyen','Portföy İçi Toplam Ziyaret','Penetrasyon %','Müşteri Başı Ziyaret (İçi)'];
+  const r3=Object.values(myOzet).sort((a,b)=>a.my_adi.localeCompare(b.my_adi,'tr')).map(o=>[
+    o.kcm,o.takim,o.my_adi,o.my_rol,o.portfoy,o.ic_edilen,o.ic_edilmeyen,o.ic_ziyaret,
+    o.portfoy>0?Math.round(o.ic_edilen/o.portfoy*100)+'%':'0%',
+    o.ic_edilen>0?ftZ(o.ic_ziyaret/o.ic_edilen):0
+  ]);
+
+  const wb=XLSX.utils.book_new();
+  const w1=XLSX.utils.aoa_to_sheet([['Dönem: '+sd+' — '+ed],[],h1,..._ziyaretIcRows.map(toR1)]);
+  w1['!cols']=[12,18,18,8,14,32,8,12,12,14,14].map(w=>({wch:w}));
+  const w2=XLSX.utils.aoa_to_sheet([h2,..._ziyaretDisRows.map(toR2)]);
+  w2['!cols']=[12,18,18,8,14,32,8,12,18,14].map(w=>({wch:w}));
+  const w3=XLSX.utils.aoa_to_sheet([h3,...r3]);
+  w3['!cols']=[12,18,18,8,10,16,16,16,12,14].map(w=>({wch:w}));
+  const w4=XLSX.utils.aoa_to_sheet([h1,..._ziyaretEdilmeyenRows.map(toR1)]);
+  w4['!cols']=w1['!cols'];
+
+  XLSX.utils.book_append_sheet(wb,w1,'Portföy İçi Ziyaret');
+  XLSX.utils.book_append_sheet(wb,w2,'Portföy Dışı Ziyaret');
+  XLSX.utils.book_append_sheet(wb,w4,'Ziyaret Edilmeyenler');
+  XLSX.utils.book_append_sheet(wb,w3,'MY Özet');
+
+  const tarih=new Date().toLocaleDateString('tr-TR').replace(/[/.]/g,'-');
+  XLSX.writeFile(wb,'Ziyaret_Analizi_'+tarih+'.xlsx');
+  toast((_ziyaretIcRows.length+_ziyaretDisRows.length+_ziyaretEdilmeyenRows.length)+' kayıt, 4 sekme indirildi','success');
+}
 
 /* ===== PORTFÖY YÖNETİMİ ===== */
 // ===== PORTFÖY YÖNETİMİ =====

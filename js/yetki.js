@@ -1,7 +1,10 @@
 // ============================================================
-// yetki.js — v1.2.6
-// Son güncelleme: 2026-09-12
+// yetki.js — v1.2.7
+// Son güncelleme: 2026-09-13
 // Değişiklikler:
+//   v1.2.7 — (V31.86) Veri Kalitesi Denetim Modülü izinleri eklendi:
+//     veri_kalite_gor, veri_kalite_calistir, veri_kalite_duzelt_onayla
+//     ('Yönetim' grubuna, KÇM/TÜM scope'suz — modül tüm veriyi tarar).
 //   v1.2.6 — (V31.70) KRİTİK GÜVENLİK FIX'in parçası: YETKI_MODUL_ADLARI'na
 //     'arama' (Ziyaret Teyit) eklendi — Rol & Yetki ekranında bu modül için de
 //     artık diğerleri gibi TÜM/KÇM/BAĞLI/PRT+/PRT kapsam seçici çıkıyor.
@@ -70,7 +73,10 @@ const YETKI_ACTION_GRUP = [
       talep_yonet:'Talepleri yönetir',
       yonetici_tam:'Tam yönetici işlemleri (Admin/Direktör)',
       gorev_tumunu_gor:'Tüm görevleri görür',
-      veri_yonetimi:'Veri Yönetimi ekranını kullanır (toplu güncelleme/yükleme)' } },
+      veri_yonetimi:'Veri Yönetimi ekranını kullanır (toplu güncelleme/yükleme)',
+      veri_kalite_gor:'Veri Kalitesi Denetim ekranını görüntüler',
+      veri_kalite_calistir:'Veri Kalitesi taramasını çalıştırır (Excel rapor üretir)',
+      veri_kalite_duzelt_onayla:'Veri Kalitesi düzeltme önerilerini onaylar/uygular' } },
   { grup:'Memnuniyet Arama', items:{
       arama_agent:'Ziyaret teyit araması yapar (agent ekranı)',
       arama_rapor:'Çağrı analizi/raporunu görür (yönetici)' } },

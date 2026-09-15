@@ -1,7 +1,69 @@
 // ============================================================
-// config.js — v1.3.26
-// Son güncelleme: 2026-09-13
+// config.js — v1.3.36
+// Son güncelleme: 2026-09-15
 // Değişiklikler:
+//   v1.3.36 — APP_VERSION → V31.95. FIX: KÇM Müdürleri Görev modülünde tüm
+//     KÇM'lerin görevlerini görebiliyordu — kapsam kontrolü Rol ekranındaki
+//     ayarı hiç okumuyordu (gorev.js v1.2.13, bkz. o dosya).
+//   v1.3.35 — APP_VERSION → V31.94. FIX: Ziyaret Analizi "Portföy Dışı"/MY Özet
+//     sekmelerinde KÇM sütunu müşterinin KÇM'sini gösteriyordu, ziyareti yapan
+//     MY'nin kendisini değil (rapor.js v1.2.7, bkz. o dosya).
+//   v1.3.34 — APP_VERSION → V31.93. FIX: Ziyaret Analizi Excel İndir butonu
+//     .hide!important yüzünden hiç görünmüyordu (rapor.js v1.2.6, bkz. o dosya).
+//   v1.3.33 — APP_VERSION → V31.92. ZİYARET ANALİZİ: standalone "Ziyaret
+//     Raporu V2.0" HTML aracı Temas Raporu ekranına 2. sekme olarak entegre
+//     edildi (rapor.js v1.2.5, index.html pageTemasRapor). Yeni izin
+//     eklenmedi — mevcut rapor_temas scope'u kullanılıyor.
+//   v1.3.32 — APP_VERSION → V31.91. Veri Kalitesi alan haritasına 4 yeni
+//     kontrol eklendi (SQL, devir notundaki "Müşteri Ünvanı" ve "MY Adı"
+//     madde 2 kalemleri tamamlandı): contacts.musteri_unvani, duyuru_feed.
+//     unvan, stok_tedarik_talepleri.musteri_unvani (hepsi MUSTERI_UNVANI,
+//     kaynak customers.unvan via ncst) + duyuru_feed.my_adi (MY_ADI, kaynak
+//     users.ad_soyad via my_id). veri_kalite_denetim.js: _VK_PK_KOLONLARI'na
+//     duyuru_feed(duyuru_id), stok_tedarik_talepleri(talep_id) eklendi.
+//     admin.js: KONTROL_ETIKET'e MY_ADI/MUSTERI_UNVANI etiketleri eklendi
+//     (ekran + Excel). yedek_*/backup tabloları ve contacts.ad_soyad/
+//     gorev_unvani bilinçli olarak kapsam dışı bırakıldı (cache değil).
+//   v1.3.31 — APP_VERSION → V31.90. admin.js: "📊 Detaylı Excel Rapor İndir"
+//     butonu eklendi (veriKaliteExcelIndir). js/xlsx.full.min.js (SheetJS,
+//     zaten yüklü, kullanılmıyordu) ile taramanın TÜM bulgularını (ekran
+//     önizlemesiyle sınırlı değil, sayfalanarak) Özet + Detay sekmeli .xlsx
+//     olarak indiriyor. Yetki: veri_kalite_calistir (yetki.js'te zaten bu
+//     izin için "Excel rapor üretir" açıklaması vardı). Otomatik haftalık
+//     rapor üretimi henüz YOK — ayrı adım.
+//   v1.3.30 — APP_VERSION → V31.89. veri_kalite_denetim.js
+//     _vkIsimTutarsizligiTara PK EŞLEŞTİRME BUG FIX: aynı ilişkiye (örn.
+//     aynı kcm_id) bağlı birden fazla satır aynı hatalı cache değerine
+//     sahipse hepsi yanlışlıkla tek bir satıra eşleniyor, "Seçilenleri
+//     Düzelt" hep o satırı güncelleyip diğerlerini hiç düzeltmeden
+//     "uygulandı" işaretliyordu (üretimde 33 kullanıcıdan 1'i gerçekten
+//     etkilendi — my_id 134, elle SQL ile düzeltildi). Artık PK satırla
+//     birlikte ilk sorguda çekiliyor, ayrı eşleştirme adımı kaldırıldı.
+//     Ayrıca üretimde ortaya çıktı: kcm_groups.kcm_adi (kcm_id=6) kaynakta
+//     sondaki boşluk hatası içeriyordu — SQL ile trim edildi (kaynak da
+//     bozuk olabilir, motor bunu otomatik ayırt edemez, admin görsel
+//     kontrol etmeli). Excel export ve otomatik haftalık rapor henüz YOK.
+//   v1.3.29 — APP_VERSION → V31.88. admin.js _vkSonucRenderla DÜZELTME:
+//     önizleme sorgusu tek seferde .order('id').limit(500) çekiyordu; bu
+//     taramada 819 NCST orphan bulgusu (öneri yok) id sırasında ilk 500'ü
+//     tamamen doldurduğu için 33 KÇM Adı bulgusu (öneri VAR) hiç
+//     görünmüyor, "0 satır düzeltilebilir" yazıyor, checkbox/"Seçilenleri
+//     Düzelt" butonu çıkmıyordu. Artık öneri taşıyan (onerilen_deger NOT
+//     NULL) ve taşımayan satırlar AYRI sorgulanıp birleştiriliyor;
+//     düzeltilebilir sayısı count:'exact' ile tam olarak hesaplanıyor.
+//     Excel export ve otomatik haftalık rapor henüz YOK (ayrı adım).
+//   v1.3.28 — APP_VERSION → V31.87. YANMIŞ ETİKET DÜZELTMESİ: admin.js
+//     V31.86 etiketi altında localhost'a 3 farklı içerikle sunuldu (ilk
+//     sürüm, veriSagligi temizliği, checkbox/onay akışı) — kural ihlal
+//     edildi, sürüm atlatılarak düzeltildi. Değişiklik özeti V31.86 ile
+//     aynı, sadece etiket bozuk.
+//   v1.3.27 — APP_VERSION → V31.86. Veri Kalitesi Denetim Modülü (ilk parça):
+//     yeni js/veri_kalite_denetim.js (tarama motoru), admin.js'e "Veri Kalitesi
+//     Denetim" sekmesi, yetki.js'e 3 yeni izin. SQL: veri_kalite_alan_haritasi,
+//     veri_kalite_tespit tabloları + alan haritası ilk kayıtları (bu sürümde
+//     çalıştırıldı, ayrı migrasyon dosyası yok — devir notunda kayıtlı).
+//     HENÜZ YOK: Excel export, düzeltme onay/uygulama, kontak formu canlı
+//     uyarısı, arama modülü notu, durum/tarih kontrolleri.
 //   v1.3.26 — APP_VERSION → V31.85. arama.js: Çağrı Analizi'nde TÜM
 //     kategorilerdeki kartlara "Takım Lideri" satırı eklendi (MY listesi
 //     için tek seferlik users sorgusu, satır başına sorgu yok).
@@ -396,7 +458,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.85';
+const APP_VERSION = 'V31.95';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,7 +1,19 @@
 // ============================================================
-// gorev.js — v1.2.12
-// Son güncelleme: 2026-09-13
+// gorev.js — v1.2.13
+// Son güncelleme: 2026-09-15
 // Değişiklikler:
+//   v1.2.13 — (V31.95) KRİTİK GÜVENLİK/KAPSAM FIX: KÇM Müdürleri tüm KÇM'lerin
+//             görevlerini görebiliyordu. Kök neden: gorev.js kapsamı Rol ekranındaki
+//             "Görüntüleme" (TÜM/KÇM/BAĞLI/PRT+/PRT) ayarını hiç okumuyordu, sadece
+//             ayrı bir eylem izni olan hasPerm('gorev_tumunu_gor')'a bakıyordu — bu
+//             izin KÇM Müdürü'nde açık olduğu için kapsam=KÇM ayarı hiçbir etki
+//             yaratmıyordu. Ayrıca tasks tablosunda kcm_id kolonu YOK (şema kontrol
+//             edildi) — hiçbir görev oluşturma noktasında (manuel form, Ziyaret Teyit
+//             Araması, Şikayet/Talep yönlendirme) zaten set edilecek bir kcm_id alanı
+//             yoktu. Çözüm: getScope('gorev')==='KÇM' ise, atayan_id/atanan_id
+//             login'de dolan kcmMyIds listesiyle filtreleniyor; atanan_id'si boş
+//             (örn. atanmamış Teyit Araması) görevler ayrıca çekilip KÇM'nin müşteri
+//             ncst setiyle (URL'e gömülmeden, istemcide Set ile) eşleştiriliyor.
 //   v1.2.12 — (V31.82) openGorevDetay artik GOREV.tasks onbelleginde olmayan
 //             bir gorevi DB'den tek satir cekip acabiliyor (araSonucDetayAc
 //             ile ayni yontem, V31.75). Arama modulunun Cagri Analizi ekrani
@@ -128,6 +140,21 @@ async function _getOwnNcstCached(myId) {
   return _ownNcstCache;
 }
 
+// v1.2.13: KÇM kapsamı için — o KÇM'deki TÜM müşterilerin ncst listesi
+// (atanan_id'si henüz boş olan, örn. 'Ziyaret Teyit Araması' görevlerini
+// de KÇM Müdürü'nün görebilmesi için gerekli — bu görevler atanan_id=null
+// açılıyor, tasks tablosunda kcm_id kolonu yok, tek bağlantı ncst).
+// Oturum boyunca bir kez çekilir, kcm_id değişmedikçe tekrar sorgulanmaz.
+let _kcmNcstCache = null;
+let _kcmNcstCacheKcmId = null;
+async function _getKcmNcstCached(kcmId) {
+  if (_kcmNcstCache !== null && _kcmNcstCacheKcmId === kcmId) return _kcmNcstCache;
+  const { data } = await sb.from('customers').select('ncst').eq('kcm_id', kcmId);
+  _kcmNcstCache = (data || []).map(c => c.ncst).filter(Boolean);
+  _kcmNcstCacheKcmId = kcmId;
+  return _kcmNcstCache;
+}
+
 async function loadGorevler(silent) {
   const listEl = document.getElementById('gorevListesi');
   if (!silent && listEl) listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
@@ -142,10 +169,26 @@ async function loadGorevler(silent) {
   GOREV.taskTypes.forEach(function(t) { tipMap[t.type_id] = t; });
   const teyitTip = GOREV.taskTypes.find(function(t){ return t.tip_adi === 'Ziyaret Teyit Araması'; });
 
+  // v1.2.13: Rol ekranındaki "Görüntüleme" (kapsam) ayarı — TÜM/KÇM/BAĞLI/PRT+/PRT.
+  // Önceki hali sadece hasPerm('gorev_tumunu_gor') boolean iznine bakıyordu; kapsam=KÇM
+  // seçili olsa bile o izin açıksa (KÇM Müdürü'nde genelde açık) TÜM görevler dönüyordu.
+  const _gorevScope = (typeof getScope === 'function') ? getScope('gorev') : null;
+  const _kcmScopeAktif = (_gorevScope === 'KÇM' && !!currentUser.kcm_id);
+
   // v1.2.8: ncst listesi önbelleğe alındı — her loadGorevler çağrısında (60sn'de bir
   // sessiz yenileme dahil) tekrar sorgulanmıyor, sadece bu oturumda bir kez çekiliyor.
   let _ownNcstList = null;
-  if (!hasPerm('gorev_tumunu_gor')) _ownNcstList = await _getOwnNcstCached(mid);
+  if (!_kcmScopeAktif && !hasPerm('gorev_tumunu_gor')) _ownNcstList = await _getOwnNcstCached(mid);
+
+  // v1.2.13: KÇM kapsamı için o KÇM'deki müşteri ncst seti — atanan_id'si henüz
+  // boş olan görevleri (örn. atanmamış Teyit Araması) ncst üzerinden eşleştirmek için.
+  // İstemci tarafında Set olarak tutulur; URL'e gömülmez (kalabalık KÇM'lerde binlerce
+  // müşteri olabiliyor, bkz. Kocaeli/KÇM7 ~5000+ müşteri).
+  let _kcmNcstSet = null;
+  if (_kcmScopeAktif) {
+    const _list = await _getKcmNcstCached(currentUser.kcm_id);
+    _kcmNcstSet = new Set(_list);
+  }
 
   const SELECT_KOLONLAR =
     'task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,' +
@@ -170,6 +213,19 @@ async function loadGorevler(silent) {
 
     if (teyitTip) q = q.neq('type_id', teyitTip.type_id);
 
+    // v1.2.13: KÇM kapsamı — 'gorev_tumunu_gor' izninden ÖNCE kontrol edilir.
+    // Rol ekranında bu modül için kapsam=KÇM seçiliyse, yönetici "tüm görevleri
+    // gör" eylem iznine sahip olsa bile başka KÇM'lerin görevlerini görmemeli.
+    // tasks tablosunda kcm_id kolonu yok — kapsam, o KÇM'deki my_id listesi
+    // (kcmMyIds, login'de auth.js tarafından doldurulur) üzerinden uygulanır.
+    if (_kcmScopeAktif) {
+      if (typeof kcmMyIds !== 'undefined' && kcmMyIds && kcmMyIds.length) {
+        return q.or('atayan_id.in.(' + kcmMyIds.join(',') + '),atanan_id.in.(' + kcmMyIds.join(',') + ')');
+      }
+      // KÇM'de kayıtlı aktif MY/FMY yoksa güvenli tarafta kal — boş sonuç.
+      return q.eq('atayan_id', -1);
+    }
+
     // v1.2.11: 'gorev_tumunu_gor' bir İZİNDİR, kısıt değil. Eski kodda bu yetkiye
     // sahip ve kcm_id'si dolu bir yönetici `else if (currentUser.kcm_id)` dalına
     // düşüp kendi KÇM'ine hapsoluyordu — yorum satırı "Yönetici tümünü görür"
@@ -182,6 +238,19 @@ async function loadGorevler(silent) {
       return q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid + ',ncst.in.(' + ncstFilter + ')');
     }
     return q.or('atayan_id.eq.' + mid + ',atanan_id.eq.' + mid);
+  }
+
+  // v1.2.13: KÇM kapsamında, atanan_id'si HENÜZ BOŞ olan görevler (örn. atanmamış
+  // 'Ziyaret Teyit Araması') yukarıdaki atayan_id/atanan_id.in(kcmMyIds) filtresine
+  // hiç girmez — çünkü atanan_id null, atayan_id de her zaman KÇM içinden olmayabilir
+  // (örn. sistem/başka modül tarafından açılmış olabilir). Bu görevleri KÇM'nin kendi
+  // müşteri setiyle (ncst) eşleştirip ayrıca çekip birleştiriyoruz.
+  function _gorevQueryKcmAtanmamis() {
+    let q = sb.from('tasks').select(SELECT_KOLONLAR)
+      .order('olusturma_tarihi', { ascending: false })
+      .is('atanan_id', null);
+    if (teyitTip) q = q.neq('type_id', teyitTip.type_id);
+    return q;
   }
 
   // Sınırsız sayfalama — 1000'lik parçalar, gelen parça dolu olduğu sürece devam.
@@ -203,6 +272,28 @@ async function loadGorevler(silent) {
     tasks = tasks.concat(parca);
     if (parca.length < SAYFA || tasks.length >= TAVAN) break;
     bas += SAYFA;
+  }
+
+  // v1.2.13: KÇM kapsamı aktifse, atanan_id'si boş olan görevleri de çekip
+  // KÇM'nin müşteri seti (ncst) ile kesiştiriyoruz ve ana listeye ekliyoruz
+  // (task_id bazında dedupe — teoride çakışma olmaz ama emniyet için).
+  if (_kcmScopeAktif && _kcmNcstSet && _kcmNcstSet.size) {
+    let bas2 = 0;
+    while (true) {
+      const { data: parca2, error: err2 } = await _gorevQueryKcmAtanmamis().range(bas2, bas2 + SAYFA - 1);
+      if (err2) { console.error('Görev (atanmamış/KÇM) yükleme hatası:', err2); break; }
+      const p = parca2 || [];
+      const eslesen = p.filter(function(t) { return t.ncst && _kcmNcstSet.has(t.ncst); });
+      tasks = tasks.concat(eslesen);
+      if (p.length < SAYFA || tasks.length >= TAVAN) break;
+      bas2 += SAYFA;
+    }
+    const gorulen = new Set();
+    tasks = tasks.filter(function(t) {
+      if (gorulen.has(t.task_id)) return false;
+      gorulen.add(t.task_id);
+      return true;
+    });
   }
 
   // Kullanıcı ve müşteri bilgilerini batch çek
