@@ -1,5 +1,14 @@
 // ============================================================
-// arama.js — v1.1.13
+// arama.js — v1.1.14
+//   v1.1.14 (16.09.2026, V31.106): Görev tipi adlari "Şikayet Kaydı"/
+//     "Talep Kaydı" idi; mevcut "Müşteri Şikayeti" tipiyle çakışıp
+//     duplicate type_id olusturuyordu. task_types tarafinda "Şikayet
+//     Kaydı" (type_id 28) "Müşteri Şikayeti"ye (type_id 20) birlestirildi,
+//     "Talep Kaydı" (type_id 29) "Müşteri Talebi" olarak yeniden adlandirildi
+//     (SQL, Oktay tarafindan calistirildi — mevcut 15 gorevin tasks.baslik
+//     metni de guncellendi). Bu dosyadaki 4 kod referansi
+//     (_sikayetTalepGoreviAc cagrilari, gorevMap sorgusu, _analizGoreviOlustur)
+//     yeni isimlerle eslesecek sekilde guncellendi.
 //   v1.1.13 (13.09.2026, V31.85): Cagri Analizi'nde TUM kategorilerdeki
 //     kartlara "Takım Lideri" satiri eklendi (liderMap, tek seferlik
 //     users.takim_lideri_id sorgusuyla — satir basina sorgu degil).
@@ -2087,7 +2096,10 @@ async function _sikayetTalepHedefBul(visitMyId){
   return {hata:'Bu KÇM\'de takım lideri veya müdür tanımlı değil'};
 }
 
-// ctx: {ncst, my_id, taskId, unvan}. tipAdi: 'Şikayet Kaydı' | 'Talep Kaydı'.
+// ctx: {ncst, my_id, taskId, unvan}. tipAdi: 'Müşteri Şikayeti' | 'Müşteri Talebi'.
+// V31.106: Görev tipi adları "Şikayet Kaydı"/"Talep Kaydı" idi; mevcut
+// "Müşteri Şikayeti" tipiyle çakışıyordu (duplicate type_id). task_types
+// birleştirildi/yeniden adlandırıldı, kod burada eşleşecek şekilde güncellendi.
 // V31.83: manualAtananId verilirse hedef zinciri (_sikayetTalepHedefBul)
 // atlanir, dogrudan bu kisiye acilir. manualKaynakEtiket sadece log/gorunur
 // metin icin (ornegin 'ziyareti yapan MY/FMY' ya da 'manuel seçim').
@@ -2123,7 +2135,7 @@ async function _aramaSikayetGoreviOtomatikAc(ctx,c){
     const kimi=c.sikayet_kimi||'';
     const nedenEk=(kimi==='Ziyarete gelen MY/FMY'&&c.sikayet_my_neden)?(' / '+c.sikayet_my_neden):'';
     const aciklama='Şikayet kategorisi: '+kimi+nedenEk+'\nDetay: '+(c.sikayet_metni||'-');
-    const tid=await _sikayetTalepGoreviAc(ctx,'Şikayet Kaydı','Şikayet Kaydı',aciklama);
+    const tid=await _sikayetTalepGoreviAc(ctx,'Müşteri Şikayeti','Müşteri Şikayeti',aciklama);
     if(tid) toast('Şikayet kaydedildi, takım liderine/müdüre task açıldı','success');
   }catch(e){ console.error('[arama] sikayet gorevi:',e); toast('Şikayet task\'ı açılamadı, manuel yönlendirin','error'); }
 }
@@ -2142,7 +2154,7 @@ async function _anketTalepTaskAc(){
   // V31.83: Talep varsayilan olarak takim lideri zincirine degil, ziyareti
   // yapan MY/FMY'nin kendisine (ctx.my_id) acilir — Cagri Analizi'ndeki
   // "Yönlendir" ile sonradan baska birine devredilebilir.
-  const tid=await _sikayetTalepGoreviAc(ctx,'Talep Kaydı','Talep Kaydı','Talep: '+c.sikayet_metni,ctx.my_id,'ziyareti yapan MY/FMY');
+  const tid=await _sikayetTalepGoreviAc(ctx,'Müşteri Talebi','Müşteri Talebi','Talep: '+c.sikayet_metni,ctx.my_id,'ziyareti yapan MY/FMY');
   if(tid){ st._talepTaskId=tid; toast('Talep için task oluşturuldu','success'); _anketRender(); }
 }
 
@@ -2288,7 +2300,7 @@ async function loadAramaAnaliz(){
   if((kat.k==='sikayet'||kat.k==='talep') && rows.length){
     const taskIds=[...new Set(rows.map(r=>r.task_id).filter(Boolean))];
     if(taskIds.length){
-      const {data:tt2}=await sb.from('task_types').select('type_id').in('tip_adi',['Şikayet Kaydı','Talep Kaydı']);
+      const {data:tt2}=await sb.from('task_types').select('type_id').in('tip_adi',['Müşteri Şikayeti','Müşteri Talebi']);
       const ttIds=(tt2||[]).map(x=>x.type_id);
       if(ttIds.length){
         const {data:gorevler}=await sb.from('tasks').select('task_id,parent_task_id,durum').in('parent_task_id',taskIds).in('type_id',ttIds);
@@ -2369,7 +2381,7 @@ async function _analizGoreviOlustur(kat, rowTaskId){
   if(!atananId){ toast('Önce kişi seçin','error'); return; }
   const ctx=ARAMA._analizRowMap&&ARAMA._analizRowMap[rowTaskId];
   if(!ctx){ toast('Kayıt bilgisi bulunamadı, listeyi yenileyin','error'); return; }
-  const tipAdi = kat==='sikayet' ? 'Şikayet Kaydı' : 'Talep Kaydı';
+  const tipAdi = kat==='sikayet' ? 'Müşteri Şikayeti' : 'Müşteri Talebi';
   const aciklama = (kat==='sikayet'?'Şikayet':'Talep')+': '+(ctx.sikayet_metni||'-');
   const tid=await _sikayetTalepGoreviAc({ncst:ctx.ncst, my_id:ctx.my_id, taskId:rowTaskId, unvan:ctx.unvan}, tipAdi, tipAdi, aciklama, atananId, 'manuel seçim (Çağrı Analizi)');
   if(tid){ toast(tipAdi+' oluşturuldu','success'); loadAramaAnaliz(); }

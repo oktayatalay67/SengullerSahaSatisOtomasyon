@@ -1,7 +1,18 @@
 // ============================================================
-// config.js — v1.3.45
+// config.js — v1.3.47
 // Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.3.47 — APP_VERSION → V31.106. Görev tipi adları düzeltildi: "Şikayet
+//     Kaydı" → "Müşteri Şikayeti" (mevcut aynı adlı type_id ile birleştirildi,
+//     duplicate giderildi), "Talep Kaydı" → "Müşteri Talebi". task_types SQL
+//     güncellemesi + mevcut 15 görevin tasks.baslik metni + arama.js kod
+//     referansları (v1.1.14) birlikte uygulandı.
+//   v1.3.46 — APP_VERSION → V31.105. KRİTİK FIX: Temas Analizi ekranında MY/
+//     FMY/USER rolündeki kullanıcılar kendi KÇM'sindeki TÜM MY/FMY'lerin
+//     temasını görebiliyordu (filtre alanları bu roller için gizli olduğundan
+//     kendilerini daraltamıyorlardı, sorgu varsayılan olarak tüm KÇM'yi
+//     getiriyordu). Artık bu roller için sorgu her zaman sadece kendi kaydına
+//     kısıtlı (rapor.js v1.2.9).
 //   v1.3.45 — APP_VERSION → V31.104. "Satış Potansiyeli" (eski adı Ziyaret
 //     Potansiyeli) ekran düzenlemesi + ÇOKLU neden seçimi: Müşteri Düzenle
 //     modalında özel çerçeveli/renkli kutuya alındı, IT Ekibi'nin üstüne
@@ -532,7 +543,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.104';
+const APP_VERSION = 'V31.106';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
