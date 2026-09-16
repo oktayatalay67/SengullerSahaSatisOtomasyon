@@ -729,7 +729,7 @@
       <div class="menu-box" onclick="navTo('pageGorev')" style="position:relative;"><div class="menu-box-icon">✅</div><div class="menu-box-title">Görevler</div><span id="gorevMenuBadge" style="display:none;position:absolute;top:2px;right:2px;background:var(--red);color:#fff;font-size:13px;font-weight:800;border-radius:12px;padding:2px 8px;min-width:24px;line-height:1.3;text-align:center;box-shadow:0 0 0 2px var(--card);"></span></div>
 <div class="menu-box" onclick="navTo('pageDuyuru')" id="menuDuyuruBox" style="position:relative;"><div class="menu-box-icon">📢</div><div class="menu-box-title">Duyurular</div><span id="duyuruMenuBadge" style="display:none;position:absolute;top:6px;right:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:18px;text-align:center;"></span></div>
       <div class="menu-box hide" onclick="navTo('pageArama')" id="menuAramaBox"><div class="menu-box-icon">🎧</div><div class="menu-box-title">Ziyaret Teyit</div></div>
-      <div class="menu-box" onclick="navTo('pageHangiMusteri')"><div class="menu-box-icon">🧭</div><div class="menu-box-title">Hangi Müşteri?</div></div>
+      <div class="menu-box" onclick="navTo('pageHangiMusteri')"><div class="menu-box-icon">🧭</div><div class="menu-box-title">Hangi Müşteriye Gidelim</div></div>
     </div>
     <!-- Geri Bildirim -->
     <div class="section-title" style="margin-top:12px;">Geri Bildirim</div>
@@ -1791,7 +1791,7 @@
           <button class="btn" onclick="ziyaretAnaliziGetir()" style="background:var(--blue);">🔍 Raporu Getir</button>
           <span id="zaProg" style="font-size:11px;color:var(--text3);"></span>
         </div>
-        <button id="zaExcelBtn" onclick="ziyaretAnaliziExcelIndir()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir (4 Sekme)</button>
+        <button id="zaExcelBtn" onclick="ziyaretAnaliziExcelIndir()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir (5 Sekme)</button>
       </div>
 
       <!-- Özet kutuları -->
@@ -1809,6 +1809,10 @@
         <div style="background:var(--card);border:1px solid rgba(255,90,90,.3);border-radius:8px;padding:10px 12px;">
           <div style="font-size:20px;font-weight:700;" id="zaOzEdilmeyen">—</div>
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:4px;">Hiç Ziyaret Edilmeyen<br>(Portföy İçi)</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(150,150,150,.3);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:20px;font-weight:700;" id="zaOzPotansiyelYok">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:4px;">Potansiyel Değil<br>(Batık/Tabela/Ulaşılamayan vb.)</div>
         </div>
         <div style="background:var(--card);border:1px solid rgba(168,85,247,.3);border-radius:8px;padding:10px 12px;">
           <div style="font-size:20px;font-weight:700;" id="zaOzIciMbz">—</div>
@@ -1828,6 +1832,7 @@
         <button class="chip-btn selected" id="zaTab_ic" onclick="ziyaretAnaliziSekmeDegistir('ic')">📍 Portföy İçi</button>
         <button class="chip-btn" id="zaTab_dis" onclick="ziyaretAnaliziSekmeDegistir('dis')">🔀 Portföy Dışı</button>
         <button class="chip-btn" id="zaTab_edilmeyen" onclick="ziyaretAnaliziSekmeDegistir('edilmeyen')">⚠ Ziyaret Edilmeyen</button>
+        <button class="chip-btn" id="zaTab_potansiyel" onclick="ziyaretAnaliziSekmeDegistir('potansiyel')">🚫 Potansiyel Değil</button>
       </div>
       <div id="zaTableWrap" style="padding:0 14px;"><div class="empty">Filtrelerinizi seçip Raporu Getir'e tıklayın.</div></div>
     </div>
@@ -2908,11 +2913,40 @@
       <input type="number" id="editCustBY" min="0" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
     </div>
 
+    <!-- Satış Potansiyeli (V31.104 — eski adı "Ziyaret Potansiyeli") — özel çerçeve, dikkat çekici -->
+    <div id="editZpotBlock" style="border:2px solid var(--amber);background:rgba(255,180,0,.08);border-radius:10px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div class="sub-section" style="margin-bottom:0;color:var(--amber);">⚠ Satış Potansiyeli</div>
+        <div style="display:flex;gap:6px;">
+          <div class="chip-btn" id="editZpotVar" onclick="_zpotSetVal('edit',false)" style="width:56px;padding:8px 0;">Var</div>
+          <div class="chip-btn" id="editZpotYok" onclick="_zpotSetVal('edit',true)" style="width:56px;padding:8px 0;">Yok</div>
+        </div>
+      </div>
+      <div id="editZpotNedenBox" class="hide" style="margin-top:10px;">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;">Neden(ler) — birden fazla seçilebilir</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <div class="chip-btn zpot-neden-chip" data-neden="Batık/İflas" onclick="zpotNedenChipClick(this)">Batık / İflas</div>
+          <div class="chip-btn zpot-neden-chip" data-neden="Faaliyeti Yok (Tabela Firması)" onclick="zpotNedenChipClick(this)">Faaliyeti Yok (Tabela)</div>
+          <div class="chip-btn zpot-neden-chip" data-neden="Hiçbir Koşulda Ulaşılamıyor" onclick="zpotNedenChipClick(this)">Ulaşılamıyor</div>
+          <div class="chip-btn zpot-neden-chip" data-neden="Rakipten Memnun/Değiştirilemiyor" onclick="zpotNedenChipClick(this)">Rakipten Memnun</div>
+          <div class="chip-btn zpot-neden-chip" data-neden="Diğer" onclick="zpotNedenChipClick(this)">Diğer</div>
+        </div>
+        <div id="editZpotNedenDigerBox" class="hide" style="margin-top:8px;">
+          <input type="text" id="editZpotNedenDiger" oninput="zpotDigerMetinDegisti('edit')" placeholder="Nedeni yazın" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
+        </div>
+      </div>
+      <div id="editZpotLockNote" class="hide" style="font-size:11px;color:var(--amber);margin-top:10px;">
+        🔒 Bu işaret sadece KÇM Müdürü, Takım Lideri veya üst yönetim tarafından kaldırılabilir.
+      </div>
+    </div>
+
     <!-- IT Ekibi -->
-    <div class="sub-section">IT Ekibi</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <div class="chip-btn" id="editItEvet" onclick="_setToggle('it',true)">Var</div>
-      <div class="chip-btn" id="editItHayir" onclick="_setToggle('it',false)">Yok</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;">
+      <div class="sub-section" style="margin-bottom:0;">IT Ekibi</div>
+      <div style="display:flex;gap:6px;">
+        <div class="chip-btn" id="editItEvet" onclick="_setToggle('it',true)" style="width:56px;padding:8px 0;">Var</div>
+        <div class="chip-btn" id="editItHayir" onclick="_setToggle('it',false)" style="width:56px;padding:8px 0;">Yok</div>
+      </div>
     </div>
     <div id="editItSayisiBox" class="hide field" style="margin-bottom:8px;">
       <label>IT Ekip Sayısı</label>
@@ -2920,10 +2954,12 @@
     </div>
 
     <!-- Sunucu -->
-    <div class="sub-section">Sunucu Altyapısı</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <div class="chip-btn" id="editSunucuEvet" onclick="_setToggle('sunucu',true)">Var</div>
-      <div class="chip-btn" id="editSunucuHayir" onclick="_setToggle('sunucu',false)">Yok</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;">
+      <div class="sub-section" style="margin-bottom:0;">Sunucu Altyapısı</div>
+      <div style="display:flex;gap:6px;">
+        <div class="chip-btn" id="editSunucuEvet" onclick="_setToggle('sunucu',true)" style="width:56px;padding:8px 0;">Var</div>
+        <div class="chip-btn" id="editSunucuHayir" onclick="_setToggle('sunucu',false)" style="width:56px;padding:8px 0;">Yok</div>
+      </div>
     </div>
     <div id="editSunucuDetayBox" class="hide field" style="margin-bottom:8px;">
       <label>Sunucu Detay</label>
@@ -2931,10 +2967,12 @@
     </div>
 
     <!-- Şube -->
-    <div class="sub-section">Şube / Lokasyon</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <div class="chip-btn" id="editSubeEvet" onclick="_setToggle('sube',true)">Var</div>
-      <div class="chip-btn" id="editSubeHayir" onclick="_setToggle('sube',false)">Yok</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;">
+      <div class="sub-section" style="margin-bottom:0;">Şube / Lokasyon</div>
+      <div style="display:flex;gap:6px;">
+        <div class="chip-btn" id="editSubeEvet" onclick="_setToggle('sube',true)" style="width:56px;padding:8px 0;">Var</div>
+        <div class="chip-btn" id="editSubeHayir" onclick="_setToggle('sube',false)" style="width:56px;padding:8px 0;">Yok</div>
+      </div>
     </div>
     <div id="editSubeDetayBox" class="hide field" style="margin-bottom:8px;">
       <label>Şube Detay</label>
@@ -2942,10 +2980,12 @@
     </div>
 
     <!-- Firewall -->
-    <div class="sub-section">Firewall</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <div class="chip-btn" id="editFwEvet" onclick="_setToggle('fw',true)">Var</div>
-      <div class="chip-btn" id="editFwHayir" onclick="_setToggle('fw',false)">Yok</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;">
+      <div class="sub-section" style="margin-bottom:0;">Firewall</div>
+      <div style="display:flex;gap:6px;">
+        <div class="chip-btn" id="editFwEvet" onclick="_setToggle('fw',true)" style="width:56px;padding:8px 0;">Var</div>
+        <div class="chip-btn" id="editFwHayir" onclick="_setToggle('fw',false)" style="width:56px;padding:8px 0;">Yok</div>
+      </div>
     </div>
     <div id="editFwDetayBox" class="hide field" style="margin-bottom:14px;">
       <label>Firewall Marka</label>
@@ -3320,12 +3360,50 @@
 <div class="page" id="pageHangiMusteri">
   <div class="topbar">
     <button class="topbar-back" onclick="goBack()">&#8592;</button>
-    <div class="topbar-title">Hangi Müşteri?</div>
+    <div class="topbar-title">Hangi Müşteriye Gidelim</div>
   </div>
   <div class="scroll" style="padding:14px;">
     <div id="hangiMusteriGovde"><div class="loader"><div class="spinner"></div></div></div>
   </div>
-  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.66</span> | Hangi Müşteri?</div>
+  <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.66</span> | Hangi Müşteriye Gidelim</div>
+</div>
+
+<!-- ===== MÜŞTERİ POTANSİYELİ İŞARETLE (küçük modal, "Hangi Müşteriye Gidelim" ekranından) — V31.104 ===== -->
+<div class="modal-overlay" id="hmZpotModal" onclick="if(event.target===this)closeModal('hmZpotModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Müşteri Potansiyeli İşaretle</div>
+    <div id="hmZpotMusteriAdi" style="font-size:13px;color:var(--text2);margin-bottom:14px;"></div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <div class="sub-section" style="margin-bottom:0;color:var(--amber);">⚠ Satış Potansiyeli</div>
+      <div style="display:flex;gap:6px;">
+        <div class="chip-btn" id="hmZpotVar" onclick="_zpotSetVal('hm',false)" style="width:56px;padding:8px 0;">Var</div>
+        <div class="chip-btn" id="hmZpotYok" onclick="_zpotSetVal('hm',true)" style="width:56px;padding:8px 0;">Yok</div>
+      </div>
+    </div>
+    <div id="hmZpotNedenBox" class="hide" style="margin-top:10px;">
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;">Neden(ler) — birden fazla seçilebilir</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <div class="chip-btn zpot-neden-chip" data-neden="Batık/İflas" onclick="zpotNedenChipClick(this)">Batık / İflas</div>
+        <div class="chip-btn zpot-neden-chip" data-neden="Faaliyeti Yok (Tabela Firması)" onclick="zpotNedenChipClick(this)">Faaliyeti Yok (Tabela)</div>
+        <div class="chip-btn zpot-neden-chip" data-neden="Hiçbir Koşulda Ulaşılamıyor" onclick="zpotNedenChipClick(this)">Ulaşılamıyor</div>
+        <div class="chip-btn zpot-neden-chip" data-neden="Rakipten Memnun/Değiştirilemiyor" onclick="zpotNedenChipClick(this)">Rakipten Memnun</div>
+        <div class="chip-btn zpot-neden-chip" data-neden="Diğer" onclick="zpotNedenChipClick(this)">Diğer</div>
+      </div>
+      <div id="hmZpotNedenDigerBox" class="hide" style="margin-top:8px;">
+        <input type="text" id="hmZpotNedenDiger" oninput="zpotDigerMetinDegisti('hm')" placeholder="Nedeni yazın" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
+      </div>
+    </div>
+    <div id="hmZpotLockNote" class="hide" style="font-size:11px;color:var(--amber);margin-top:10px;">
+      🔒 Bu işaret sadece KÇM Müdürü, Takım Lideri veya üst yönetim tarafından kaldırılabilir.
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeModal('hmZpotModal')">İptal</button>
+      <button class="btn" id="hmZpotSaveBtn" onclick="hmZpotKaydet()" style="background:var(--blue);">💾 Kaydet</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===== GÖREV TİPLERİ — adminTab olarak (ayrı sayfa yok) ===== -->
@@ -3380,24 +3458,24 @@
   <div class="app-footer">© Şengüller Saha Satış | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.102"></script>
+<script src="js/config.js?v=v31.104"></script>
 <script src="js/yetki.js?v=v31.96"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
 <script src="js/donanim.js?v=v31.98"></script>
 <script src="js/utils.js?v=v31.101"></script>
 <script src="js/auth.js?v=v31.101"></script>
-<script src="js/gorev.js?v=v31.101"></script>
+<script src="js/gorev.js?v=v31.104"></script>
 <script src="js/talep.js?v=v31.34"></script>
-<script src="js/temas.js?v=v31.50"></script>
+<script src="js/temas.js?v=v31.104"></script>
 <script src="js/arama.js?v=v31.85"></script>
 <script src="js/firsat.js?v=v31.34"></script>
 <script src="js/duyuru.js?v=v31.102"></script>
-<script src="js/musteri.js?v=v31.67"></script>
+<script src="js/musteri.js?v=v31.103"></script>
 <script src="js/hedef.js?v=v31.96"></script>
 <script src="js/admin.js?v=v31.91"></script>
 <script src="js/veriyonetimi.js?v=v31.69"></script>
-<script src="js/rapor.js?v=v31.94"></script>
+<script src="js/rapor.js?v=v31.103"></script>
 
 </body>
 </html>

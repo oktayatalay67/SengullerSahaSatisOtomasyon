@@ -1,4 +1,26 @@
 // ============================================================
+// temas.js — v2.10.50
+//   v2.10.50 — (V31.104) "Satış Potansiyeli" (eski adı Ziyaret Potansiyeli):
+//     1) Ad değişti, Müşteri Düzenle modalında özel çerçeveli/renkli kutuya
+//        alınıp IT Ekibi'nin üstüne taşındı; IT/Sunucu/Şube/Firewall satırları
+//        artık soru-cevap aynı satırda (index.html).
+//     2) Neden seçimi ÇOKLU hale geldi — tek <select> yerine tıklanabilir
+//        kutucuklar (zpot-neden-chip), birden fazla seçilebiliyor. Ortak
+//        mantık genelleştirildi (ns parametreli: 'edit'=Müşteri Düzenle,
+//        'hm'=gorev.js'teki "Hangi Müşteriye Gidelim" hızlı modalı):
+//        _zpotAc/_zpotSetVal/_zpotRenderVal/_zpotRenderNedenChips/
+//        zpotNedenChipClick/zpotDigerMetinDegisti/_zpotKilidiUygula/
+//        _zpotNedenParse/_zpotNedenBuild. Eski _setZpotToggle/
+//        editZpotNedenChanged kaldırıldı (yerini _zpotAc/_zpotSetVal aldı).
+//     Veri modeli DEĞİŞMEDİ — customers.ziyaret_potansiyeli_yok_nedeni hâlâ
+//     tek TEXT kolonu, seçilen nedenler ' | ' ile birleştirilip yazılıyor.
+// temas.js — v2.10.49
+//   v2.10.49 — (V31.103) YENİ: "Ziyaret Potansiyeli Yok" işaretleme — Müşteri
+//     Düzenle modalına (custEditModal) eklendi. Batık/iflas, tabela firması,
+//     ulaşılamayan veya rakipte çok memnun olup değiştirilemeyen müşteriler
+//     için MY/FMY işaretleyebilir, ama SADECE KÇM MÜDÜRÜ/OPERASYON MÜDÜRÜ/
+//     ADMIN/SATIŞ DİREKTÖRÜ/TAKIM LİDERİ kaldırabilir (customers.
+//     ziyaret_potansiyeli_yok/_nedeni/_tarih/_kullanici — 4 yeni kolon).
 // temas.js — v2.10.48
 //   v2.10.48 — (V31.50) Temas formu kontak satirinda ham telefon yerine _telG().
 // temas.js — v2.10.47
@@ -1006,6 +1028,96 @@ function removeTmsFirsat(i){
   }
 }
 
+/* ===== SATIŞ POTANSİYELİ YOK (V31.104, eski adı "Ziyaret Potansiyeli") =====
+   Batık/iflas, tabela firması, ulaşılamayan veya rakipte çok memnun olup
+   değiştirilemeyen müşteriler için: MY/FMY işaretleyebilir (yetkisi varsa),
+   ama SADECE KÇM MÜDÜRÜ ve üstü roller + TAKIM LİDERİ kaldırabilir. Bu sayede
+   ziyaret hedefi/penetrasyon hesaplarından bu müşteriler "Ziyaret Edilmeyen"
+   listesinden çıkarılıp ayrı "Potansiyel Değil" listesine taşınıyor (rapor.js).
+   V31.104: neden artık ÇOKLU seçilebiliyor (kutucuklara tıklayıp işaretleme).
+   Aynı mekanizma iki yerde kullanılıyor — Müşteri Düzenle modalı (ns='edit')
+   ve "Hangi Müşteriye Gidelim" ekranındaki küçük hızlı modal (ns='hm',
+   gorev.js). customers.ziyaret_potansiyeli_yok_nedeni hâlâ TEK bir TEXT
+   kolonu — seçilen nedenler ' | ' ile birleştirilip yazılıyor, "Diğer"
+   serbest metni varsa "Diğer: <metin>" şeklinde saklanıyor. Yeni SQL kolonu
+   GEREKMİYOR, mevcut kolon yeniden kullanılıyor. */
+const ZPOT_NEDEN_SABIT=['Batık/İflas','Faaliyeti Yok (Tabela Firması)','Hiçbir Koşulda Ulaşılamıyor','Rakipten Memnun/Değiştirilemiyor'];
+function _zpotKaldirmaYetkisiVarMi(){
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
+  return ['ADMIN','SATIŞ DİREKTÖRÜ','OPERASYON MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ'].includes(r);
+}
+// nedenStr (DB'deki ham metin) → {set:Set<neden>, digerMetin:string}
+// Eski (V31.103) tek-seçim kayıtlarıyla da geriye dönük uyumlu: '|' yoksa ve
+// sabit listede değilse, tüm metin "Diğer" serbest metni sayılır.
+function _zpotNedenParse(nedenStr){
+  const set=new Set(); let digerMetin='';
+  (nedenStr||'').split('|').map(s=>s.trim()).filter(Boolean).forEach(tok=>{
+    if(/^Diğer:/i.test(tok)){ set.add('Diğer'); digerMetin=tok.replace(/^Diğer:\s*/i,''); }
+    else if(ZPOT_NEDEN_SABIT.includes(tok)){ set.add(tok); }
+    else if(tok==='Diğer'){ set.add('Diğer'); }
+    else { set.add('Diğer'); digerMetin=tok; } // eski tek-serbest-metin kaydı
+  });
+  return {set, digerMetin};
+}
+function _zpotNedenBuild(set, digerMetin){
+  const parts=[];
+  ZPOT_NEDEN_SABIT.forEach(n=>{ if(set.has(n)) parts.push(n); });
+  if(set.has('Diğer')){
+    const dt=(digerMetin||'').trim();
+    parts.push(dt?('Diğer: '+dt):'Diğer');
+  }
+  return parts.join(' | ');
+}
+// window._zpotState — o an açık olan TEK zpot bloğunun (edit ya da hm) canlı durumu.
+window._zpotState = {ns:null, val:false, set:new Set(), digerMetin:''};
+function _zpotRenderVal(ns, val){
+  document.getElementById(ns+'ZpotVar')?.classList.toggle('selected', val===false);
+  document.getElementById(ns+'ZpotYok')?.classList.toggle('selected', val===true);
+  document.getElementById(ns+'ZpotNedenBox')?.classList.toggle('hide', val!==true);
+}
+function _zpotRenderNedenChips(ns){
+  document.querySelectorAll('#'+ns+'ZpotNedenBox .zpot-neden-chip').forEach(el=>{
+    el.classList.toggle('selected', window._zpotState.set.has(el.dataset.neden));
+  });
+  document.getElementById(ns+'ZpotNedenDigerBox')?.classList.toggle('hide', !window._zpotState.set.has('Diğer'));
+}
+// ns'e ait bloğu, mevcut DB durumuyla ({flag, neden}) sıfırdan doldurur.
+function _zpotAc(ns, flag, nedenStr){
+  const parsed=_zpotNedenParse(nedenStr);
+  window._zpotState = {ns, val:flag===true, set:parsed.set, digerMetin:parsed.digerMetin};
+  _zpotRenderVal(ns, window._zpotState.val);
+  _zpotRenderNedenChips(ns);
+  const digerInp=document.getElementById(ns+'ZpotNedenDiger');
+  if(digerInp) digerInp.value=parsed.digerMetin;
+}
+function _zpotSetVal(ns, val){
+  window._zpotState.ns=ns; window._zpotState.val=val;
+  _zpotRenderVal(ns, val);
+}
+function zpotNedenChipClick(el){
+  const neden=el.dataset.neden;
+  if(window._zpotState.set.has(neden)) window._zpotState.set.delete(neden);
+  else window._zpotState.set.add(neden);
+  _zpotRenderNedenChips(window._zpotState.ns);
+}
+function zpotDigerMetinDegisti(ns){
+  const el=document.getElementById(ns+'ZpotNedenDiger');
+  if(el) window._zpotState.digerMetin=el.value;
+}
+// Kilit uygula/kaldır: zaten işaretliyse ve kullanıcının kaldırma yetkisi
+// yoksa (ya da genel readonly=true ise) tüm blok tıklanamaz hale gelir.
+function _zpotKilidiUygula(ns, locked, kilitNotuGoster){
+  [ns+'ZpotVar',ns+'ZpotYok'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){ el.style.pointerEvents=locked?'none':''; el.style.opacity=locked?'0.5':''; }
+  });
+  document.querySelectorAll('#'+ns+'ZpotNedenBox .zpot-neden-chip').forEach(el=>{
+    el.style.pointerEvents=locked?'none':''; el.style.opacity=locked?'0.5':'';
+  });
+  const digerEl=document.getElementById(ns+'ZpotNedenDiger'); if(digerEl) digerEl.disabled=locked;
+  document.getElementById(ns+'ZpotLockNote')?.classList.toggle('hide', !kilitNotuGoster);
+}
+
 /* ===== MÜŞTERİ DÜZENLE ===== */
 function openCustEditModal(c, source){
   if(!c){toast('Müşteri seçili değil','error');return;}
@@ -1049,6 +1161,10 @@ function openCustEditModal(c, source){
   if(typeof telefonMaskeBagla==='function') telefonMaskeBagla('editCustTelefon');
   window._custUpdateSource = source||'temas';
 
+  // V31.104: Satış Potansiyeli Yok — prefill (ns='edit')
+  window._custZpotOnceki = c.ziyaret_potansiyeli_yok===true;
+  _zpotAc('edit', c.ziyaret_potansiyeli_yok===true, c.ziyaret_potansiyeli_yok_nedeni||'');
+
   // v2.10.26: KRİTİK — sahiplik kontrolü merkezi hale getirildi. Önceden sadece
   // Müşteri listesi ekranı bu kontrolü yapıyordu; Temas/Fırsat formundan
   // "Müşteriyi Düzenle" ile açıldığında bu kontrol tamamen atlanıyordu —
@@ -1073,6 +1189,13 @@ function openCustEditModal(c, source){
       el.style.opacity = readonly?'0.5':'';
     });
   }
+
+  // V31.104: Satış Potansiyeli kilidi — genel readonly bloğu YUKARIDA tüm
+  // chip-btn'lerin kilidini zaten "readonly"ye göre ayarladı; burada bu genel
+  // ayarı EZEREK zpot'a özel kuralı uyguluyoruz: zaten işaretliyse VE kullanıcının
+  // kaldırma yetkisi yoksa (readonly'den bağımsız olarak) kilitli kalır.
+  const zpotKaldirmaYok = window._custZpotOnceki && !_zpotKaldirmaYetkisiVarMi();
+  _zpotKilidiUygula('edit', readonly||zpotKaldirmaYok, zpotKaldirmaYok);
 
   openModal('custEditModal');
 }
@@ -1157,6 +1280,35 @@ async function submitCustUpdate(){
     adres:document.getElementById('editCustAdres').value||null,
     telefon:_custTelKayit
   };
+
+  // V31.104: Satış Potansiyeli Yok — kaydet (çoklu neden)
+  const zpotYeni = window._zpotState.val===true;
+  const zpotOnceki = window._custZpotOnceki===true;
+  if(zpotYeni){
+    if(!window._zpotState.set.size){toast('Satış Potansiyeli "Yok" için en az bir neden seçmelisiniz','error');return;}
+    if(window._zpotState.set.has('Diğer') && !(window._zpotState.digerMetin||'').trim()){
+      toast('"Diğer" seçildi, lütfen nedeni yazın','error');return;
+    }
+    const neden=_zpotNedenBuild(window._zpotState.set, window._zpotState.digerMetin);
+    upd.ziyaret_potansiyeli_yok=true;
+    upd.ziyaret_potansiyeli_yok_nedeni=neden;
+    if(!zpotOnceki){
+      // İlk kez işaretleniyor — tarih/kullanıcı damgası bas
+      upd.ziyaret_potansiyeli_yok_tarih=new Date().toISOString();
+      upd.ziyaret_potansiyeli_yok_kullanici=currentUser.ad_soyad||('MY#'+currentUser.my_id);
+    }
+  } else {
+    if(zpotOnceki && !_zpotKaldirmaYetkisiVarMi()){
+      // UI zaten kilitli olmalıydı — DOM manipülasyonuna karşı sunucu-öncesi son kontrol
+      toast('Bu işareti kaldırma yetkiniz yok','error');
+      return;
+    }
+    upd.ziyaret_potansiyeli_yok=false;
+    upd.ziyaret_potansiyeli_yok_nedeni=null;
+    upd.ziyaret_potansiyeli_yok_tarih=null;
+    upd.ziyaret_potansiyeli_yok_kullanici=null;
+  }
+
   const isAdmin=(currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';
   if(isAdmin){
     const nn=document.getElementById('editCustNcst').value;
@@ -1172,6 +1324,13 @@ async function submitCustUpdate(){
   const{error}=await sb.from('customers').update(upd).eq('ncst',currentEditingCustNcst);
   if(error){toast('Güncelleme hatası: '+error.message,'error');return;}
   toast('Müşteri güncellendi','success');
+  // V31.103: Ziyaret Potansiyeli değişikliğini logla (denetim izi)
+  if(zpotYeni!==zpotOnceki){
+    addLog('customers', currentEditingCustNcst,
+      zpotYeni?'Ziyaret Potansiyeli Yok İşaretlendi':'Ziyaret Potansiyeli Yok Kaldırıldı',
+      zpotYeni?(upd.ziyaret_potansiyeli_yok_nedeni||''):'');
+  }
+  window._custZpotOnceki=false;
   // Müşteri modülü açıksa orayı da güncelle
   if(window._custUpdateSource==='musteri'&&selectedMusteri){
     const {data} = await sb.from('customers').select('*').eq('ncst',currentEditingCustNcst).single();

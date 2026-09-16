@@ -1,7 +1,34 @@
 // ============================================================
-// config.js — v1.3.43
+// config.js — v1.3.45
 // Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.3.45 — APP_VERSION → V31.104. "Satış Potansiyeli" (eski adı Ziyaret
+//     Potansiyeli) ekran düzenlemesi + ÇOKLU neden seçimi: Müşteri Düzenle
+//     modalında özel çerçeveli/renkli kutuya alındı, IT Ekibi'nin üstüne
+//     taşındı; IT/Sunucu/Şube/Firewall satırları artık soru-cevap aynı
+//     satırda. Neden seçimi tek <select> yerine tıklanabilir kutucuklara
+//     (birden fazla seçilebilir) çevrildi — hem Müşteri Düzenle'de hem de
+//     "Hangi Müşteriye Gidelim" (eski adı "Hangi Müşteri?") ekranındaki yeni
+//     hızlı modalda (hmZpotModal — "⚠ Müşteri Potansiyeli İşaretle" butonu,
+//     tam profile gitmeden işaretler). Veri modeli DEĞİŞMEDİ — mevcut
+//     ziyaret_potansiyeli_yok_nedeni kolonu, seçilen nedenler ' | ' ile
+//     birleştirilip yazılıyor. Değişen dosyalar: temas.js v2.10.50,
+//     gorev.js v1.2.17, index.html.
+//   v1.3.44 — APP_VERSION → V31.103. YENİ: "Ziyaret Potansiyeli Yok" işaretleme.
+//     Batık/iflas, tabela firması, ulaşılamayan veya rakipte çok memnun olup
+//     değiştirilemeyen müşteriler artık işaretlenip ziyaret hedefi/penetrasyon
+//     hesaplarından ayrıştırılabiliyor. customers tablosuna 4 yeni kolon
+//     gerekiyor (bkz. SQL notu): ziyaret_potansiyeli_yok (bool),
+//     ziyaret_potansiyeli_yok_nedeni (text), ziyaret_potansiyeli_yok_tarih
+//     (timestamptz), ziyaret_potansiyeli_yok_kullanici (text). Akış: "Hangi
+//     Müşteri?" ekranından "Müşteri Profiline Git" ile müşteri kartı açılır
+//     (gorev.js+musteri.js), orada Müşteri Düzenle modalında (temas.js)
+//     işaretlenir — MY/FMY işaretleyebilir, sadece KÇM MÜDÜRÜ/OPERASYON
+//     MÜDÜRÜ/ADMIN/SATIŞ DİREKTÖRÜ/TAKIM LİDERİ kaldırabilir. Ziyaret
+//     Analizi'ne (rapor.js) 4. sekme "Potansiyel Değil" eklendi, Excel 5
+//     sekmeye çıktı. Değişen dosyalar: temas.js v2.10.49, gorev.js v1.2.16,
+//     musteri.js v1.2.1, rapor.js v1.2.8, index.html (custEditModal + Ziyaret
+//     Analizi 4. sekme + pageHangiMusteri butonu).
 //   v1.3.43 — APP_VERSION → V31.102. KRİTİK FIX: Duyurular ekranı "column
 //     duyuru_feed.musteri_my_id does not exist" hatasıyla kırılıyordu (admin/
 //     gölge hesapla görüntülemede tetiklendi) — applyRBAC'ın genel PRT+ dalı
@@ -505,7 +532,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.102';
+const APP_VERSION = 'V31.104';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

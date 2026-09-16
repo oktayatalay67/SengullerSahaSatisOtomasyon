@@ -1,7 +1,19 @@
 // ============================================================
-// gorev.js — v1.2.15
+// gorev.js — v1.2.17
 // Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.2.17 — (V31.104) "Hangi Müşteriye Gidelim" (eski adı "Hangi Müşteri?"):
+//            "Devam"ın üstüne "⚠ Müşteri Potansiyeli İşaretle" butonu eklendi
+//            — tam profile gitmeden, küçük bir modalda (hmZpotModal) Satış
+//            Potansiyeli Var/Yok + çoklu neden işaretlenebiliyor (hmZpotAc/
+//            hmZpotKaydet, temas.js'teki 'hm' namespace'li ortak zpot
+//            mekanizmasını kullanıyor). Yeni işaretlenen müşteri öneri
+//            havuzundan anında düşürülüp yeni öneri gösteriliyor.
+//   v1.2.16 — (V31.103) "Hangi Müşteri?": ziyaret_potansiyeli_yok=true işaretli
+//            müşteriler artık öneri havuzundan tamamen çıkarılıyor (initHangiMusteri).
+//            Yeni buton "Müşteri Profiline Git" (hangiMusteriMusteriProfiline) —
+//            müşteriyi Müşteri ekranında açar, orada MY/FMY "Ziyaret Potansiyeli
+//            Yok" işaretleyebilir (bkz. temas.js/musteri.js).
 //   v1.2.15 — (V31.101) Ana Menü Görevler kutusu: ikon 📋→✅, rozet büyütüldü
 //     ve artık HAFİF bir sorguyla (_gorevBekleyenSayisiHafif) Görevler ekranı
 //     hiç açılmamış olsa bile güncelleniyor (bkz. auth.js loadDashboard). Ana
@@ -520,15 +532,19 @@ async function initHangiMusteri() {
   const el = document.getElementById('hangiMusteriGovde');
   if (el) el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
 
-  const { data: portfoy, error: pErr } = await sb.from('customers')
-    .select('ncst,unvan,il,ilce,adres,telefon,musteri_tipi')
+  const { data: portfoyRaw, error: pErr } = await sb.from('customers')
+    .select('ncst,unvan,il,ilce,adres,telefon,musteri_tipi,ziyaret_potansiyeli_yok')
     .eq('aktif', true).eq('my_id', currentUser.my_id);
   if (pErr) {
     if (el) el.innerHTML = '<div class="empty" style="color:var(--red);">Hata: ' + escapeHTML(pErr.message) + '</div>';
     return;
   }
-  if (!portfoy || !portfoy.length) {
-    if (el) el.innerHTML = '<div class="empty">Portföyünüzde müşteri bulunamadı.</div>';
+  // V31.103: "Ziyaret Potansiyeli Yok" işaretli müşteriler bu ekranda hiç
+  // önerilmesin (batık/iflas/tabela/ulaşılamayan vb. — zaten önerilse dahi
+  // ziyaret edilmeyecek, tekrar tekrar karşımıza çıkmasının anlamı yok).
+  const portfoy = (portfoyRaw || []).filter(function(c){ return c.ziyaret_potansiyeli_yok !== true; });
+  if (!portfoy.length) {
+    if (el) el.innerHTML = '<div class="empty">Portföyünüzde ziyaret edilebilecek müşteri bulunamadı (tümü işaretli veya boş).</div>';
     return;
   }
 
@@ -587,8 +603,89 @@ function _hangiMusteriSecVeGoster() {
       (secilen.adres  ? '<div style="font-size:12px;color:var(--text2);margin-bottom:3px;">' + escapeHTML(secilen.adres) + '</div>' : '') +
       (secilen.telefon ? '<div style="font-size:12px;color:var(--text2);">📞 ' + escapeHTML(secilen.telefon) + '</div>' : '') +
     '</div>' +
+    '<button class="btn btn-ghost" style="width:100%;margin-bottom:8px;border-color:var(--amber);color:var(--amber);" onclick="hmZpotAc()">⚠ Müşteri Potansiyeli İşaretle</button>' +
     '<button class="btn" style="width:100%;background:var(--blue);margin-bottom:8px;" onclick="hangiMusteriDevam()">Devam — Ziyaret Planla</button>' +
+    '<button class="btn btn-ghost" style="width:100%;margin-bottom:8px;" onclick="hangiMusteriMusteriProfiline()">👤 Müşteri Profiline Git</button>' +
     (portfoy.length > 1 ? '<button class="btn btn-ghost" style="width:100%;" onclick="_hangiMusteriSecVeGoster()">🔄 Başka Öner</button>' : '');
+}
+
+// "Müşteri Profiline Git" — müşteriyi Müşteri ekranında (pageMusteri) açar.
+// initMusteriPage() (musteri.js) window._pendingMusteriNcst'i kontrol edip
+// selectMusteri() çağırıyor — temas.js'teki _pendingTemasCustomer deseniyle
+// aynı mantık, yeni bir mekanizma icat edilmedi.
+function hangiMusteriMusteriProfiline() {
+  const c = window._hangiMusteriSecilen;
+  if (!c) { toast('Müşteri bulunamadı', 'error'); return; }
+  window._pendingMusteriNcst = c.ncst;
+  navTo('pageMusteri');
+}
+
+// ===== MÜŞTERİ POTANSİYELİ İŞARETLE — küçük hızlı modal (V31.104) =====
+// Tam Müşteri ekranına gitmeden, "Hangi Müşteriye Gidelim" ekranından direkt
+// işaretlemek için. Aynı çoklu-neden/kilit mantığını (temas.js) 'hm' isim
+// alanıyla kullanır — yeni bir mekanizma icat edilmedi, sadece namespace farklı.
+function hmZpotAc() {
+  const c = window._hangiMusteriSecilen;
+  if (!c) { toast('Müşteri bulunamadı', 'error'); return; }
+  const adEl = document.getElementById('hmZpotMusteriAdi');
+  if (adEl) adEl.textContent = (c.unvan || c.ncst) + ' — NCST: ' + c.ncst;
+  // Havuzda taşınan alanlar sınırlı (ncst/unvan/il/ilce/adres/telefon/musteri_tipi/
+  // ziyaret_potansiyeli_yok) — nedeni de taze almak için tek satır sorgu atılır.
+  sb.from('customers').select('ziyaret_potansiyeli_yok,ziyaret_potansiyeli_yok_nedeni')
+    .eq('ncst', c.ncst).single().then(function(res) {
+      const flag = res.data && res.data.ziyaret_potansiyeli_yok === true;
+      const neden = (res.data && res.data.ziyaret_potansiyeli_yok_nedeni) || '';
+      window._hmZpotOnceki = flag;
+      _zpotAc('hm', flag, neden);
+      const kaldirmaYok = flag && !_zpotKaldirmaYetkisiVarMi();
+      _zpotKilidiUygula('hm', kaldirmaYok, kaldirmaYok);
+      openModal('hmZpotModal');
+    });
+}
+async function hmZpotKaydet() {
+  const c = window._hangiMusteriSecilen;
+  if (!c) { toast('Müşteri bulunamadı', 'error'); return; }
+  const zpotYeni = window._zpotState.val === true;
+  const zpotOnceki = window._hmZpotOnceki === true;
+  const upd = {};
+  if (zpotYeni) {
+    if (!window._zpotState.set.size) { toast('Satış Potansiyeli "Yok" için en az bir neden seçmelisiniz', 'error'); return; }
+    if (window._zpotState.set.has('Diğer') && !(window._zpotState.digerMetin || '').trim()) {
+      toast('"Diğer" seçildi, lütfen nedeni yazın', 'error'); return;
+    }
+    upd.ziyaret_potansiyeli_yok = true;
+    upd.ziyaret_potansiyeli_yok_nedeni = _zpotNedenBuild(window._zpotState.set, window._zpotState.digerMetin);
+    if (!zpotOnceki) {
+      upd.ziyaret_potansiyeli_yok_tarih = new Date().toISOString();
+      upd.ziyaret_potansiyeli_yok_kullanici = currentUser.ad_soyad || ('MY#' + currentUser.my_id);
+    }
+  } else {
+    if (zpotOnceki && !_zpotKaldirmaYetkisiVarMi()) { toast('Bu işareti kaldırma yetkiniz yok', 'error'); return; }
+    upd.ziyaret_potansiyeli_yok = false;
+    upd.ziyaret_potansiyeli_yok_nedeni = null;
+    upd.ziyaret_potansiyeli_yok_tarih = null;
+    upd.ziyaret_potansiyeli_yok_kullanici = null;
+  }
+  const { error } = await sb.from('customers').update(upd).eq('ncst', c.ncst);
+  if (error) { toast('Güncelleme hatası: ' + error.message, 'error'); return; }
+  toast('Satış Potansiyeli güncellendi', 'success');
+  if (zpotYeni !== zpotOnceki && typeof addLog === 'function') {
+    addLog('customers', c.ncst,
+      zpotYeni ? 'Ziyaret Potansiyeli Yok İşaretlendi' : 'Ziyaret Potansiyeli Yok Kaldırıldı',
+      zpotYeni ? (upd.ziyaret_potansiyeli_yok_nedeni || '') : '');
+  }
+  closeModal('hmZpotModal');
+  // V31.104: Az önce işaretlenen (Yok) müşteri bir daha önerilmesin — cache'den
+  // (havuz) düşürüp yeniden sorgu atmadan yeni bir öneri göster.
+  if (zpotYeni && window._hangiMusteriHavuz) {
+    window._hangiMusteriHavuz.portfoy = window._hangiMusteriHavuz.portfoy.filter(function(p) { return p.ncst !== c.ncst; });
+    if (!window._hangiMusteriHavuz.portfoy.length) {
+      const el = document.getElementById('hangiMusteriGovde');
+      if (el) el.innerHTML = '<div class="empty">Portföyünüzde ziyaret edilebilecek müşteri bulunamadı (tümü işaretli veya boş).</div>';
+      return;
+    }
+    _hangiMusteriSecVeGoster();
+  }
 }
 
 // "Devam" — seçilen müşteriyle temas planlama formunu (durum: Planlandı) açar.
