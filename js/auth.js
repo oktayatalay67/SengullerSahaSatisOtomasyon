@@ -1,7 +1,23 @@
 // ============================================================
-// auth.js — v1.2.21
+// auth.js — v1.2.24
 // Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.2.24 — (V31.111) DÜZELTME: V31.108'de yanlışlıkla Ana Menü'deki SABİT
+//     (position:fixed) alt app-footer kaldırılıp metni scroll içindeki
+//     appVersionInfo'ya taşınmıştı — geri alındı. setAppVersion tekrar sadece
+//     "V31.x | tarih saat" yazıyor, "© Şengüller Saha Satış" metni index.html
+//     tarafındaki sabit app-footer'da (diğer tüm ekranlarla aynı).
+//   v1.2.23 — (V31.109) "Yönetici Paneli" kutusu ayrı bölümden çıkarılıp ana
+//     menü ızgarasına (dashMainGrid) normal yarım-genişlik kutu olarak taşındı
+//     — "Uygulama Taleplerim" ile aynı satıra, diğerleri gibi 1/2 ölçekte
+//     giriyor. menu-box-full hesaplaması artık aramaBox/ymBox toggle'larından
+//     sonra çalışıyor ki güncel görünürlüğü doğru hesaba katsın.
+//   v1.2.22 — (V31.108) Ana Menü düzeni: loadDashboard içine, görünür kutu
+//     sayısı tek olduğunda son kutuyu tam satır genişliğine yayan mantık
+//     eklendi (menu-box-full CSS sınıfı) — "Hangi Müşteriye Gidelim" ve
+//     "Uygulama Taleplerim" artık yanlarında boşluk bırakmıyor. setAppVersion
+//     artık "© Şengüller Saha Satış" metnini de içeriyor — alttaki ayrı
+//     app-footer kaldırıldı, tek versiyon satırı kaldı.
 //   v1.2.21 — (V31.101) loadDashboard: Ana Menü'ye her dönüşte gorev.js'teki
 //     _gorevBekleyenSayisiHafif() çağrılıp Görevler rozeti tazeleniyor ve
 //     bekleyen görev varsa kısa bir toast bildirimi gösteriliyor.
@@ -186,8 +202,26 @@ function loadDashboard(){
   if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')));
   // V31.97: Hızlı Sevkiyat Ana Menü'den kaldırıldı — Donanım Takip > Stok/
   // Rezervasyon sekmelerinin içine taşındı (bkz. donanim.js initDonanimPage).
+  // V31.109: Yönetici Paneli artık ayrı bir bölüm değil, ana ızgaranın normal
+  // (yarım genişlik) bir kutusu — diğerleriyle aynı satıra 1/2 ölçekte giriyor.
   const ymBox=document.getElementById('yoneticiMenuBox');
   if(ymBox) ymBox.classList.toggle('hide', !hasPerm('yonetici_panel'));
+  // V31.108: Ana Menü kutu sayısı role göre değişiyor (bazı kutular gizli
+  // olabiliyor). Görünür kutu sayısı tek olduğunda son kutu yarım kalıp
+  // yanında boşluk bırakıyordu — artık son görünür kutu tam satır genişliğine
+  // yayılıyor (menu-box-full). aramaBox/ymBox toggle'larından SONRA çalışır ki
+  // güncel görünürlük durumunu hesaba katsın.
+  (function(){
+    const grid=document.getElementById('dashMainGrid');
+    if(!grid) return;
+    const visible=Array.prototype.filter.call(grid.children, function(el){
+      return !el.classList.contains('hide');
+    });
+    visible.forEach(function(el){ el.classList.remove('menu-box-full'); });
+    if(visible.length % 2 === 1){
+      visible[visible.length-1].classList.add('menu-box-full');
+    }
+  })();
   // V31.101: Ana Menü'ye HER dönüşte (loadDashboard navTo/goBack ile buraya her
   // gelişte çağrılır) bekleyen görev rozeti tazelenir ve varsa kısa bir toast
   // bildirimi gösterilir — Görevler ekranı hiç açılmamış olsa bile.

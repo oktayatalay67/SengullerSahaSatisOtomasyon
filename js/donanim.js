@@ -1,5 +1,10 @@
 // ============================================================
-// donanim.js — v1.0.34 (V31.98)
+// donanim.js — v1.0.35 (V31.111)
+//   v1.0.35 (V31.111): Talepler sekmesindeki "➕ Yeni Talep" butonu artık
+//     MY/FMY'de de görünüyor (donanim_on_rezerve_et) — asıl ihtiyaç sahibi
+//     onlar, önceden sadece Depo & Muhasebe'ye (donanim_yonet) açıktı.
+//     Gönderim tarafı (donanimTalepModalAc/donanimTalepGonder) zaten V31.98'de
+//     bu iki yetkiyi de kabul ediyordu, sadece buton görünürlüğü dardı.
 //   v1.0.34 (V31.98): Talepler > Yeni Talep akışı GERÇEK sepet mantığına
 //     çevrildi. Önceki sürümde ürün seçilince doğrudan tek-ürün gönderim
 //     modalı açılıyordu; şimdi seçilen ürün window._donanimTalepSepet.items
@@ -287,11 +292,12 @@ async function initDonanimPage(){
   if(svkKisayolStok) svkKisayolStok.style.display = (hasPerm('donanim_yonet') && hasPerm('donanim_sevk')) ? '' : 'none';
   const talepTabBtn = document.getElementById('donanimTabTalepBtn');
   if(talepTabBtn) talepTabBtn.style.display = (hasPerm('donanim_on_rezerve_et') || hasPerm('donanim_yonet')) ? '' : 'none';
-  // V31.97: Talepler sekmesindeki "Yeni Talep" — Depo & Muhasebe (donanim_yonet)
-  // için. donanimTalepModalAc/donanimTalepGonder içindeki yetki kontrolü de
-  // aynı şekilde genişletildi (aşağıda, bkz. o fonksiyonlar).
+  // V31.111: Talepler sekmesindeki "Yeni Talep" — asıl ihtiyaç MY/FMY
+  // (donanim_on_rezerve_et), ama Depo & Muhasebe (donanim_yonet) de aynı
+  // butonla müşteri adına talep açabiliyor. donanimTalepModalAc/
+  // donanimTalepGonder içindeki yetki kontrolü zaten bu ikisini kabul ediyordu.
   const talepYeniBtn = document.getElementById('donanimTalepYeniBtn');
-  if(talepYeniBtn) talepYeniBtn.style.display = hasPerm('donanim_yonet') ? '' : 'none';
+  if(talepYeniBtn) talepYeniBtn.style.display = (hasPerm('donanim_on_rezerve_et') || hasPerm('donanim_yonet')) ? '' : 'none';
   window._donanimSepet = {};
   window._donanimSecimModu = false;
   window._donanimDepoCache = null;   // V31.57: her açılışta depo haritası tazelenir

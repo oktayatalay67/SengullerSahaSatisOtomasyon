@@ -1,7 +1,31 @@
 // ============================================================
-// config.js — v1.3.47
+// config.js — v1.3.52
 // Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.3.52 — APP_VERSION → V31.111. FIX: Ana Menü'deki sabit (fixed)
+//     app-footer'ın V31.108'de yanlışlıkla kaldırılması geri alındı — diğer
+//     tüm ekranlarla aynı şekilde geri geldi (auth.js v1.2.24). Donanım Takip:
+//     Talepler sekmesindeki "➕ Yeni Talep" butonu artık MY/FMY'de de
+//     görünüyor (donanim.js v1.0.35).
+//   v1.3.51 — APP_VERSION → V31.110. UI: Donanım Takip > Stok sekmesindeki
+//     mavi "📌 Rezervasyon" tuşu, Rezervasyon sekmesindeki tuşla tutarlı
+//     olacak şekilde "📌 Yeni Rezervasyon" olarak değiştirildi.
+//   v1.3.50 — APP_VERSION → V31.109. UI: "Yönetici Paneli" kutusu ayrı
+//     bölümden çıkarılıp Ana Menü ızgarasına taşındı — "Uygulama Taleplerim"
+//     ile aynı satıra, diğer kutular gibi 1/2 (yarım) genişlikte giriyor
+//     (auth.js v1.2.23).
+//   v1.3.49 — APP_VERSION → V31.108. FIX: Ana Menü düzeni — "Uygulama
+//     Taleplerim" kutusu ana menü ızgarasına taşındı, görünür kutu sayısı
+//     tek olduğunda son kutu (Hangi Müşteriye Gidelim / Uygulama Taleplerim)
+//     artık yanında boşluk bırakmadan tam satırı kaplıyor (auth.js v1.2.22,
+//     menu-box-full CSS sınıfı). FIX: Ana Menü'de iki ayrı versiyon yazısı
+//     ("Yükleniyor..." satırı + alt app-footer) tek satıra indirildi.
+//   v1.3.48 — APP_VERSION → V31.107. UI: Temas Raporu/Temas Analizi sekme
+//     tuşları alttaki KÇM kutusu genişliğine eşleşecek şekilde büyütüldü
+//     (flex:1). Ana Menü: "Talep Gir" ve "Taleplerim" tek kutuya birleştirildi
+//     — "Uygulama Taleplerim" (Taleplerim ekranına açılır, üstüne "Yeni Talep"
+//     tuşu eklendi, liste altında kalmaya devam ediyor). "Geri Bildirim" bölüm
+//     başlığı kaldırıldı.
 //   v1.3.47 — APP_VERSION → V31.106. Görev tipi adları düzeltildi: "Şikayet
 //     Kaydı" → "Müşteri Şikayeti" (mevcut aynı adlı type_id ile birleştirildi,
 //     duplicate giderildi), "Talep Kaydı" → "Müşteri Talebi". task_types SQL
@@ -543,7 +567,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.106';
+const APP_VERSION = 'V31.111';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

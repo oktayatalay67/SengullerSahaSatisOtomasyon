@@ -55,6 +55,7 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
 .menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .menu-box{background:var(--card);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px 14px;text-align:center;cursor:pointer;transition:.2s;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:110px;}
 .menu-box:active{transform:scale(.95);border-color:var(--red);background:var(--navy3);}
+.menu-box-full{grid-column:1 / -1;}
 .menu-box-icon{font-size:32px;margin-bottom:8px;}
 .menu-box-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.2;}
 .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}

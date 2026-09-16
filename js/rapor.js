@@ -1,4 +1,16 @@
 // ============================================================
+// rapor.js — v1.2.9
+// Son güncelleme: 2026-09-16
+//   v1.2.9 — (V31.105) KRİTİK FIX: Temas Analizi'nde (ziyaretAnaliziGetir) MY/
+//            FMY/USER rolündeki kullanıcılar KÇM/Takım/MY filtrelerini hiç
+//            göremiyordu (musteri.js:initTemasRapor bu alanları bu roller için
+//            zaten gizliyor) ama sorgu varsayılan olarak "ROL_TAM değilse
+//            KÇM'ye kısıtla" yapıyordu — yani sıradan bir MY, KENDİ KÇM'sindeki
+//            TÜM MY/FMY'lerin temasını görüyordu ("herkes herkesin temasını
+//            görüyor"). Artık MY/FMY/USER için sorgu HER ZAMAN sadece kendi
+//            my_id'sine kısıtlanıyor (_ziyaretMyRoller kontrolü). Temas Raporu
+//            (fetchAdvancedReport/temas.js) bu hatadan ETKİLENMEMİŞTİ — o zaten
+//            applyRBAC/getScope üzerinden doğru kapsamı kullanıyordu.
 // rapor.js — v1.2.8
 // Son güncelleme: 2026-09-16
 //   v1.2.8 — (V31.103) YENİ: Ziyaret Analizi'ne 4. sekme — "Potansiyel Değil"
@@ -273,6 +285,7 @@ async function ziyaretAnaliziGetir(){
   try{
     const r=(currentUser.yetki_seviyesi||'').toUpperCase();
     const ROL_TAM=['ADMIN','SATIŞ DİREKTÖRÜ'];
+    const _ziyaretMyRoller=['MY','FMY','USER']; // musteri.js:initTemasRapor'daki myRoller ile aynı liste
     const kcmVal=document.getElementById('repKcmFilter')?.value||'';
     const tlVal=document.getElementById('repTakimFilter')?.value||'';
     const myVal=document.getElementById('repMyFilter')?.value||'';
@@ -288,10 +301,22 @@ async function ziyaretAnaliziGetir(){
     let myQ=sb.from('users')
       .select('my_id,ad_soyad,yetki_seviyesi,takim_lideri_id,kcm_id')
       .eq('aktif',true).in('yetki_seviyesi',['MY','FMY','USER']).not('is_sanal','eq',true);
-    if(!ROL_TAM.includes(r)&&currentUser.kcm_id) myQ=myQ.eq('kcm_id',currentUser.kcm_id);
-    if(kcmVal) myQ=myQ.eq('kcm_id',parseInt(kcmVal));
-    if(myVal) myQ=myQ.eq('my_id',parseInt(myVal));
-    else if(tlVal) myQ=myQ.eq('takim_lideri_id',parseInt(tlVal));
+    // V31.105 KRİTİK FIX: MY/FMY/USER rolünde KÇM/Takım/MY filtre alanları HİÇ
+    // gösterilmiyor (musteri.js:initTemasRapor — myRoller için tamamen gizli),
+    // yani bu roller kendilerini asla seçemiyordu. Eskiden buraya sadece
+    // "ROL_TAM değilse KÇM'ye kısıtla" uygulanıyordu — bu da sıradan bir MY'nin
+    // KENDİ KÇM'sindeki TÜM MY/FMY'lerin temasını görmesine yol açıyordu
+    // ("herkes herkesin temasını görüyor"). Artık MY/FMY/USER için HER ZAMAN
+    // sadece kendi kaydı; filtre UI'sı görünen roller (TAKIM LİDERİ ve üstü)
+    // eski davranışını (varsayılan KÇM, seçilirse daraltma) koruyor.
+    if(_ziyaretMyRoller.includes(r)){
+      myQ=myQ.eq('my_id',currentUser.my_id);
+    } else {
+      if(!ROL_TAM.includes(r)&&currentUser.kcm_id) myQ=myQ.eq('kcm_id',currentUser.kcm_id);
+      if(kcmVal) myQ=myQ.eq('kcm_id',parseInt(kcmVal));
+      if(myVal) myQ=myQ.eq('my_id',parseInt(myVal));
+      else if(tlVal) myQ=myQ.eq('takim_lideri_id',parseInt(tlVal));
+    }
     const{data:myList}=await myQ.order('ad_soyad');
     const myArr=myList||[];
     if(!myArr.length){wrap.innerHTML='<div class="empty">Bu filtreler için MY/FMY bulunamadı.</div>';setProg('');return;}
