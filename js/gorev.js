@@ -1,7 +1,37 @@
 // ============================================================
-// gorev.js — v1.2.13
-// Son güncelleme: 2026-09-15
+// gorev.js — v1.2.15
+// Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.2.15 — (V31.101) Ana Menü Görevler kutusu: ikon 📋→✅, rozet büyütüldü
+//     ve artık HAFİF bir sorguyla (_gorevBekleyenSayisiHafif) Görevler ekranı
+//     hiç açılmamış olsa bile güncelleniyor (bkz. auth.js loadDashboard). Ana
+//     Menü'ye her dönüşte bekleyen görev sayısı kısa bir toast ile de gösterilir.
+//     YENİ MODÜL: "Hangi Müşteri?" (Ana Menü) — kullanıcının portföyünde bugüne
+//     kadar hiç (durum='Gerçekleşti') ziyaret etmediği rastgele bir müşteri
+//     önerir (initHangiMusteri/_hangiMusteriSecVeGoster); hiç kalmadıysa en uzun
+//     süredir ziyaret edilmeyeni önerir. "Devam" temas.js'teki mevcut
+//     window._pendingTemasCustomer/_pendingTemasApply mekanizmasıyla temas
+//     planlama formunu (durum: Planlandı) o müşteri seçili açar.
+//   v1.2.14 — (V31.100) GÖREV MODÜLÜ İYİLEŞTİRMELERİ:
+//     (1) Görev Tipi filtresi eklendi (gorevTipFilter) — GOREV.taskTypes'tan
+//         DİNAMİK doldurulur, her loadTaskTypes çağrısında (yeni görev tipi
+//         eklendiğinde de) güncel kalır.
+//     (2) KÇM/Takım/MY personel filtresi eklendi (gorevFilterDiv) — temas.js/
+//         pipeline'daki initPersonelFiltre/_hiyerarsikKcmChanged/
+//         _hiyerarsikTakimChanged ortak fonksiyonları yeniden kullanıldı;
+//         sadece geniş görüşlü roller görür (MY/FMY'de tüm blok gizli).
+//     (3) Durum filtresi eklendi (gorevDurumFilter) — mevcut "kime göre" chip
+//         filtrelerinin YANINA ek satır (AND mantığı); Atandı/Başladı/Devam/
+//         Beklemede/Tamamlandı/Reddedildi/İptal + hesaplanmış "Gecikmiş".
+//     (4) Sıralama eklendi (gorevSortSelect): Tarih (varsayılan, mevcut grup
+//         başlıklı görünüm korunur) / Görev Tipi / Durum (bu ikisinde liste
+//         düz gösterilir, grup başlığı yok).
+//     (5) Listeden "✓ Tamamla" artık görev tipinin bagli_form'u varsa
+//         (ziyaret/şikayet/fırsat/potansiyel) durumu hemen değiştirmiyor —
+//         önce ilgili formu açıyor (_gorevTamamlaFormAkisi), form kaydedilince
+//         gorevZiyaretKaydedildi (window._gorevTamamlaMod ile) görevi otomatik
+//         Tamamlandı'ya çekiyor. Formsuz görevlerde/form açılamayan durumlarda
+//         (müşteri yok, portföy dışı) eskisi gibi direkt tamamlanıyor.
 //   v1.2.13 — (V31.95) KRİTİK GÜVENLİK/KAPSAM FIX: KÇM Müdürleri tüm KÇM'lerin
 //             görevlerini görebiliyordu. Kök neden: gorev.js kapsamı Rol ekranındaki
 //             "Görüntüleme" (TÜM/KÇM/BAĞLI/PRT+/PRT) ayarını hiç okumuyordu, sadece
@@ -81,7 +111,10 @@ var GOREV = {
   taskTypes:   [],        // task_types listesi
   tasks:       [],        // yüklü görev listesi
   filter:      'hepsi',   // hepsi / bana / benimki / atadim
-  sortBy:      'deadline',
+  sortBy:      'deadline', // V31.100: deadline / tip / durum
+  filterTip:   '',         // V31.100: Görev Tipi filtresi (type_id, '' = tümü)
+  filterDurum: '',         // V31.100: Durum filtresi (GOREV_DURUMLAR değeri veya 'Gecikmiş', '' = tümü)
+  personelIds: null,       // V31.100: KÇM/Takım/MY filtresiyle daraltılan my_id seti (null = filtresiz)
   editingId:   null,      // düzenleme modunda task_id
   timer:       null,      // otomatik yenileme
   unread:      0,         // bildirim sayısı
@@ -104,6 +137,10 @@ var GOREV_DURUM_RENK = {
 // ============================================================
 async function initGorevModulu() {
   await loadTaskTypes();
+  // V31.100: KÇM/Takım/MY personel filtresi — temas.js'teki initPersonelFiltre ile
+  // aynı ortak mekanizma (MY/FMY için tüm blok gizlenir, diğer roller için KÇM/Takım/
+  // MY seçenekleri role göre kademeli açılır).
+  if (typeof initPersonelFiltre === 'function') await initGorevPersonelFiltre();
   await loadGorevler();
   renderGorevFiltreler();
   startGorevTimer();
@@ -123,6 +160,23 @@ async function loadTaskTypes() {
   const { data } = await sb.from('task_types')
     .select('*').eq('aktif', true).order('sira');
   GOREV.taskTypes = data || [];
+  // V31.100: Görev Tipi filtresi her zaman DB'deki GÜNCEL tip listesini yansıtır —
+  // yeni bir görev tipi eklendiğinde bir sonraki loadTaskTypes çağrısında (her
+  // loadGorevler'de olduğu gibi) otomatik olarak filtre seçeneklerine eklenir.
+  _gorevTipFiltreDoldur();
+}
+
+// V31.100: gorevTipFilter <select>'ini GOREV.taskTypes ile doldurur; seçili değer
+// (varsa) yeniden seçili kalır (yenileme sırasında filtre sıfırlanmasın diye).
+function _gorevTipFiltreDoldur() {
+  const sel = document.getElementById('gorevTipFilter');
+  if (!sel) return;
+  const mevcut = sel.value;
+  sel.innerHTML = '<option value="">Tüm Görev Tipleri</option>' +
+    GOREV.taskTypes.map(function(t) {
+      return '<option value="' + t.type_id + '">' + escapeHTML(t.tip_adi) + '</option>';
+    }).join('');
+  if ([...sel.options].some(function(o){ return o.value === mevcut; })) sel.value = mevcut;
 }
 
 // ============================================================
@@ -153,6 +207,72 @@ async function _getKcmNcstCached(kcmId) {
   _kcmNcstCache = (data || []).map(c => c.ncst).filter(Boolean);
   _kcmNcstCacheKcmId = kcmId;
   return _kcmNcstCache;
+}
+
+// ============================================================
+// V31.100: KÇM/TAKIM/MY PERSONEL FİLTRESİ
+// ============================================================
+// temas.js/pipeline'daki initPersonelFiltre/_hiyerarsikKcmChanged/
+// _hiyerarsikTakimChanged ortak fonksiyonları yeniden kullanılıyor — sadece
+// gorev ekranına özel eleman id'leri veriliyor. Bu ortak fonksiyon zaten
+// MY/FMY/USER rollerinde tüm bloğu gizliyor (initPersonelFiltre içinde
+// MY_ROL kontrolü var), yani bu filtre otomatik olarak sadece geniş görüşlü
+// rollerde (Admin/Direktör/KÇM Müdürü/Operasyon Müdürü/Takım Lideri vb.) görünür.
+async function initGorevPersonelFiltre() {
+  await initPersonelFiltre({
+    filterDivId: 'gorevFilterDiv',
+    kcmDivId:    'gorevKcmFilterDiv',      kcmSelId:   'gorevKcmFilter',
+    takimDivId:  'gorevKcmTakimFilterDiv', takimSelId: 'gorevKcmTakimFilter',
+    myDivId:     'gorevMyFilterDiv',       mySelId:    'gorevMyFilter'
+  });
+}
+async function gorevKcmChanged() {
+  await _hiyerarsikKcmChanged('gorevKcmFilter', 'gorevKcmTakimFilter', 'gorevMyFilter', null);
+  await gorevPersonelFilterDegisti();
+}
+async function gorevKcmTakimChanged() {
+  await _hiyerarsikTakimChanged('gorevKcmTakimFilter', 'gorevKcmFilter', 'gorevMyFilter', null);
+  await gorevPersonelFilterDegisti();
+}
+// Seçili KÇM/Takım/MY'ye göre hedef my_id setini hesaplar — en dar seçim önceliklidir
+// (MY seçiliyse tek kişi; Takım seçiliyse o takımın üyeleri; KÇM seçiliyse o KÇM'nin
+// tüm üyeleri; hiçbiri seçili değilse null = filtre yok).
+async function _gorevPersonelIdSeti() {
+  const fMy = document.getElementById('gorevMyFilter')?.value || '';
+  if (fMy) return [parseInt(fMy)];
+  const fTakim = document.getElementById('gorevKcmTakimFilter')?.value || '';
+  if (fTakim) {
+    const { data } = await sb.from('users').select('my_id')
+      .eq('takim_lideri_id', parseInt(fTakim)).eq('aktif', true);
+    return (data || []).map(function(u){ return u.my_id; });
+  }
+  const fKcm = document.getElementById('gorevKcmFilter')?.value || '';
+  if (fKcm) {
+    const { data } = await sb.from('users').select('my_id')
+      .eq('kcm_id', parseInt(fKcm)).eq('aktif', true);
+    return (data || []).map(function(u){ return u.my_id; });
+  }
+  return null;
+}
+async function gorevPersonelFilterDegisti() {
+  GOREV.personelIds = await _gorevPersonelIdSeti();
+  renderGorevListesi();
+}
+
+// ============================================================
+// GÖREV TİPİ / DURUM FİLTRESİ + SIRALAMA (V31.100)
+// ============================================================
+function gorevTipFilterDegisti(v) {
+  GOREV.filterTip = v || '';
+  renderGorevListesi();
+}
+function gorevDurumFilterDegisti(v) {
+  GOREV.filterDurum = v || '';
+  renderGorevListesi();
+}
+function gorevSortDegisti(v) {
+  GOREV.sortBy = v || 'deadline';
+  renderGorevListesi();
 }
 
 async function loadGorevler(silent) {
@@ -362,6 +482,128 @@ function updateGorevBadge() {
   }
 }
 
+// V31.101: Ana menü rozetini/bildirimini, Görev ekranı hiç açılmamış olsa bile
+// (örn. girişte veya her Ana Menü dönüşünde) güncelleyebilmek için HAFİF bir
+// sorgu — loadGorevler'in tüm listeyi çeken ağır sorgusunu tekrarlamaz, sadece
+// bana atanan + tamamlanmamış görev SAYISINI çeker. Dönüş: sayı.
+async function _gorevBekleyenSayisiHafif() {
+  try {
+    const { data, error } = await sb.from('tasks').select('task_id')
+      .eq('atanan_id', currentUser.my_id)
+      .not('durum', 'in', '("Tamamlandı","Reddedildi","İptal")');
+    if (error) { console.error('[gorev] bekleyen sayısı hatası:', error.message); return 0; }
+    const n = (data || []).length;
+    GOREV.unread = n;
+    const badge = document.getElementById('gorevMenuBadge');
+    if (badge) {
+      badge.textContent = n || '';
+      badge.style.display = n > 0 ? 'inline-flex' : 'none';
+    }
+    return n;
+  } catch (e) {
+    console.error('[gorev] bekleyen sayısı hatası:', e);
+    return 0;
+  }
+}
+
+// ============================================================
+// V31.101: "HANGİ MÜŞTERİ?" — ziyaret edilmemiş portföy müşterisi önerisi
+// ============================================================
+// Kendi portföyündeki müşterilerden, bu kullanıcının BUGÜNE KADAR HİÇ
+// (durum='Gerçekleşti') ziyaret etmediği birini rastgele seçip ekrana getirir.
+// Hiç kalmadıysa (portföydeki herkes en az bir kez ziyaret edilmişse), en uzun
+// süredir ziyaret edilmeyeni (son gerçekleşen ziyaret tarihi en eski) önerir.
+window._hangiMusteriSecilen = null;
+window._hangiMusteriHavuz = null; // {portfoy, sonZiyaret} — "Başka Öner" tekrar sorgu atmasın diye
+
+async function initHangiMusteri() {
+  const el = document.getElementById('hangiMusteriGovde');
+  if (el) el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+
+  const { data: portfoy, error: pErr } = await sb.from('customers')
+    .select('ncst,unvan,il,ilce,adres,telefon,musteri_tipi')
+    .eq('aktif', true).eq('my_id', currentUser.my_id);
+  if (pErr) {
+    if (el) el.innerHTML = '<div class="empty" style="color:var(--red);">Hata: ' + escapeHTML(pErr.message) + '</div>';
+    return;
+  }
+  if (!portfoy || !portfoy.length) {
+    if (el) el.innerHTML = '<div class="empty">Portföyünüzde müşteri bulunamadı.</div>';
+    return;
+  }
+
+  const { data: ziyaretler, error: vErr } = await sb.from('visits')
+    .select('ncst,guncelleme_tarihi')
+    .eq('my_id', currentUser.my_id).eq('durum', 'Gerçekleşti');
+  if (vErr) {
+    if (el) el.innerHTML = '<div class="empty" style="color:var(--red);">Hata: ' + escapeHTML(vErr.message) + '</div>';
+    return;
+  }
+
+  const sonZiyaret = {}; // ncst -> en son gerçekleşen ziyaret tarihi
+  (ziyaretler || []).forEach(function(v) {
+    if (!v.ncst) return;
+    if (!sonZiyaret[v.ncst] || v.guncelleme_tarihi > sonZiyaret[v.ncst]) sonZiyaret[v.ncst] = v.guncelleme_tarihi;
+  });
+
+  window._hangiMusteriHavuz = { portfoy: portfoy, sonZiyaret: sonZiyaret };
+  _hangiMusteriSecVeGoster();
+}
+
+// "Başka Öner" — aynı havuzdan (yeniden sorgu atmadan) tekrar rastgele seçer.
+function _hangiMusteriSecVeGoster() {
+  const havuz = window._hangiMusteriHavuz;
+  const el = document.getElementById('hangiMusteriGovde');
+  if (!havuz || !el) return;
+  const { portfoy, sonZiyaret } = havuz;
+
+  const hicZiyaretEdilmemis = portfoy.filter(function(c) { return !sonZiyaret[c.ncst]; });
+
+  let secilen, mod;
+  if (hicZiyaretEdilmemis.length) {
+    secilen = hicZiyaretEdilmemis[Math.floor(Math.random() * hicZiyaretEdilmemis.length)];
+    mod = 'hic';
+  } else {
+    // V31.101: fallback — portföydeki HERKES en az bir kez ziyaret edilmişse,
+    // en uzun süredir ziyaret edilmeyeni (son ziyaret tarihi en eski) öner.
+    const sirali = portfoy.slice().sort(function(a, b) {
+      return String(sonZiyaret[a.ncst] || '').localeCompare(String(sonZiyaret[b.ncst] || ''));
+    });
+    secilen = sirali[0];
+    mod = 'eski';
+  }
+
+  window._hangiMusteriSecilen = secilen;
+  const notHTML = mod === 'hic'
+    ? '<div style="font-size:12px;color:var(--green);margin-bottom:10px;">✅ Bu müşteriyi bugüne kadar hiç ziyaret etmediniz.</div>'
+    : '<div style="font-size:12px;color:var(--amber);margin-bottom:10px;">⏱ Portföyünüzdeki tüm müşteriler en az bir kez ziyaret edilmiş — en uzun süredir ziyaret edilmeyen bu müşteri' +
+      (sonZiyaret[secilen.ncst] ? ' (son ziyaret: ' + fmtDate(sonZiyaret[secilen.ncst]) + ')' : '') + '.</div>';
+
+  el.innerHTML = notHTML +
+    '<div class="visit-card" style="margin-bottom:16px;">' +
+      '<div style="font-size:16px;font-weight:700;margin-bottom:6px;">' + escapeHTML(secilen.unvan || secilen.ncst) + '</div>' +
+      '<div style="font-size:12px;color:var(--text2);margin-bottom:3px;">NCST: ' + escapeHTML(secilen.ncst) + '</div>' +
+      ((secilen.il || secilen.ilce) ? '<div style="font-size:12px;color:var(--text2);margin-bottom:3px;">📍 ' + escapeHTML([secilen.il, secilen.ilce].filter(Boolean).join(' / ')) + '</div>' : '') +
+      (secilen.adres  ? '<div style="font-size:12px;color:var(--text2);margin-bottom:3px;">' + escapeHTML(secilen.adres) + '</div>' : '') +
+      (secilen.telefon ? '<div style="font-size:12px;color:var(--text2);">📞 ' + escapeHTML(secilen.telefon) + '</div>' : '') +
+    '</div>' +
+    '<button class="btn" style="width:100%;background:var(--blue);margin-bottom:8px;" onclick="hangiMusteriDevam()">Devam — Ziyaret Planla</button>' +
+    (portfoy.length > 1 ? '<button class="btn btn-ghost" style="width:100%;" onclick="_hangiMusteriSecVeGoster()">🔄 Başka Öner</button>' : '');
+}
+
+// "Devam" — seçilen müşteriyle temas planlama formunu (durum: Planlandı) açar.
+// temas.js'teki window._pendingTemasCustomer/_pendingTemasApply mekanizması
+// (Müşteri ekranından "+Temas" akışıyla aynı) yeniden kullanılıyor.
+function hangiMusteriDevam() {
+  const c = window._hangiMusteriSecilen;
+  if (!c) { toast('Müşteri bulunamadı', 'error'); return; }
+  window._pendingTemasCustomer = c.ncst;
+  window._pendingTemasApply = function() {
+    if (typeof setTemasDurumu === 'function') setTemasDurumu('Planlandı');
+  };
+  navTo('pageTemasForm');
+}
+
 // ============================================================
 // FİLTRELER
 // ============================================================
@@ -378,15 +620,38 @@ function setGorevFilter(f) {
   renderGorevListesi();
 }
 
+// V31.100: "kime göre" filtresi (chip'ler) + Durum filtresi + Görev Tipi filtresi +
+// KÇM/Takım/MY personel filtresi hepsi AND mantığıyla birlikte uygulanır.
 function filteredGorevler() {
   const mid = currentUser.my_id;
+  const today = trDateStr(new Date());
   return GOREV.tasks.filter(function(t) {
-    if (GOREV.filter === 'bana')    return t.atanan_id === mid;
-    if (GOREV.filter === 'benimki') return t.atanan_id === mid || t.atayan_id === mid;
-    if (GOREV.filter === 'atadim')  return t.atayan_id === mid && t.atanan_id !== mid;
-    if (GOREV.filter === 'bekleyen') return t.atanan_id === mid && !['Tamamlandı','Reddedildi','İptal'].includes(t.durum);
-    if (GOREV.filter === 'onay')    return t.atayan_id === mid && t.durum === 'Tamamlandı' && !t.onay_tarihi;
-    return true; // hepsi
+    // --- mevcut "kime göre" filtresi (chip) ---
+    if (GOREV.filter === 'bana'     && t.atanan_id !== mid) return false;
+    if (GOREV.filter === 'benimki'  && !(t.atanan_id === mid || t.atayan_id === mid)) return false;
+    if (GOREV.filter === 'atadim'   && !(t.atayan_id === mid && t.atanan_id !== mid)) return false;
+    if (GOREV.filter === 'bekleyen' && !(t.atanan_id === mid && !['Tamamlandı','Reddedildi','İptal'].includes(t.durum))) return false;
+    if (GOREV.filter === 'onay'     && !(t.atayan_id === mid && t.durum === 'Tamamlandı' && !t.onay_tarihi)) return false;
+
+    // --- Görev Tipi filtresi ---
+    if (GOREV.filterTip && String(t.type_id) !== String(GOREV.filterTip)) return false;
+
+    // --- Durum filtresi (Gecikmiş = hesaplanmış sözde durum) ---
+    if (GOREV.filterDurum) {
+      if (GOREV.filterDurum === 'Gecikmiş') {
+        const gecikti = t.deadline && t.deadline < today && !['Tamamlandı','Reddedildi','İptal'].includes(t.durum);
+        if (!gecikti) return false;
+      } else if (t.durum !== GOREV.filterDurum) {
+        return false;
+      }
+    }
+
+    // --- KÇM/Takım/MY personel filtresi ---
+    if (GOREV.personelIds) {
+      if (!(GOREV.personelIds.includes(t.atanan_id) || GOREV.personelIds.includes(t.atayan_id))) return false;
+    }
+
+    return true;
   });
 }
 
@@ -400,6 +665,24 @@ function renderGorevListesi() {
   const list = filteredGorevler();
   if (!list.length) {
     listEl.innerHTML = '<div class="empty">Görev bulunamadı.</div>';
+    return;
+  }
+
+  // V31.100: Sıralama Görev Tipi veya Durum ise, grup başlıklı (Gecikmiş/Bugün/...)
+  // görünüm yerine tek düz liste — seçilen kritere göre sıralanmış olarak gösterilir.
+  // Sadece varsayılan "Tarih" sıralamasında mevcut grup başlıklı görünüm korunur.
+  if (GOREV.sortBy === 'tip' || GOREV.sortBy === 'durum') {
+    const sirali = list.slice().sort(function(a, b) {
+      if (GOREV.sortBy === 'tip') {
+        const ta = (a.task_types ? a.task_types.tip_adi : '') || '';
+        const tb = (b.task_types ? b.task_types.tip_adi : '') || '';
+        return ta.localeCompare(tb, 'tr');
+      }
+      // durum: GOREV_DURUMLAR dizisindeki sıraya göre (Atandı...İptal)
+      const ia = GOREV_DURUMLAR.indexOf(a.durum), ib = GOREV_DURUMLAR.indexOf(b.durum);
+      return ia - ib;
+    });
+    listEl.innerHTML = sirali.map(renderGorevKarti).join('');
     return;
   }
 
@@ -846,9 +1129,75 @@ async function gorevZiyaretOlustur(gorevId, ncst, tip, firstatDa) {
 }
 
 // ============================================================
+// V31.100: TAMAMLA + BAĞLI FORM AÇMA
+// ============================================================
+// Görev tipinin bagli_form'u ziyaret/şikayet/fırsat/potansiyel gerektiriyorsa,
+// listeden/detaydan "Tamamla" denince durumu hemen değiştirmek yerine ilgili
+// formu (temas/ziyaret ekranı) açar. Form kaydedilince gorevZiyaretKaydedildi
+// (window._gorevTamamlaMod=true olduğu için) görevi Tamamlandı'ya çeker.
+// Dönüş: true = form açıldı (çağıran DB güncellemesi YAPMAMALI),
+//        false = form uygun değil/açılamadı — çağıran eskisi gibi direkt tamamlasın.
+async function _gorevTamamlaFormAkisi(taskId) {
+  if (typeof showEditVisitModalById !== 'function') return false;
+
+  let t = GOREV.tasks.find(function(x) { return x.task_id === taskId; });
+  if (!t) {
+    const { data } = await sb.from('tasks').select('task_id,type_id,ncst,visit_id').eq('task_id', taskId).maybeSingle();
+    t = data;
+  }
+  if (!t || !t.ncst) return false; // müşteri bağlı değil — form açılamaz, direkt tamamla
+
+  const tip = t.task_types || (GOREV.taskTypes || []).find(function(x){ return x.type_id === t.type_id; });
+  const form = tip ? tip.bagli_form : null;
+  const formGerektiren = ['ziyaret', 'ziyaret_firsat', 'sikayet', 'firsat', 'potansiyel'];
+  if (!form || !formGerektiren.includes(form)) return false; // bağlı form yok — direkt tamamla
+
+  // Zaten bağlı bir ziyaret varsa (görev daha önce Başladı'ya çekilip form açılmışsa)
+  // yeni ziyaret OLUŞTURMAYIZ — mevcut ziyareti düzenlemeye açarız.
+  if (t.visit_id) {
+    window._gorevId = taskId;
+    window._gorevTamamlaMod = true;
+    await showEditVisitModalById(t.visit_id);
+    return true;
+  }
+
+  // Henüz ziyaret yok (görev Atandı'dan direkt Tamamlandı'ya çekiliyor) — 'Başladı'
+  // akışındaki AYNI portföy kontrolü: portföy dışı müşteride form açılamaz.
+  const { data: cust } = await sb.from('customers').select('my_id').eq('ncst', t.ncst).single();
+  const portfoyDisi = !cust || !cust.my_id || (sanalMyIds && sanalMyIds.includes(cust.my_id));
+  if (portfoyDisi) {
+    toast('Portföy dışı müşteri — form açılamıyor, görev doğrudan tamamlanıyor', 'info');
+    return false;
+  }
+
+  window._gorevId = taskId;
+  window._gorevTamamlaMod = true;
+  const yeniVisitId = await gorevZiyaretOlustur(taskId, t.ncst, tip, form === 'ziyaret_firsat' || form === 'firsat');
+  if (yeniVisitId) {
+    await loadGorevler();
+    await showEditVisitModalById(yeniVisitId);
+    return true;
+  }
+  window._gorevId = null;
+  window._gorevTamamlaMod = false;
+  return false;
+}
+
+// ============================================================
 // DURUM GÜNCELLEME
 // ============================================================
 async function gorevDurumGuncelle(taskId, yeniDurum) {
+  // V31.100: Liste/detay ekranından direkt "Tamamlandı"ya çekilirken, görev tipine
+  // bağlı bir form varsa (ziyaret/şikayet/fırsat/potansiyel) durumu hemen değiştirmek
+  // yerine önce o formu açıyoruz — form kaydedilince görev otomatik Tamamlandı'ya
+  // geçiyor (bkz. gorevZiyaretKaydedildi). Formsuz görevlerde (bağlı form yok/'genel')
+  // veya form açılamayan durumlarda (müşteri yok, portföy dışı vb.) eskisi gibi
+  // direkt tamamlanmaya devam eder — _gorevTamamlaFormAkisi false döner.
+  if (yeniDurum === 'Tamamlandı') {
+    const formAcildi = await _gorevTamamlaFormAkisi(taskId);
+    if (formAcildi) return; // form açıldı — durum güncellemesi form kaydedilince yapılacak
+  }
+
   const { error } = await sb.from('tasks')
     .update({ durum: yeniDurum, guncelleme_tarihi: new Date().toISOString() })
     .eq('task_id', taskId);
@@ -1137,10 +1486,17 @@ async function gorevZiyaretKaydedildi(visitId) {
   const gorevId = window._gorevId;
   if (!gorevId || !visitId) return;
 
+  // V31.100: _gorevTamamlaFormAkisi tarafından "Tamamla" akışıyla açılmışsa
+  // (window._gorevTamamlaMod), form kaydedilince görev 'Devam' yerine doğrudan
+  // 'Tamamlandı'ya geçer — "Başladı" akışındaki davranış (durum:'Devam') değişmedi.
+  const tamamlaMod = !!window._gorevTamamlaMod;
+  window._gorevTamamlaMod = false;
+  const yeniDurum = tamamlaMod ? 'Tamamlandı' : 'Devam';
+
   // Göreve visit_id bağla
   await sb.from('tasks').update({
     visit_id: visitId,
-    durum: 'Devam',
+    durum: yeniDurum,
     guncelleme_tarihi: new Date().toISOString(),
   }).eq('task_id', gorevId);
 
@@ -1148,7 +1504,7 @@ async function gorevZiyaretKaydedildi(visitId) {
     task_id: gorevId,
     user_id: currentUser.my_id,
     user_ad: currentUser.ad_soyad,
-    aksiyon: 'Ziyaret Oluşturuldu',
+    aksiyon: tamamlaMod ? 'Tamamlandı (Form ile)' : 'Ziyaret Oluşturuldu',
     detay: 'visit_id: ' + visitId,
   });
 
@@ -1160,7 +1516,8 @@ async function gorevZiyaretKaydedildi(visitId) {
   }
 
   window._gorevId = null;
-  toast('Görev güncellendi — ziyaret bağlandı','info');
+  toast(tamamlaMod ? 'Görev tamamlandı ✅' : 'Görev güncellendi — ziyaret bağlandı', tamamlaMod ? 'success' : 'info');
+  await loadGorevler();
 }
 
 console.log('Görev modülü yüklendi ✓');

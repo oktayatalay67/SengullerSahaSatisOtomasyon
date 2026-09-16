@@ -1,7 +1,9 @@
 // ============================================================
-// utils.js — v1.0.3
-// Son güncelleme: 2026-08-20
+// utils.js — v1.0.4
+// Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.0.4 (V31.101) — navTo: pageHangiMusteri için initHangiMusteri() çağrısı
+//            eklendi (yeni "Hangi Müşteri?" modülü, js/gorev.js içinde).
 //   v1.0.3 (V31.33) — navTo: pageDuyuru için loadDuyurular() çağrısı eklendi
 //            (Duyurular modülü, js/duyuru.js).
 //   v1.0.2 (V31.30) — FIX: Masaüstünde trackpad/Ctrl ile pinch-tarzı zoom
@@ -152,6 +154,7 @@ function navTo(pid,reset=false){
   if(pid==='pageDuyuru'){ if(typeof loadDuyurular==='function') loadDuyurular(); }
   if(pid==='pageFirsatForm'){if(reset)initFirsatForm();else initFirsatForm();}
   if(pid==='pageGorev'){initGorevModulu();}
+  if(pid==='pageHangiMusteri'){ if(typeof initHangiMusteri==='function') initHangiMusteri(); }
   if(pid==='pageArama'){ if(typeof initAramaEkrani==='function') initAramaEkrani(); }
   if(pid==='pageSevkiyat'){ if(typeof initSevkiyatPage==='function') initSevkiyatPage(); }   // V31.65
   if(pid==='pageGorevAdmin'){renderGorevTipleriAdmin();}

@@ -1,7 +1,10 @@
 // ============================================================
-// auth.js — v1.2.20
-// Son güncelleme: 2026-09-15
+// auth.js — v1.2.21
+// Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.2.21 — (V31.101) loadDashboard: Ana Menü'ye her dönüşte gorev.js'teki
+//     _gorevBekleyenSayisiHafif() çağrılıp Görevler rozeti tazeleniyor ve
+//     bekleyen görev varsa kısa bir toast bildirimi gösteriliyor.
 //   v1.2.20 — (V31.97) Ana Menü'deki "Hızlı Sevkiyat" kutusu (menuSevkiyatBox)
 //     kaldırıldı — Donanım Takip içine taşındı (bkz. donanim.js v1.0.33,
 //     index.html). loadDashboard'daki ilgili görünürlük kodu temizlendi.
@@ -185,6 +188,14 @@ function loadDashboard(){
   // Rezervasyon sekmelerinin içine taşındı (bkz. donanim.js initDonanimPage).
   const ymBox=document.getElementById('yoneticiMenuBox');
   if(ymBox) ymBox.classList.toggle('hide', !hasPerm('yonetici_panel'));
+  // V31.101: Ana Menü'ye HER dönüşte (loadDashboard navTo/goBack ile buraya her
+  // gelişte çağrılır) bekleyen görev rozeti tazelenir ve varsa kısa bir toast
+  // bildirimi gösterilir — Görevler ekranı hiç açılmamış olsa bile.
+  if(typeof _gorevBekleyenSayisiHafif==='function'){
+    _gorevBekleyenSayisiHafif().then(function(n){
+      if(n>0 && typeof toast==='function') toast(n+' bekleyen göreviniz var 📋','info');
+    });
+  }
 }
 // v1.2.2: applyRBAC — KÇM rolleri sadece kcm_id ile filtreler
 // musteri_my_id.in.(...) OR kaldırıldı: full table scan'e yol açıyordu
