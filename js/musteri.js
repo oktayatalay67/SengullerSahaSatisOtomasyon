@@ -1,4 +1,11 @@
 // ============================================================
+// musteri.js — v1.2.1
+// Son güncelleme: 2026-09-16
+// Değişiklikler:
+//   v1.2.1 — (V31.103) initMusteriPage: window._pendingMusteriNcst kontrolü
+//            eklendi ("Hangi Müşteri?" ekranından gorev.js:
+//            hangiMusteriMusteriProfiline ile gelindiğinde ilgili müşteri
+//            kartı otomatik açılır — selectMusteri() çağrılır).
 // musteri.js — v31.50: kontak listelerinde ham telefon yerine _telG() (config.js)
 // musteri.js — v1.2.0
 // Son güncelleme: 2026-07-17
@@ -578,6 +585,17 @@ async function initMusteriPage(){
 
   await loadMusteriOzetler();
   await loadMusteriDefault();
+
+  // V31.103: "Hangi Müşteri?" ekranından "Müşteri Profiline Git" ile gelindiyse
+  // (window._pendingMusteriNcst — gorev.js:hangiMusteriMusteriProfiline),
+  // ilgili müşteri kartını otomatik aç. selectMusteri() search/liste
+  // state'ini resetlediği için initMusteriPage'in TÜM işi bittikten SONRA
+  // çağrılması gerekiyor — aksi halde yukarıdaki reset'ler bunu ezer.
+  if (window._pendingMusteriNcst) {
+    const ncst = window._pendingMusteriNcst;
+    window._pendingMusteriNcst = null;
+    await selectMusteri(ncst);
+  }
 }
 
 function switchMusteriTab(tab){
