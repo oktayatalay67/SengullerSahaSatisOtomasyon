@@ -1,7 +1,18 @@
 // ============================================================
-// duyuru.js — v1.0.0
-// Son güncelleme: 2026-08-20
+// duyuru.js — v1.0.1
+// Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.0.1 (V31.102) — KRİTİK FIX: "Duyurular yüklenemedi: column
+//     duyuru_feed.musteri_my_id does not exist". Kök neden: loadDuyurular ve
+//     _duyuruBadgeGuncelle genel applyRBAC(q) yardımcısını (auth.js, varsayılan
+//     modul='temas') çağırıyordu; bu yardımcının PRT+ dalı `musteri_my_id.eq.X`
+//     filtresi uyguluyor ama duyuru_feed tablosunda böyle bir kolon yok (sadece
+//     temas/fırsat/opportunities tablolarında var). Rol&Yetki'de 'temas' kapsamı
+//     PRT+ olan bir hesapta (bu olayda admin/gölge hesapla görüntüleme) sorgu
+//     kırılıyordu. Çözüm: applyRBAC yerine, aynı kapsam kaynağını kullanan ama
+//     sadece duyuru_feed'de gerçekten var olan kolonlarla (my_id/kcm_id)
+//     filtreleyen _duyuruApplyScope() eklendi (hedef.js'teki
+//     _hedefGirisScopeliUsersQuery ile aynı desen).
 //   v1.0.0 (V31.33) — İLK VERSİYON. Duyurular modülü canlandırıldı.
 //     Fırsat (opportunities) Beyan veya Evrak adımına her geçtiğinde
 //     (js/firsat.js saveOpp() → _duyuruFeedEkle çağrısı) duyuru_feed
@@ -29,6 +40,35 @@
 const DUYURU = { items: [], okunanSet: new Set(), yukleniyor: false };
 
 // ============================================================
+// V31.102 FIX: applyRBAC(q)'nun genel PRT+ dalı `musteri_my_id.eq.X` filtresi
+// uyguluyor (auth.js) — ama duyuru_feed tablosunda böyle bir kolon YOK (sadece
+// opp_id/adim/ncst/unvan/my_id/my_adi/kcm_id/urun_ozeti/toplam_tutar/not_metni
+// var). 'temas' modülü için kapsam PRT+ olan bir rolde (örn. impersonation ile
+// görüntülenen bir hesap) bu yüzden "column duyuru_feed.musteri_my_id does not
+// exist" hatasıyla kırılıyordu. Çözüm: applyRBAC yerine, aynı kapsak kaynağını
+// (getScope('temas')) kullanan ama SADECE duyuru_feed'de GERÇEKTEN var olan
+// kolonlarla (my_id/kcm_id) filtreleyen bu güvenli sarmalayıcı kullanılıyor —
+// hedef.js'teki _hedefGirisScopeliUsersQuery ile aynı desen/gerekçe.
+function _duyuruApplyScope(q, prefix=''){
+  const scope = getScope('temas'); // Fırsat/Temas modülüyle BİREBİR AYNI kapsam kaynağı
+  if(scope==='TÜM') return q;
+  if(scope==='PRT+'){
+    // duyuru_feed'de musteri_my_id yok — "kendi + kendi müşterisine girilen"
+    // ayrımı burada uygulanamıyor, bu yüzden PRT+ burada PRT (sadece kendi
+    // oluşturduğu fırsatların duyuruları) gibi davranıyor.
+    return q.eq(`${prefix}my_id`, currentUser.my_id);
+  }
+  if(scope==='BAĞLI'){
+    const ids=(typeof bagliMyIds!=='undefined' && bagliMyIds.length) ? bagliMyIds : [currentUser.my_id];
+    return q.in(`${prefix}my_id`, ids);
+  }
+  if(scope==='KÇM' && currentUser.kcm_id){
+    return q.eq('kcm_id', currentUser.kcm_id);
+  }
+  return q.eq(`${prefix}my_id`, currentUser.my_id); // PRT: yalnızca kendi kayıtları
+}
+
+// ============================================================
 // LİSTE — Duyurular sayfası açıldığında (navTo → utils.js) çağrılır
 // ============================================================
 async function loadDuyurular(){
@@ -38,7 +78,7 @@ async function loadDuyurular(){
   if(list) list.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   try{
     let q = sb.from('duyuru_feed').select('*');
-    q = applyRBAC(q); // Fırsat modülüyle BİREBİR AYNI kapsam — bkz. js/firsat.js applyRBAC(q) çağrıları
+    q = _duyuruApplyScope(q); // V31.102: applyRBAC yerine güvenli sarmalayıcı — bkz. dosya başı not
     const{data,error} = await q.order('olusturma_tarihi',{ascending:false}).limit(200);
     if(error) throw error;
     DUYURU.items = data||[];
@@ -141,7 +181,7 @@ async function _duyuruBadgeGuncelle(){
   if(!mid){ badge.style.display='none'; return; }
   try{
     let q = sb.from('duyuru_feed').select('duyuru_id');
-    q = applyRBAC(q);
+    q = _duyuruApplyScope(q); // V31.102: applyRBAC yerine güvenli sarmalayıcı — bkz. dosya başı not
     const{data,error} = await q.order('olusturma_tarihi',{ascending:false}).limit(200);
     if(error) throw error;
     const ids = (data||[]).map(r=>r.duyuru_id);

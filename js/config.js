@@ -1,7 +1,28 @@
 // ============================================================
-// config.js — v1.3.40
-// Son güncelleme: 2026-09-15
+// config.js — v1.3.43
+// Son güncelleme: 2026-09-16
 // Değişiklikler:
+//   v1.3.43 — APP_VERSION → V31.102. KRİTİK FIX: Duyurular ekranı "column
+//     duyuru_feed.musteri_my_id does not exist" hatasıyla kırılıyordu (admin/
+//     gölge hesapla görüntülemede tetiklendi) — applyRBAC'ın genel PRT+ dalı
+//     duyuru_feed'de olmayan bir kolona bakıyordu. duyuru.js'e sadece var olan
+//     kolonlarla (my_id/kcm_id) çalışan _duyuruApplyScope() eklendi (duyuru.js
+//     v1.0.1).
+//   v1.3.42 — APP_VERSION → V31.101. Görev Yönetimi: ikon/rozet iyileştirmesi
+//     (✅ ikon, büyük rozet, Görevler ekranı açılmasa bile güncel bekleyen
+//     sayısı + Ana Menü'ye her dönüşte toast bildirimi), filtre chip satırı
+//     alttaki kutularla aynı toplam genişliğe getirildi. YENİ: Ana Menü'ye
+//     "Hangi Müşteri?" modülü eklendi — portföyde hiç ziyaret edilmemiş
+//     (yoksa en uzun süredir ziyaret edilmeyen) bir müşteri önerip "Devam" ile
+//     temas planlama formunu açıyor (gorev.js v1.2.15, auth.js v1.2.21,
+//     utils.js v1.0.4).
+//   v1.3.41 — APP_VERSION → V31.100. Görev Yönetimi ekranına: Görev Tipi
+//     filtresi (DB'den dinamik), KÇM/Takım/MY personel filtresi (geniş
+//     görüşlü roller), Durum filtresi (mevcut chip filtrelerin yanına ek
+//     satır, Gecikmiş dahil), Sıralama (Tarih/Görev Tipi/Durum) eklendi.
+//     Listeden "Tamamla" artık bağlı formu (ziyaret/şikayet/fırsat/
+//     potansiyel) varsa önce o formu açıyor, form kaydedilince görev
+//     otomatik Tamamlandı'ya geçiyor (gorev.js v1.2.14).
 //   v1.3.40 — APP_VERSION → V31.99. FIX: Donanım Takip > Depolar sekmesi
 //     genişleyince (.page.genis) üst çubuk (topbar) 480px'e sıkıştırılıp
 //     ortalanıyordu — bu, açık renkli (--navy2) topbar'ın koyu (--navy) sayfa
@@ -484,7 +505,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.99';
+const APP_VERSION = 'V31.102';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
