@@ -1,4 +1,11 @@
 // ============================================================
+// admin.js — v1.1.5
+//   v1.1.5 (17.09.2026, V31.113) — "Arama Ayarları" ekranı "Uygulama Ayarları"
+//     olarak yeniden adlandırıldı, 2 sekmeye çıkarıldı: Arama Ayarları (aynı)
+//     + Donanım Satış Süreç Ayarları (yeni — sistem_ayarlari'deki 5 yeni
+//     Donanım Rezervasyon V2 parametresi: donanim_onrez_sure_saat/uzatma_saat/
+//     max_uzatma, donanim_emei_sure_saat, donanim_mukerrer_esik). Sadece ADMIN
+//     görür (Admin Panel'in geri kalanıyla aynı erişim kuralı, ayrı izin yok).
 // admin.js — v1.1.4
 //   v1.1.4 (13.09.2026, V31.80) — Yeni "Arama Ayarları" admin sekmesi:
 //     sistem_ayarlari.arama_sla_gun / arama_cooldown_gun artik ekrandan
@@ -847,7 +854,7 @@ function switchAdminTab(tab){
 var _adminTabAdlar = {
   'urunler':'Ürünler','kullanicilar':'Kullanıcılar','talepler':'Talepler',
   'ziyaretOpt':'Ziyaret Seçenekleri','gorevTipleri':'Görev Tipleri',
-  'yetki':'Rol & Yetki Yönetimi','aramaAyarlari':'Arama Ayarları',
+  'yetki':'Rol & Yetki Yönetimi','aramaAyarlari':'Uygulama Ayarları',
   'veriKalite':'Veri Kalitesi Denetim'
 };
 var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','gorevTipleri','yetki','aramaAyarlari','veriKalite'];
@@ -873,7 +880,7 @@ function adminSayfaAc(tab){
   if(tab==='ziyaretOpt')  initZiyaretOpt();
   if(tab==='gorevTipleri')renderGorevTipleriAdmin();
   if(tab==='yetki')       initYetkiYonetim();
-  if(tab==='aramaAyarlari')renderAramaAyarlari();
+  if(tab==='aramaAyarlari')uygulamaAyarlariSekmeAc('arama');
   if(tab==='veriKalite')   initVeriKaliteDenetim();
 }
 
@@ -914,6 +921,50 @@ async function renderAramaAyarlari(){
 }
 async function aramaAyarKaydet(id){
   const el=document.getElementById('aramaAyar_'+id);
+  if(!el) return;
+  const v=parseInt(el.value);
+  if(!v || v<1){ toast('Geçerli bir sayı girin (1 veya üzeri)','error'); return; }
+  const {error}=await sb.from('sistem_ayarlari').update({deger:String(v)}).eq('id',id);
+  if(error){ toast('Kaydedilemedi: '+error.message,'error'); return; }
+  toast('Kaydedildi','success');
+}
+
+// ============================================================
+// V31.113: UYGULAMA AYARLARI — "Arama Ayarları" ekranı 2 sekmeye çıkarıldı:
+// Arama Ayarları (değişmedi) + Donanım Satış Süreç Ayarları (yeni, Donanım
+// Rezervasyon Akışı V2 için sistem_ayarlari'deki 5 yeni parametre).
+// ============================================================
+function uygulamaAyarlariSekmeAc(sekme){
+  ['arama','donanim'].forEach(function(s){
+    const p=document.getElementById('uygAyarPanel_'+s);
+    const b=document.getElementById('uygAyarTab_'+s);
+    if(p) p.style.display = (s===sekme) ? '' : 'none';
+    if(b) b.classList.toggle('active', s===sekme);
+  });
+  if(sekme==='arama')   renderAramaAyarlari();
+  if(sekme==='donanim') renderDonanimSurecAyarlari();
+}
+async function renderDonanimSurecAyarlari(){
+  const el=document.getElementById('donanimSurecAyarlariListesi');
+  if(!el) return;
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const {data,error}=await sb.from('sistem_ayarlari').select('id,ayar_tipi,deger,gorunen_ad')
+    .in('ayar_tipi',['donanim_onrez_sure_saat','donanim_onrez_uzatma_saat','donanim_onrez_max_uzatma',
+      'donanim_emei_sure_saat','donanim_mukerrer_esik']).eq('aktif',true).order('sira');
+  if(error){ el.innerHTML='<div class="empty">Yüklenemedi: '+escapeHTML(error.message)+'</div>'; return; }
+  if(!data || !data.length){ el.innerHTML='<div class="empty">Ayar bulunamadı.</div>'; return; }
+  el.innerHTML=data.map(a=>`
+    <div class="field" style="margin-bottom:12px;">
+      <label>${escapeHTML(a.gorunen_ad||a.ayar_tipi)}</label>
+      <div style="display:flex;gap:8px;">
+        <input type="number" min="1" id="donanimSurecAyar_${a.id}" value="${escapeHTML(String(a.deger))}"
+          style="flex:1;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">
+        <button class="btn btn-sm btn-green" onclick="donanimSurecAyarKaydet(${a.id})">Kaydet</button>
+      </div>
+    </div>`).join('');
+}
+async function donanimSurecAyarKaydet(id){
+  const el=document.getElementById('donanimSurecAyar_'+id);
   if(!el) return;
   const v=parseInt(el.value);
   if(!v || v<1){ toast('Geçerli bir sayı girin (1 veya üzeri)','error'); return; }

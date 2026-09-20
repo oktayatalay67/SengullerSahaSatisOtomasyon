@@ -1,7 +1,11 @@
 // ============================================================
-// auth.js — v1.2.24
-// Son güncelleme: 2026-09-16
+// auth.js — v1.2.25
+// Son güncelleme: 2026-09-17
 // Değişiklikler:
+//   v1.2.25 — (V31.112) Marka adı: uygulama genelinde "Şengüller Saha Satış"
+//     ifadesi "Saha Satış Otomasyonu" olarak değiştirildi (index.html — title,
+//     giriş ekranı, tüm app-footer'lar). Bu dosyada değişen kod yok, sadece
+//     yorum satırlarındaki eski ifade bilgi amaçlı bırakıldı.
 //   v1.2.24 — (V31.111) DÜZELTME: V31.108'de yanlışlıkla Ana Menü'deki SABİT
 //     (position:fixed) alt app-footer kaldırılıp metni scroll içindeki
 //     appVersionInfo'ya taşınmıştı — geri alındı. setAppVersion tekrar sadece

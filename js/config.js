@@ -1,7 +1,165 @@
 // ============================================================
-// config.js — v1.3.52
-// Son güncelleme: 2026-09-16
+// config.js — v1.3.85
+// Son güncelleme: 2026-09-20
 // Değişiklikler:
+//   v1.3.85 — APP_VERSION → V31.144. UI FIX: Tüm uygulamadaki "+ Yeni X"
+//     tuşları taranıp maviye çevrildi (Yeni Kayıt = her zaman mavi kuralı):
+//     + Yeni Ürün, + Yeni Kullanıcı, + Yeni Hedef Kalemi, + Yeni Görev
+//     Oluştur, + Yeni Ekle, + Listeye Ekle, + Yeni Kişi (x2), + Yeni
+//     Müşteri Kartı Aç (x2, amber'den mavi dolguya), + Ekle (fırsat ürün
+//     satırı). Artık uygulamada bu kuralı çiğneyen tuş kalmadı.
+//   v1.3.84 — APP_VERSION → V31.143. UI FIX: Müşteri kartındaki "+ Kontak"
+//     (yeşildi) ve "+ Temas" (renksizdi) tuşları maviye çevrildi — "Yeni
+//     Kayıt her zaman mavi" kuralına uymuyorlardı. Aynı sebeple Donanım
+//     Talep ekranındaki "+ Ürün Ekle" de maviye çevrildi. NOT: taramada
+//     aynı kuralı çiğneyen çok daha fazla "+ Yeni X" tuşu bulundu (Yeni
+//     Ürün, Yeni Kullanıcı, Yeni Hedef Kalemi, Yeni Görev, Listeye Ekle vb.
+//     — yeşil/amber/gri karışık) — bu round'a dahil edilmedi, onay bekliyor.
+//   v1.3.83 — APP_VERSION → V31.142. UI: Kırmızı aile son hali —
+//     .btn-reddet artık Onayla ile birebir aynı yapı (fon #000 tam siyah,
+//     2px kenarlık, kenarlık=metin rengi var(--red)); .btn-iptal önceki
+//     Reddet denemesinin rgba(224,4,42,.12) fonunu koruyor + beyaz metin;
+//     .btn-sil değişmedi (tam dolgulu kırmızı). Tuş renk standardı
+//     tamamlandı: Kaydet/Onayla yeşil, Sil/Reddet/İptal kırmızı,
+//     Rapor/Excel turuncu, Filtrele gri, Kapat saydam.
+//   v1.3.82 — APP_VERSION → V31.141. FIX: "Sil ile Reddet formatları
+//     değişsin" isteği önceki round'da yanlış yorumlanıp yeni stiller
+//     icat edilmişti — doğrusu iki formatın YER DEĞİŞTİRMESİYDİ. Düzeltildi:
+//     .btn-sil artık tam dolgulu kırmızı (kalıcı işlem, en ağır), .btn-reddet
+//     artık kenarlıklı-açık kırmızı (daha hafif). İkisi de main.css'te tanımlı.
+//   v1.3.81 — APP_VERSION → V31.140. UI: Tuş standardı son hali —
+//     .btn-confirm (Onayla) siyaha yakın fon (#0d1f17) + yeşil çerçeve/metin;
+//     .btn-kaydet (Kaydet) düz yeşil dolgu + 💾 ikon alanı; .btn-iptal
+//     (İptal) tam opak kırmızı çerçeveli, saydam; .btn-filtre (Filtrele)
+//     uygulamadaki tek açık renkli tuş (#9797a8 + siyah metin). Sil ve
+//     Reddet formatları henüz onay bekliyor, bu round'a dahil değil.
+//   v1.3.80 — APP_VERSION → V31.139. UI: .btn-confirm (Onayla) rengi koyu
+//     kırmızıdan yeşile çevrildi — mevcut --green token'ı ("başarı/tamamlandı"
+//     anlamında zaten kullanılıyordu), Oktay'ın onayıyla A seçeneği (#00d68f,
+//     koyu yeşil metin #04301f) uygulandı.
+//   v1.3.79 — APP_VERSION → V31.138. UI: main.css'e .btn-confirm (Onayla —
+//     Kaydet'ten farklı, daha koyu kırmızı + ince çerçeve, "sonuçlandırıcı"
+//     aksiyon hissi) ve .btn-ghost-fill (Filtrele/Ara/Uygula — Kapat'tan
+//     farklı, hafif dolgulu, "veriyi değiştirir" hissi) eklendi. Henüz
+//     mevcut Kaydet/Onayla/Kapat/Filtrele tuşlarına uygulanmadı — sadece
+//     standart tanımlandı, onay sonrası sweep yapılacak.
+//   v1.3.78 — APP_VERSION → V31.137. UI: Tuş renk standardı — main.css'e
+//     .btn-orange (Rapor/Getir/Görüntüle tuşları) ve .btn-orange-outline
+//     (Excel/Dışa Aktar tuşları) eklendi; .btn-ghost kenarlığı/metin rengi
+//     kontrastı yükseltildi (görünmez tuş şikayeti). Stok sekmesindeki
+//     Mutabakat Raporu + Stok Hareket Raporu tuşları turuncuya, ilgili iki
+//     Excel'e Aktar tuşu yeşilden turuncu-kenarlıklıya çevrildi. Kırmızı
+//     sadece birincil/Sil tuşlarında kalmaya devam ediyor (marka rengi).
+//   v1.3.77 — APP_VERSION → V31.136. Stok Hareket Raporu Excel çıktısı 7
+//     sayfaya çıkarıldı: mevcut "Stok Hareketleri" sayfası aynen korunarak
+//     Cihaz Giriş (Detay/Özet), Cihaz Çıkış (Detay/Özet, müşteri+satan MY
+//     ile) ve Rezerve Cihazlar (Detay/Özet, KÇM+MY+güncel durum ile) tek
+//     .xlsx içinde tek tıkla üretiliyor. Detaylar: donanim.js v1.0.54.
+//   v1.3.76 — APP_VERSION → V31.135. YENİ: Stok Hareket Raporu (Stok
+//     sekmesi, ayrı yetki: donanim_hareket_raporu_gor) — tüm stok
+//     hareketlerini tarih/aksiyon/ürün filtreli listeler. Hem bu rapor hem
+//     Mutabakat Raporu artık Excel'e aktarılabiliyor. Detaylar: donanim.js
+//     v1.0.53, yetki.js v1.3.1.
+//   v1.3.75 — APP_VERSION → V31.134. UI: Mutabakat Raporu butonu Talepler
+//     sekmesinden Stok sekmesine taşındı (stok bütünlüğü kontrolü, Depolar/
+//     Stok ekranına ait — talep akışıyla değil).
+//   v1.3.74 — APP_VERSION → V31.133. Mutabakat Raporu için ayrı yetki
+//     anahtarı (donanim_mutabakat_gor, yetki.js v1.3.0) — Rol&Yetki
+//     ekranından Depo & Muhasebe rolüne elle atanmalı.
+//   v1.3.73 — APP_VERSION → V31.132. Talepler modülü kritik açık kapatıldı:
+//     "Karşılandı" artık gerçek stok/IMEI kontrolü olmadan basılamıyor.
+//     Yeni "📊 Mutabakat Raporu" ekranı: sistem adedi vs IMEI sayısı
+//     karşılaştırması, uyuşmazlıkları öne çıkarır. Detaylar: donanim.js
+//     v1.0.51 değişiklik notu.
+//   v1.3.72 — APP_VERSION → V31.131. Rezervasyon kartı + Geçmiş iyileştirmeleri:
+//     ürün adı ve IMEI'ler artık hareket loglarına yazılıyor, "Fatura Kesildi"
+//     adımında fatura numarası zorunlu (DB: stok_rezervasyonlari.fatura_no),
+//     Geçmiş modalı üstte sepet özetini gösteriyor ve tekrarlı satırları
+//     tekilleştiriyor, kartta "Adım N/7" başlığı + "sırada ne var" satırı
+//     eklendi. Detaylar: donanim.js v1.0.50 değişiklik notu.
+//   v1.3.71 — APP_VERSION → V31.130. YENİ ÖZELLİK: Donanım rezervasyon
+//     kartlarına (1) görünür kısa ID rozeti (REZ-XXXXXXXX, sepet_id'nin ilk
+//     8 hanesi) ve (2) "📜 Geçmiş" butonu eklendi. Geçmiş, o rezervasyona ait
+//     tüm hareketleri (kim ne zaman onayladı/reddetti/IMEI girdi/gönderdi)
+//     zaman sıralı listeler. DB: stok_hareketleri tablosuna sepet_id (uuid,
+//     nullable) kolonu eklendi (Oktay tarafından çalıştırıldı); tüm
+//     rezervasyon hareket logları (_donanimRezHareketLog) artık bunu da
+//     yazıyor. NOT: bu tarihten ÖNCEKİ hareket kayıtlarında sepet_id boş —
+//     eski rezervasyonların Geçmiş'i bu yüzden boş görünebilir, bu beklenen
+//     bir durum, hata değil.
+//   v1.3.70 — APP_VERSION → V31.129. UI: Aynı marka ikonu (konum iğnesi + insan
+//     silueti) artık tarayıcı sekmesinde de görünüyor — yeni favicon.svg
+//     dosyası eklendi, index.html <head>'e <link rel="icon"> ile bağlandı.
+//   v1.3.69 — APP_VERSION → V31.128. UI: Giriş ekranı marka ikonu — onay işareti
+//     yerine, iğnenin içine küçük bir insan silueti (kafa+omuz) yerleştirildi;
+//     "insan faktörü" eksikti. Artık ikon hem konumu (saha) hem sahadaki
+//     kişiyi (temsilci) tek sembolde birleştiriyor.
+//   v1.3.68 — APP_VERSION → V31.127. UI: Giriş ekranındaki marka rozeti — artık
+//     "Şengüller" markasını taşımayan "Ş" harfi yerine, konum iğnesi içine
+//     yerleştirilmiş onay işareti ikonu (saha ziyareti + otomasyonla
+//     tamamlanma temasını tek sembolde birleştiriyor). index.html, iki brand
+//     bloğunda da (login + kayıtlı-oturum ekranı) değiştirildi.
+//   v1.3.67 — APP_VERSION → V31.126. KÖK NEDEN FİX: KÇM'den KÇM'ye stok
+//     transferinde hedefte satır yoksa yeni satır depo_id'siz açılıyordu —
+//     bu, Depo modülünün göremediği "yetim" stok kayıtları üretiyordu.
+//     Artık hedef KÇM'nin kayıtlı ANA depo_id'si kullanılıyor (donanim.js
+//     v1.0.48).
+//   v1.3.66 — APP_VERSION → V31.125. UI FIX: SVK Cihazlar adımında adet kutusu
+//     ürün adının üzerine biniyordu — CSS özgüllük çakışması (main.css,
+//     donanim.js v1.0.47).
+//   v1.3.65 — APP_VERSION → V31.124. BUG FİX: Stok listesi ekranındaki Merkez
+//     (Havuz) satırı da ham toplam/müsait gösteriyordu; bu, rezervasyon
+//     adedinin üst sınırını da etkilediği için zaten dağıtılmış stoktan
+//     tekrar rezervasyon yapılabiliyordu (donanim.js v1.0.46).
+//   v1.3.64 — APP_VERSION → V31.123. BUG FİX: Merkez (Havuz) deposu dağıtım
+//     sonrası hiç azalmıyordu; Depo kartları/Depo detay modalı/Stok Raporu
+//     dağıtılan miktarı hem Merkez'de hem hedef KÇM'de çift sayıyordu
+//     (donanim.js v1.0.45).
+//   v1.3.63 — APP_VERSION → V31.122. BUG FİX: Donanım Takip rozeti Transfer
+//     taleplerini (Aşama 1/Aşama 2 onayı bekleyenler) hiç saymıyordu
+//     (donanim.js v1.0.44).
+//   v1.3.62 — APP_VERSION → V31.121. Rezervasyon listesi sıralaması: kendinden
+//     onay bekleyenler her zaman en üstte, sonra aktif kayıtlar, sonra
+//     Tamamlandı → Reddedildi → Süresi Doldu → İptal (donanim.js v1.0.43).
+//   v1.3.61 — APP_VERSION → V31.120. Rezervasyon ekranına filtreler (KÇM/MY-
+//     FMY arama/süreç adımı/ödeme tipi/tarih aralığı) + kart altında renkli
+//     süreç özet barı ve tüm kenarlarda adım rengiyle çerçeve (donanim.js
+//     v1.0.42).
+//   v1.3.60 — APP_VERSION → V31.119. BUG FİX: Turkcell Finans Onayı ile Fatura
+//     Kesildi tek butonda birleşmişti; Depo&Muhasebe ekranında ayrı bir "Fatura
+//     Kesildi" adımı hiç görünmüyordu. Aralarına 'Finans Onaylandı' ara durumu
+//     eklendi (donanim.js v1.0.41).
+//   v1.3.59 — APP_VERSION → V31.118. BUG FİX: Donanım Takip rozeti Turkcell
+//     Finans Onayı ve Fatura Kesildi (sevk) bekleyen kayıtları hiç saymıyordu
+//     — finans onaycılarında rozet hiç görünmüyordu (donanim.js v1.0.40).
+//   v1.3.58 — APP_VERSION → V31.117. (1) Donanım modülü artık her açıldığında
+//     ilk ekran Rezervasyon sekmesi oluyor (önceden Stok). (2) IMEI seçimi
+//     artık Turkcell Finans Onay'dan ÖNCE, "Stok Onay / Emei Giriş" adımının
+//     kendisinde yapılıyor — talep edilen tüm cihazların IMEI'leri o adımda
+//     girilmeden Finans Onay'a geçilemiyor (donanim.js v1.0.39).
+//   v1.3.57 — APP_VERSION → V31.116. Ana menü Donanım Takip ikonu rozeti
+//     artık onay/red bekleyen kayıtları da sayıyor (donanim.js v1.0.38).
+//   v1.3.56 — APP_VERSION → V31.115. ACİL FIX (donanim.js v1.0.37): ortak/Merkez
+//     havuz stoktan sipariş verilince "null value in column kcm_id" hatası
+//     veriyordu — kcm_id artık satan MY'nin kendi KÇM'sinden alınıyor.
+//   v1.3.55 — APP_VERSION → V31.114. Donanım Satış Süreç Akışı V2'nin asıl
+//     süreç kodu (donanim.js v1.0.36): Ön Rezervasyon artık rezerve_adet'e
+//     doğrudan düşer, 6+6 saatlik süre + uzatma + mükerrer talep onayı,
+//     "Hazırlanıyor" adımı kalktı, yeni 8 adımlı akış (Stok Onay/Emei Giriş →
+//     Turkcell Finans Onay → Emei Eşleştirme → Fatura → Tamamlandı).
+//     GEREKLİ: sistem_ayarlari SQL'i henüz çalıştırılmadıysa varsayılan
+//     değerlerle (6/6/1/48/2) çalışır. Rol&Yetki'de yeni 4 izni + donanim_imei_gor
+//     iznini ilgili rollere atamak Oktay'ın yapması gereken bir adım.
+//   v1.3.54 — APP_VERSION → V31.113. Donanım Satış Süreç Akışı V2 (adım 1-3):
+//     yetki.js'e 4 yeni izin (donanim_onrez_uzat, donanim_mukerrer_onay,
+//     donanim_emei_giris, donanim_finans_onay); Admin Panel "Arama Ayarları"
+//     kutusu "Uygulama Ayarları" oldu, 2 sekme: Arama Ayarları (aynı) +
+//     Donanım Satış Süreç Ayarları (yeni, sistem_ayarlari üzerinden 5 yeni
+//     parametre — admin.js v1.1.5). Donanım süreç kodu (donanim.js) HENÜZ
+//     GÜNCELLENMEDİ, sıradaki adım.
+//   v1.3.53 — APP_VERSION → V31.112. Marka adı: uygulama genelinde "Şengüller
+//     Saha Satış" ifadesi "Saha Satış Otomasyonu" olarak değiştirildi
+//     (index.html — sayfa başlığı, giriş ekranı, tüm app-footer'lar, 27 yer).
 //   v1.3.52 — APP_VERSION → V31.111. FIX: Ana Menü'deki sabit (fixed)
 //     app-footer'ın V31.108'de yanlışlıkla kaldırılması geri alındı — diğer
 //     tüm ekranlarla aynı şekilde geri geldi (auth.js v1.2.24). Donanım Takip:
@@ -567,7 +725,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.111';
+const APP_VERSION = 'V31.144';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

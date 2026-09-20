@@ -33,10 +33,45 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
 .field select option{background:var(--navy2);}
 .btn{width:100%;padding:15px;background:var(--red);border:none;border-radius:var(--radius-sm);color:#fff;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
 .btn:active{transform:scale(.97);background:var(--red-dark);}
-.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text2);}
+/* V31.140: Kaydet (.btn-kaydet, düz yeşil dolgu + 💾 ikonu — HTML'de elle
+   eklenir) ile Onayla (.btn-confirm, siyaha yakın fon + yeşil çerçeve/metin —
+   "resmi/kesinleştirici" his) aynı yeşil ailede ama net ayrışıyor. */
+.btn-kaydet{width:100%;padding:15px;background:var(--green);border:none;border-radius:var(--radius-sm);color:#04301f;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-kaydet:active{transform:scale(.97);background:#00b87b;}
+.btn-confirm{width:100%;padding:15px;background:#0d1f17;border:2px solid var(--green);border-radius:var(--radius-sm);color:var(--green);font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.btn-confirm:active{transform:scale(.97);background:#122a1f;}
+/* V31.142 FINAL: Sil = tam dolgulu kırmızı (en ağır/kalıcı işlem). Reddet =
+   Onayla ile BİREBİR AYNI YAPI (fon siyah, 2px kenarlık, kenarlık=metin
+   rengi, aynı font/boyut) — sadece renk kırmızı: fon #000 (tam siyah),
+   kenarlık+metin var(--red) (Sil'in dolgu rengiyle aynı). İptal = önceki
+   Reddet denemesinin (rgba(224,4,42,.12), koyu kart üzerinde) verdiği
+   "siyah ama kırmızı hissedilen" fon aynen korunuyor, metin beyaz. */
+.btn-sil{width:100%;padding:15px;background:var(--red);border:none;border-radius:var(--radius-sm);color:#fff;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.btn-sil:active{transform:scale(.97);background:var(--red-dark);}
+.btn-reddet{width:100%;padding:15px;background:#000;border:2px solid var(--red);border-radius:var(--radius-sm);color:var(--red);font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.btn-reddet:active{transform:scale(.97);background:#1a0508;}
+.btn-iptal{width:100%;padding:15px;background:rgba(224,4,42,.12);border:none;border-radius:var(--radius-sm);color:#fff;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.btn-iptal:active{transform:scale(.97);background:rgba(224,4,42,.22);}
+/* V31.137: .btn-ghost kenarlığı rgba(255,255,255,.08) — pratikte görünmüyordu,
+   "tuş olduğu anlaşılmıyor" şikayeti buradan kaynaklanıyordu. Kenarlık ve metin
+   rengi kontrastı yükseltildi; ghost artık her ekranda buton gibi görünüyor. */
+.btn-ghost{background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.22);color:var(--text);}
 .btn-ghost:active{background:var(--navy3);}
+/* V31.140: Kapat (.btn-ghost, saydam) ile Filtrele/Ara/Uygula (.btn-filtre)
+   ayrışması — Filtrele artık uygulamadaki TEK açık renkli tuş: koyu temada
+   hiçbir başka tuşla karışmıyor, "ekrandaki veriyi değiştirir" sinyali güçlü. */
+.btn-filtre{background:#9797a8;border:1.5px solid rgba(255,255,255,.06);color:#0d0d12;}
+.btn-filtre:active{background:#828295;}
 .btn-green{background:var(--green);color:#000;}
 .btn-blue{background:var(--blue);color:#fff;}
+/* V31.137: Rapor/Getir/Görüntüle tuşları — uygulama genelinde sabit turuncu.
+   --orange token'ı daha önce tanımlıydı ama hiç class'a bağlanmamıştı. */
+.btn-orange{background:var(--orange);color:#3d1a00;}
+.btn-orange:active{background:#e0691f;}
+/* V31.137: Dışa Aktar (Excel/PDF) tuşları — rapor turuncusunun kenarlıklı/açık
+   tonu: rapor grubunun parçası olduğu belli ama "Raporu Getir" ile karışmıyor. */
+.btn-orange-outline{background:rgba(255,122,41,.14);border:1.5px solid var(--orange);color:var(--orange);}
+.btn-orange-outline:active{background:rgba(255,122,41,.26);}
 .btn-sm{padding:9px 14px;font-size:13px;width:auto;}
 .topbar{background:var(--navy2);border-bottom:1px solid var(--border);padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10;}
 .topbar-title{font-size:16px;font-weight:700;}
@@ -350,7 +385,11 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
   border-radius:8px;padding:7px 9px;margin-bottom:5px;}
 .svk-kalem-ad{flex:1;min-width:0;font-size:12.5px;font-weight:600;}
 .svk-kod{display:block;font-size:10px;color:var(--text3);}
-.svk-kalem input{width:58px;text-align:center;font-weight:700;}
+/* V31.125 FIX: .svk-govde input[type=number]{width:100%} kuralı daha yüksek
+   özgüllüğe sahip olduğu için bu 58px'i eziyor, adet kutusu ürün adının
+   üzerine biniyordu. Aynı özgüllükte (.svk-govde ile eşleşen) bir kural
+   ekleyip son tanımlanan olarak kazandırıyoruz. */
+.svk-govde .svk-kalem input[type=number]{width:58px;flex:none;text-align:center;font-weight:700;}
 .svk-imei-grup{border:1px solid var(--border);border-radius:9px;padding:9px 10px;margin-bottom:8px;background:var(--navy3);}
 .svk-imei-bas{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;font-size:12.5px;font-weight:700;}
 .svk-imei-bas span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}

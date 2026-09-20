@@ -1,4 +1,203 @@
 // ============================================================
+// donanim.js — v1.0.54 (V31.136)
+//   v1.0.54 (V31.136): Stok Hareket Raporu Excel'e Aktar artık TEK dosyada
+//     7 sayfa üretiyor: Stok Hareketleri (aynen), Cihaz Giriş - Detay/Özet
+//     (stok_seri_no + stok_urunleri, tarih aralığı created_at bazlı),
+//     Cihaz Çıkış - Detay/Özet (durum='Satıldı', updated_at bazlı, müşteri
+//     + satan MY ile), Rezerve Cihazlar - Detay/Özet (durum='Ayrıldı',
+//     ANLIK durum — tarih filtresine bağlı değil; KÇM + satan MY + müşteri
+//     + kısa rezervasyon ID ile). Yeni yardımcılar:
+//     _donanimSeriListesiUrunBilgisiyle, _donanimOzetGrupla.
+// donanim.js — v1.0.53 (V31.135)
+//   v1.0.53 (V31.135): YENİ ÖZELLİK — Stok Hareket Raporu (openDonanimHareketRaporu):
+//     stok_hareketleri tablosundaki tüm kayıtları tarih/aksiyon tipi/ürün
+//     arama filtreli listeler (Stok sekmesi, ayrı yetki: donanim_hareket_raporu_gor).
+//     Hem bu rapor hem Mutabakat Raporu artık "📥 Excel'e Aktar" ile .xlsx
+//     indirilebiliyor (donanimHareketRaporuExcelIndir, donanimMutabakatExcelIndir).
+// donanim.js — v1.0.52 (V31.133)
+//   v1.0.52 (V31.133): Mutabakat Raporu için ayrı yetki anahtarı — önceden
+//     genel donanim_yonet'e bağlıydı, Rol&Yetki ekranında kendi maddesi
+//     yoktu. Artık donanim_mutabakat_gor (yetki.js) ile ayrı yönetiliyor.
+// donanim.js — v1.0.51 (V31.132)
+//   v1.0.51 (V31.132): TALEPLER MODÜLÜ KRİTİK GÜVENLİK AÇIĞI KAPATILDI —
+//     "Karşılandı" butonu önceden hiçbir kontrol yapmadan sadece durum
+//     yazısını değiştiriyordu; cihaz gerçekten stoğa girmese/transfer
+//     edilmese de talep kapatılabiliyordu (cihazlar pahalı, bu ciddi risk).
+//     Artık iki şart doğrulanmadan kapatılamıyor: (1) talep eden KÇM'nin
+//     deposunda gerçekten yeterli müsait adet var mı, (2) bu ürün için
+//     sistem geneli mutabakat (SUM(toplam_adet) tüm KÇM'ler = IMEI sayısı)
+//     bozuk mu. DB: stok_mutabakat_v view'ı eklendi (Oktay tarafından).
+//     YENİ EKRAN: Talepler sekmesine "📊 Mutabakat Raporu" — her ürün için
+//     sistem adedi vs IMEI sayısını karşılaştırır, uyuşmazlıkları üstte
+//     kırmızı gösterir (openDonanimMutabakat, donanimMutabakatModal).
+// donanim.js — v1.0.50 (V31.131)
+//   v1.0.50 (V31.131): Geçmiş (Timeline) ve kart iyileştirmeleri:
+//     (1) Hareket loglarına artık ürün adı yazılıyor (önceden sadece adet
+//     yazıyordu, hangi cihaz olduğu hiç görünmüyordu). (2) IMEI Eşleştirme
+//     olaylarında bağlanan IMEI'ler de loglanıyor (donanimImeiKaydet + SVK).
+//     (3) "Fatura Kesildi" adımına fatura numarası ZORUNLU alan olarak
+//     eklendi — hem normal akışta (prompt) hem Hızlı Sevkiyat Konsolu'nda
+//     (metin kutusu); DB: stok_rezervasyonlari.fatura_no (text, Oktay
+//     tarafından eklendi). (4) openDonanimRezTimeline artık üstte sepetin
+//     tam özetini (ürünler+adet+IMEI+müşteri+fatura no) gösteriyor, altında
+//     da aynı olayın birden fazla üründen gelen tekrarlarını tek karta
+//     topluyor (aksiyon+kullanıcı+aynı dakika ile gruplama). (5) Rezervasyon
+//     kartına "Adım N/7: <durum>" başlığı + "🕓 sırada ne var/kim bekleniyor"
+//     satırı + varsa fatura no rozeti eklendi (DONANIM_BEKLEYEN haritası).
+// donanim.js — v1.0.49 (V31.130)
+//   v1.0.49 (V31.130): YENİ ÖZELLİK — Rezervasyon kartlarına görünür kısa ID
+//     (REZ-XXXXXXXX) ve "📜 Geçmiş" butonu eklendi (openDonanimRezTimeline).
+//     _donanimRezHareketLog artık stok_hareketleri satırlarına sepet_id de
+//     yazıyor (DB: sepet_id uuid null kolonu eklendi), böylece bir
+//     rezervasyonun geçmişi ürün bazlı değil sepet_id bazlı, karışmadan
+//     filtrelenebiliyor. Eski (bu tarihten önceki) hareket kayıtlarında
+//     sepet_id boş — bilinen/beklenen durum.
+// donanim.js — v1.0.48 (V31.126)
+//   v1.0.48 (V31.126): KÖK NEDEN FİX — donanimTransferOnay2 (KÇM'den KÇM'ye
+//     stok transferi 2. onay), hedef KÇM'de o ürün için satır yoksa yeni
+//     satır açarken depo_id HİÇ YAZMIYORDU (sadece kcm_id yazılıyordu) ve
+//     hedef satırı ararken depo_id yerine serbest metin olan depo_adi ile
+//     eşleştiriyordu. Bu, transfer sonrası hedefte "hiçbir depoya bağlı
+//     olmayan" (depo_id NULL) yetim stok satırları oluşturuyordu — tam da
+//     veritabanında temizlediğimiz sorunun kod tarafındaki kaynağı. Artık
+//     hedef KÇM'nin kayıtlı ANA depo_id'si _donanimAnaDepoId() ile çözülüyor,
+//     hedef satırı bu depo_id ile aranıyor ve yeni satır depo_id doluyla
+//     açılıyor. Hedef KÇM'nin kayıtlı bir ANA deposu yoksa transfer iptal
+//     edilip kaynak stok geri alınıyor (yetim satır oluşmasına izin
+//     verilmiyor).
+// donanim.js — v1.0.47 (V31.125)
+//   v1.0.47 (V31.125): UI FIX — Hızlı Sevkiyat Konsolu (SVK) "Cihazlar" adımında
+//     seçilen ürünün adet kutusu, ürün adının üzerine biniyordu. Kök neden CSS
+//     özgüllük çakışması (main.css: .svk-govde input[type=number]{width:100%}
+//     kuralı .svk-kalem input{width:58px}'i eziyordu) — kod tarafında değişiklik
+//     yok, sadece css/main.css düzeltildi (bkz. main.css .svk-govde .svk-kalem
+//     input[type=number]).
+// donanim.js — v1.0.46 (V31.124)
+//   v1.0.46 (V31.124): BUG FİX (devam — V31.123 kapsamı genişletildi) — Stok
+//     listesi ekranında (MY/FMY kartları, `_donanimStokListesiGetir`) Merkez
+//     (Havuz) satırı hâlâ ham toplam_adet/musait_adet gösteriyordu; bu rakam
+//     hem "kaç adet müsait" yazısını hem rezervasyon/sepet adedinin ÜST
+//     SINIRINI belirlediği için, zaten bir KÇM'e dağıtılmış stoktan tekrar
+//     rezervasyon yapılabiliyordu. Artık Merkez satırları için o malzeme
+//     kodunun diğer (KÇM) depolarındaki toplamı ayrı bir sorgu ile çekilip
+//     gerçek kalan (havuz - dağıtılan) hesaplanıyor ve toplam/müsait adet
+//     buna göre düzeltiliyor.
+//     NOT: Hızlı Sevkiyat Konsolu'nun (SVK) cihaz arama sorgusu, sadece
+//     "ortak stok" (tum_kcm) işaretli Merkez satırlarında aynı riski
+//     taşıyabilir — bu turda KAPSAM DIŞI, ayrı ele alınacak.
+// donanim.js — v1.0.45 (V31.123)
+//   v1.0.45 (V31.123): BUG FİX — Merkez (Havuz) deposu, Dağıtım Izgarası'ndan
+//     bir KÇM'e dağıtım yapıldığında hiç azalmıyordu (havuz toplam_adet'i
+//     kasıtlı olarak sabit "tavan" kalıyor). Ama Depo modülü kartları, Depo
+//     detay modalı ve Stok Raporu bu ham tavanı "Merkez'de şu an fiilen
+//     bulunan miktar" gibi gösterip dağıtılan miktarı hem Merkez'de hem
+//     hedef KÇM'de ÇİFT SAYIYORDU (örn. Merkez 22, KÇM'ye 11 dağıtılmış →
+//     ekranlar 22+11=33 gösteriyordu, oysa gerçek toplam 22). Üç ekran de
+//     artık Merkez için ham toplam yerine gerçek kalan (havuz - dağıtılan)
+//     gösteriyor: _donanimIzgaraVeri (kart özeti), _donanimDepoDetayRender
+//     (detay modalı), _donanimRaporVeri (Stok Raporu tablosu/Excel).
+//     NOT: Stok listesi ekranındaki (MY/FMY kartları) Merkez satırının ham
+//     müsait adedi — ki rezervasyon butonunu da etkiliyor — bu turda
+//     KAPSAM DIŞI bırakıldı, ayrıca ele alınacak.
+// donanim.js — v1.0.44 (V31.122)
+//   v1.0.44 (V31.122): BUG FİX — Donanım Takip rozeti Transfer taleplerini
+//     (stok_transfer_talepleri) hiç saymıyordu; Aşama 1/Aşama 2 onayı bekleyen
+//     transfer talepleri bildirime hiç yansımıyordu. _donanimBadgeGuncelle()'a
+//     eklendi (donanim_transfer_onay1 + kaynak KÇM kapsamı, donanim_transfer_onay2).
+//     Transfer onay/red/iptal/yeni-talep işlemlerinden sonra da rozet artık
+//     hemen güncelleniyor.
+// donanim.js — v1.0.43 (V31.121)
+//   v1.0.43 (V31.121): Rezervasyon listesi sıralaması eklendi — kendinden
+//     onay/eylem bekleyen kayıtlar adımı ne olursa olsun HER ZAMAN en üstte;
+//     onun altında aktif (devam eden) kayıtlar, sonra Tamamlandı, Reddedildi,
+//     Süresi Doldu, en altta İptal (aynı grupta en yeni üstte). Filtrelerden
+//     SONRA, render'dan ÖNCE uygulanır (_donanimBenimOnayimBekliyorMu,
+//     _donanimDurumSiraGrubu).
+// donanim.js — v1.0.42 (V31.120)
+//   v1.0.42 (V31.120): Rezervasyon ekranına filtreler eklendi (KÇM — yalnız
+//     TÜM kapsamında, MY/FMY isim arama, süreç adımı, ödeme tipi, tarih
+//     aralığı — donanimRezFiltreDegistiDebounce/donanimRezFiltreTemizle).
+//     Ayrıca her kartın altına, mevcut adıma kadar dolu kalan kısmı siyah
+//     kutucuklardan oluşan renkli bir süreç özet barı eklendi (mor→kırmızı→
+//     turuncu→sarı→yeşil gradyanı, DONANIM_ADIM_RENK); kart çerçevesi artık
+//     tüm kenarlarda bu gradyan rengiyle çiziliyor (_donanimSurecBarHTML).
+// donanim.js — v1.0.41 (V31.119)
+//   v1.0.41 (V31.119): BUG FİX — Turkcell Finans Onayı ile Fatura Kesildi TEK
+//     butonda birleşmişti: finans onaycısı butona basınca durum doğrudan
+//     'Fatura Kesildi'ye atlıyordu, Depo&Muhasebe ekranında AYRI bir "Fatura
+//     Kesildi" adımı hiç görünmüyordu (yalnız "Cihaz Gönderildi" görünüyordu,
+//     rozet de bu adımda hiç oluşmuyordu). Aralarına yeni 'Finans Onaylandı'
+//     ara durumu eklendi: finans onaycısı yalnız finans onayını verir,
+//     Depo&Muhasebe/Admin (donanim_sevk) ayrı adım olarak önce "Fatura
+//     Kesildi"yi, sonra "Cihaz Gönderildi"yi işaretler. Rozet ve iptal/süre
+//     listeleri, Hızlı Sevkiyat Konsolu da yeni ara duruma göre güncellendi.
+// donanim.js — v1.0.40 (V31.118)
+//   v1.0.40 (V31.118): BUG FİX — _donanimBadgeGuncelle() yalnız Ön
+//     Rezervasyon/Yönetici Onayı Bekliyor durumlarını sayıyordu; Emei Girişi
+//     (Onaylandı/Stok Onay Emei Giriş), Turkcell Finans Onay ve Fatura
+//     Kesildi (sevk) bekleyenler hiç sayılmıyordu — bu yüzden Depo&Muhasebe
+//     ve finans onaycılarında rozet hiç çıkmıyordu. Artık süreçteki HER
+//     "birinin eylemini bekleyen" adım, o adımın kendi yetkisi+kapsamıyla
+//     ayrı ayrı sayılıyor.
+// donanim.js — v1.0.39 (V31.117)
+//   v1.0.39 (V31.117): İKİ değişiklik —
+//     (1) Modül her açıldığında ilk ekran artık Rezervasyon sekmesi
+//     (initDonanimPage artık loadDonanimListesi yerine loadDonanimRezervasyonlar
+//     çağırıyor). index.html'de donanimRezSekme varsayılan görünür,
+//     donanimStokSekme varsayılan gizli + sekme butonlarının aktif/ghost
+//     durumu buna göre değiştirildi.
+//     (2) IMEI seçimi artık Turkcell Finans Onay'dan ÖNCE, "Stok Onay / Emei
+//     Giriş" adımının KENDİSİNDE yapılıyor (önceden yalnız düz onay tuşuydu,
+//     gerçek IMEI eşleştirme ekranı Finans Onay sonrasına kalıyordu — Oktay'ın
+//     talebiyle sıra değişti). "Stok Onay / Emei Giriş" butonu artık doğrudan
+//     donanimImeiEslestirAc() açıyor; talep edilen TÜM cihazların IMEI'leri
+//     girilene kadar durum 'Stok Onay Emei Giriş'te kalır ("Emei Girişine
+//     Devam Et" ile tamamlanabilir), tümü eşleşince otomatik 'Turkcell Finans
+//     Onay'a geçer. Bu sayede seçilen IMEI'ler Finans Onay dahil sonraki tüm
+//     ekranlarda (stok_seri_no.sepet_id üzerinden) görünür oluyor. Eski
+//     'Kısmen Eşleştirildi'/'Eşleştirildi' ara durumları artık normal akışta
+//     üretilmiyor (geriye dönük uyumluluk için haritalarda tutuluyor — eski
+//     kayıtlar ve Hızlı Sevkiyat Konsolu'nun yarıda kalmış çalışmaları için).
+// donanim.js — v1.0.38 (V31.116)
+//   v1.0.38 (V31.116): Ana menü Donanım Takip rozeti artık yöneticinin
+//     onayını/reddini bekleyen kayıtları da sayıyor (_donanimBadgeGuncelle) —
+//     Ön Rezervasyon (donanim_rezerve_et) + Yönetici Onayı Bekliyor/mükerrer
+//     talep (donanim_mukerrer_onay). Onay veya red verilene kadar sayı kalır.
+// donanim.js — v1.0.37 (V31.115)
+//   v1.0.37 (V31.115): ACİL FIX — "null value in column kcm_id" hatası.
+//     donanimSepetGonder() kcm_id'yi ürünün depo satırından (item.urun.kcm_id)
+//     alıyordu; Merkez/ortak havuz satırlarında bu alan NULL olduğu için ortak
+//     stoktan sipariş verilince INSERT patlıyordu (stok_rezervasyonlari.kcm_id
+//     NOT NULL). Artık Hızlı Sevkiyat Konsolu'yla (S.my.kcm_id) AYNI desen:
+//     kcm_id satan MY'nin kendi KÇM'sinden alınıyor — hiçbir zaman null olmaz.
+//   NOT: Oktay'ın bildirdiği "iptal edilen ortak stok cihazı KÇM 1'e geri
+//     döndü gibi görünüyor" bulgusu AYRI bir konu — muhtemelen Stok listesinin
+//     "ortak" gösterimi, aynı malzeme_kodu için KÇM'nin kendi depo satırı ile
+//     Merkez havuz satırını "hangisinde daha çok müsait adet varsa onu göster"
+//     mantığıyla birleştiriyor (_donanimListeBirlestir, ~satır 535) — yani
+//     ekranda "ortak stok" görünen satır bazen aslında belirli bir KÇM'nin
+//     kendi depo satırı olabilir. Bu round'da DOKUNULMADI, teyit için SQL
+//     kontrolü gerekiyor (bkz. proje dokümanı madde 10).
+// donanim.js — v1.0.36 (V31.114)
+//   v1.0.36 (V31.114): DONANIM SATIŞ SÜREÇ AKIŞI V2 — kural değişikliği.
+//     • Ön Rezervasyon artık cihazı DOĞRUDAN rezerve_adet'e düşürür (eski:
+//       sadece on_rezerve_adet artardı, stok görünürlüğü değişmezdi).
+//     • Ön Rezervasyon süresi 6 iş saati (sistem_ayarlari.donanim_onrez_sure_saat),
+//       KÇM Müdürü/TL/Depo&Muhasebe/Admin tarafından +6 saat (max N kez) uzatılabilir
+//       (donanim_onrez_uzat), süre dolarsa cihaz otomatik stoğa döner (_donanimOnRezSupur).
+//     • Aynı müşteri+ürün için aynı gün 2. (veya sonraki) ön rezervasyon talebi
+//       otomatik "Yönetici Onayı Bekliyor" olur — Takım Lideri VEYA KÇM Müdürü
+//       onaylar (donanim_mukerrer_onay, donanimMukerrerOnayla).
+//     • "Hazırlanıyor" adımı KALKTI. Yeni akış: Ön Rezervasyon → (Yönetici Onayı
+//       Bekliyor) → Onaylandı (Rezervasyon Onayı) → Stok Onay/Emei Giriş
+//       (donanim_emei_giris) → Turkcell Finans Onay (donanim_finans_onay) →
+//       Emei Eşleştirme (donanim_imei_eslestir — artık geniş grup: KÇM Müdürü/
+//       TL/Depo/Satış Destek/Admin) → Fatura Kesildi → Tamamlandı (donanim_sevk).
+//     • Yeni DONANIM_SUREC_ADIMLARI (8 adım) + Hızlı Sevkiyat Konsolu aynı
+//       zincire güncellendi.
+//     NOT: Excel/havuz IMEI eşleştirme ekranında bazı KÇM siparişlerinde cihaz
+//     listesinin gelmemesi (havuz/malzeme_kodu eşleşme sorunu) ayrı bir veri
+//     sorunu — bu round'da dokunulmadı, ayrıca incelenecek.
 // donanim.js — v1.0.35 (V31.111)
 //   v1.0.35 (V31.111): Talepler sekmesindeki "➕ Yeni Talep" butonu artık
 //     MY/FMY'de de görünüyor (donanim_on_rezerve_et) — asıl ihtiyaç sahibi
@@ -298,6 +497,13 @@ async function initDonanimPage(){
   // donanimTalepGonder içindeki yetki kontrolü zaten bu ikisini kabul ediyordu.
   const talepYeniBtn = document.getElementById('donanimTalepYeniBtn');
   if(talepYeniBtn) talepYeniBtn.style.display = (hasPerm('donanim_on_rezerve_et') || hasPerm('donanim_yonet')) ? '' : 'none';
+  // V31.132/133: Mutabakat Raporu — ayrı yetki anahtarı (donanim_mutabakat_gor),
+  // Rol&Yetki ekranından atanmalı. donanim_yonet'e otomatik bağlı DEĞİL.
+  const mutabakatBtn = document.getElementById('donanimMutabakatBtn');
+  if(mutabakatBtn) mutabakatBtn.style.display = hasPerm('donanim_mutabakat_gor') ? '' : 'none';
+  // V31.135: Stok Hareket Raporu — ayrı yetki anahtarı (donanim_hareket_raporu_gor)
+  const hareketRaporuBtn = document.getElementById('donanimHareketRaporuBtn');
+  if(hareketRaporuBtn) hareketRaporuBtn.style.display = hasPerm('donanim_hareket_raporu_gor') ? '' : 'none';
   window._donanimSepet = {};
   window._donanimSecimModu = false;
   window._donanimDepoCache = null;   // V31.57: her açılışta depo haritası tazelenir
@@ -305,9 +511,14 @@ async function initDonanimPage(){
 
   const _dsayfaAcilis = document.getElementById('pageMenuDonanim');
   if(_dsayfaAcilis) _dsayfaAcilis.classList.remove('genis');   // V31.61
+  _donanimAyarYukle();                // V31.113: donanım süreç ayarlarını yükle
   _donanimSureSupur(false);          // V31.58: modül açılışında fırsatçı süpürme
+  _donanimOnRezSupur();               // V31.113: ön rezervasyon süresi dolanları süpür
   await _loadDonanimKcmFiltre();
-  await loadDonanimListesi();
+  // V31.117: Modül her açıldığında ilk ekran artık Rezervasyon sekmesi
+  // (eskiden Stok). HTML'de de donanimRezSekme varsayılan görünür,
+  // donanimStokSekme varsayılan gizli olacak şekilde değiştirildi.
+  await loadDonanimRezervasyonlar();
   _donanimTalepBadge();
 }
 
@@ -445,6 +656,45 @@ async function _donanimStokListesiGetir(overrides){
     const _h = await _donanimDepoHaritasi();
     _satirlar = _satirlar.filter(r=> !(r.depo_id && _h.cep && _h.cep[r.depo_id]));
   }
+
+  // V31.124: Merkez (Havuz) satırı burada da ham toplam_adet/musait_adet
+  // taşıyordu — dağıtım yapıldıktan sonra bile azalmıyor. Bu liste hem
+  // rezervasyon butonunun üst sınırını hem sepete eklenebilecek adedi
+  // belirlediği için, ham rakam görünürse zaten dağıtılmış stoktan tekrar
+  // rezervasyon yapılabiliyordu. Merkez satırları için gerçek kalan
+  // (havuz - dağıtılan) hesaplanıp toplam/müsait adet buna göre düzeltilir.
+  if(merkezDepoId){
+    const merkezKodlar = [...new Set(_satirlar
+      .filter(u=>u.depo_id===merkezDepoId && u.malzeme_kodu)
+      .map(u=>u.malzeme_kodu))];
+    if(merkezKodlar.length){
+      const {data:digerSatirlar, error:digerErr} = await sb.from('stok_urunleri')
+        .select('malzeme_kodu,toplam_adet')
+        .in('malzeme_kodu', merkezKodlar)
+        .neq('depo_id', merkezDepoId)
+        .not('depo_id','is',null);
+      if(digerErr){
+        console.warn('[donanim] Merkez kalan hesaplanamadı:', digerErr.message);
+      } else {
+        const dagitilanMap = {};
+        (digerSatirlar||[]).forEach(r=>{
+          dagitilanMap[r.malzeme_kodu] = (dagitilanMap[r.malzeme_kodu]||0) + (r.toplam_adet||0);
+        });
+        _satirlar = _satirlar.map(u=>{
+          if(u.depo_id!==merkezDepoId) return u;
+          const dagitilan = dagitilanMap[u.malzeme_kodu]||0;
+          if(!dagitilan) return u;
+          const toplamKalan = (u.toplam_adet||0) - dagitilan;
+          const musaitHam = u.musait_adet ?? ((u.toplam_adet||0) - (u.rezerve_adet||0));
+          return Object.assign({}, u, {
+            toplam_adet: toplamKalan,
+            musait_adet: musaitHam - dagitilan
+          });
+        });
+      }
+    }
+  }
+
   // V31.60: hedef depo zaten Merkez ise (ADMIN + kendi depom), merkez satirlari
   // 'katalog' sayilip elenmemeli — birlestirmeye merkez kimligi verilmez.
   const _kendiMerkez = !!(hedefDepoId && merkezDepoId && hedefDepoId === merkezDepoId);
@@ -624,6 +874,81 @@ async function openDonanimTimeline(urunId){
       </div>
       ${h.detay?`<div style="font-size:12px;color:var(--text2);margin-top:2px;">${escapeHTML(h.detay)}</div>`:''}
       <div style="font-size:11px;color:var(--text3);margin-top:2px;">${escapeHTML(h.user_ad||'—')}</div>
+    </div>`;
+  }).join('');
+}
+
+// V31.131: Rezervasyon kartı için Geçmiş — üstte sepetin tam detayı (ürünler,
+// müşteri, IMEI'ler, fatura no), altında tekilleştirilmiş adım listesi (aynı
+// olayda birden fazla ürün varsa artık tek satırda — önceden ürün sayısı kadar
+// tekrar ediyordu). sepet_id'ye göre filtreli — başka rezervasyonların
+// kayıtlarıyla karışmaz.
+async function openDonanimRezTimeline(sepetId){
+  const icerik = document.getElementById('donanimTimelineIcerik');
+  const baslik = document.getElementById('donanimTimelineBaslik');
+  icerik.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  const kisaId = 'REZ-' + String(sepetId||'').replace(/-/g,'').slice(0,8).toUpperCase();
+  baslik.textContent = kisaId;
+  openModal('donanimTimelineModal');
+
+  // Üst özet: sepet kalemleri + ürün adı + müşteri + IMEI'ler + fatura no
+  const {data:kalemler} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId).order('created_at');
+  let ozetHTML = '';
+  if(kalemler && kalemler.length){
+    const ilk = kalemler[0];
+    const urunIds = [...new Set(kalemler.map(k=>k.urun_id).filter(Boolean))];
+    const urunMap = {};
+    if(urunIds.length){
+      const {data:urunler} = await sb.from('stok_urunleri').select('urun_id,aciklama').in('urun_id', urunIds);
+      (urunler||[]).forEach(u=>{ urunMap[u.urun_id] = u.aciklama; });
+    }
+    const {data:seriler} = await sb.from('stok_seri_no').select('seri_no,urun_id').eq('sepet_id', sepetId);
+    const seriByUrun = {};
+    (seriler||[]).forEach(s=>{ (seriByUrun[s.urun_id]=seriByUrun[s.urun_id]||[]).push(_imeiMaskele(s.seri_no)); });
+    let musteriAd = ilk.ncst || '—';
+    if(ilk.ncst){ const {data:m}=await sb.from('customers').select('unvan').eq('ncst',ilk.ncst).maybeSingle(); if(m?.unvan) musteriAd=m.unvan; }
+    const urunSatirlari = kalemler.map(k=>{
+      const ad = urunMap[k.urun_id] || ('Ürün #'+k.urun_id);
+      const imeiler = seriByUrun[k.urun_id] ? ` — IMEI: ${seriByUrun[k.urun_id].join(', ')}` : '';
+      return `<div style="font-size:12px;color:var(--text2);">• ${escapeHTML(ad)} · ${k.adet} adet${imeiler}</div>`;
+    }).join('');
+    ozetHTML = `<div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:4px;">Müşteri: <b style="color:var(--text2);">${escapeHTML(musteriAd)}</b>${ilk.satis_tipi?` · ${escapeHTML(ilk.satis_tipi)}`:''}</div>
+      ${urunSatirlari}
+      ${ilk.fatura_no ? `<div style="font-size:12px;color:var(--text2);margin-top:4px;">🧾 Fatura No: <b>${escapeHTML(ilk.fatura_no)}</b></div>` : ''}
+    </div>`;
+  }
+
+  const {data, error} = await sb.from('stok_hareketleri').select('*').eq('sepet_id', sepetId).order('created_at',{ascending:false});
+  if(error){ icerik.innerHTML = ozetHTML + `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`; return; }
+  if(!data || !data.length){ icerik.innerHTML = ozetHTML + '<div class="empty">Bu rezervasyon için hareket kaydı yok. (Not: bu özellik V31.130\'da eklendi — daha eski kayıtların geçmişi bu sepet_id ile loglanmamış olabilir.)</div>'; return; }
+
+  // V31.131: aynı olay (aksiyon+kullanıcı+aynı dakika) birden fazla ürün için
+  // ayrı ayrı loglandığından, tek adım kartına toplanıyor — kalabalık önleniyor.
+  const gruplar = [];
+  const grupIndex = {};
+  data.forEach(h=>{
+    const dakika = h.created_at ? h.created_at.slice(0,16) : h.created_at;
+    const anahtar = `${h.aksiyon}|${h.user_id}|${dakika}`;
+    if(grupIndex[anahtar]===undefined){ grupIndex[anahtar]=gruplar.length; gruplar.push({aksiyon:h.aksiyon, user_ad:h.user_ad, created_at:h.created_at, detaylar:[]}); }
+    if(h.detay) gruplar[grupIndex[anahtar]].detaylar.push(h.detay);
+  });
+
+  const renk = {
+    'Ön Rezervasyon':'#e67e22','Yönetici Onayı Bekliyor':'#e67e22','Mükerrer Talep Onaylandı':'#2980b9',
+    'Rezervasyon Onaylandı':'#2980b9','Rezervasyon Reddedildi':'#e74c3c','Rezervasyon İptal':'#e74c3c',
+    'Rezervasyon Düzenlendi':'#8e44ad','Ön Rezervasyon Süresi Uzatıldı':'#8e44ad','Rezervasyon Süresi Uzatıldı':'#8e44ad',
+    'Ön Rezervasyon Süresi Doldu':'var(--text3)'
+  };
+  icerik.innerHTML = ozetHTML + gruplar.map(g=>{
+    const c = renk[g.aksiyon] || (g.aksiyon&&g.aksiyon.startsWith('IMEI')?'#16a085':(g.aksiyon&&g.aksiyon.startsWith('Süreç:')?'#2980b9':'var(--text3)'));
+    return `<div style="border-left:3px solid ${c};padding:6px 10px;margin-bottom:6px;background:var(--navy3);border-radius:6px;">
+      <div style="display:flex;justify-content:space-between;gap:8px;">
+        <span style="font-weight:600;font-size:12px;color:${c};">${escapeHTML(g.aksiyon)}</span>
+        <span style="font-size:11px;color:var(--text3);white-space:nowrap;">${new Date(g.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'})}</span>
+      </div>
+      ${g.detaylar.map(d=>`<div style="font-size:12px;color:var(--text2);margin-top:2px;">${escapeHTML(d)}</div>`).join('')}
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;">👤 ${escapeHTML(g.user_ad||'—')}</div>
     </div>`;
   }).join('');
 }
@@ -1086,7 +1411,11 @@ function donanimSatisTipiSec(el, tip){
   window._donanimSepetSatisTipi = tip;
 }
 
-// Sepeti gönderir: her ürün için ayrı rezervasyon satırı, ortak sepet_id, on_rezerve_adet artırılır
+// V31.113: Sepeti gönderir — her ürün için ayrı rezervasyon satırı, ortak sepet_id.
+// ARTIK cihaz DOĞRUDAN rezerve_adet'e düşer (eski davranış: sadece on_rezerve_adet
+// artardı, stok görünürlüğü değişmezdi). Ayrıca aynı müşteri+ürün için aynı gün
+// içinde mükerrer (2. veya sonraki) ön rezervasyon talebiyse durum otomatik
+// "Yönetici Onayı Bekliyor" olur (Takım Lideri/KÇM Müdürü onayı gerekir).
 async function donanimSepetGonder(){
   const musteri = window._donanimSepetSeciliMusteri;
   const kendiMY = (currentUser.yetki_seviyesi==='MY' || currentUser.yetki_seviyesi==='FMY');
@@ -1101,38 +1430,64 @@ async function donanimSepetGonder(){
   const sepetKeys = Object.keys(window._donanimSepet||{});
   if(!sepetKeys.length){ toast('Sepet boş','error'); return; }
 
+  // V31.115 FIX: kcm_id artık ÜRÜNÜN depo satırından değil, SATAN MY'nin kendi
+  // KÇM'sinden alınır (Hızlı Sevkiyat Konsolu'yla aynı desen). Ortak/Merkez havuz
+  // ürün satırlarında kcm_id NULL olduğu için eski kod "null value in column
+  // kcm_id" hatasıyla INSERT'i patlatıyordu.
+  const kcmIdKayit = kendiMY ? currentUser.kcm_id : parseInt(document.getElementById('donanimSepetKcm').value);
+  if(!kcmIdKayit){ toast('KÇM belirlenemedi — lütfen KÇM/Takım Lideri/MY seçimini kontrol edin','error'); return; }
+
+  // V31.113: mükerrer talep tespiti — bugün, aynı müşteri (ncst), aynı ürün,
+  // İptal/Reddedildi dışında kaç ön rezervasyon/sonraki adım kaydı var?
+  const esik = window._donanimAyar.mukerrer_esik;
+  const bugunBas = new Date(); bugunBas.setHours(0,0,0,0);
+  let mukerrerVar = false;
+  for(const uid of sepetKeys){
+    const {count} = await sb.from('stok_rezervasyonlari').select('rezervasyon_id',{count:'exact', head:true})
+      .eq('ncst', musteri.ncst).eq('urun_id', parseInt(uid))
+      .not('durum','in','("İptal","Reddedildi")')
+      .gte('created_at', bugunBas.toISOString());
+    if((count||0) >= esik){ mukerrerVar = true; break; }
+  }
+  const durum = mukerrerVar ? 'Yönetici Onayı Bekliyor' : 'Ön Rezervasyon';
+  // Yönetici Onayı Bekliyor'da süre sayacı işlemez (onay verilince başlar)
+  const bitis = mukerrerVar ? null : await _donanimSureBitisHesapla(new Date().toISOString(), window._donanimAyar.onrez_sure_saat);
+
   const sepetId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
   const kayitlar = sepetKeys.map(uid=>{
     const item = window._donanimSepet[uid];
     return {
       urun_id: parseInt(uid),
-      kcm_id: item.urun.kcm_id,
+      kcm_id: kcmIdKayit,
       adet: item.adet,
       ncst: musteri.ncst,
       musteri_my_id: musteri.my_id, // v30.87: donuk — kayıt anındaki portföy sahibi
       satan_my_id: parseInt(satanMyId),
       rezerve_eden_id: currentUser.my_id,
-      durum: 'Ön Rezervasyon',
+      durum: durum,
       sepet_id: sepetId,
       aciklama: not || null,
-      satis_tipi: satisTipi
+      satis_tipi: satisTipi,
+      rezervasyon_bitis: bitis
     };
   });
 
   const {error} = await sb.from('stok_rezervasyonlari').insert(kayitlar);
   if(error){ toast('Hata: '+error.message,'error'); return; }
 
-  // on_rezerve_adet güncelle (stok GÖRÜNÜRLÜĞÜ etkilenmez — sadece bu sayaç artar)
+  // V31.113: rezerve_adet DOĞRUDAN artırılır (stok görünürlüğü/musait_adet hemen düşer)
   for(const uid of sepetKeys){
     const item = window._donanimSepet[uid];
-    const yeniOnRezerve = (item.urun.on_rezerve_adet||0) + item.adet;
-    await sb.from('stok_urunleri').update({on_rezerve_adet: yeniOnRezerve}).eq('urun_id', parseInt(uid));
+    const yeniRezerve = (item.urun.rezerve_adet||0) + item.adet;
+    await sb.from('stok_urunleri').update({rezerve_adet: yeniRezerve, updated_at:new Date().toISOString()}).eq('urun_id', parseInt(uid));
   }
 
   // Timeline özet log
-  await _donanimRezHareketLog('Ön Rezervasyon', kayitlar, {ncst:musteri.ncst, satan_my_id:satanMyId});
+  await _donanimRezHareketLog(durum, kayitlar, {ncst:musteri.ncst, satan_my_id:satanMyId});
 
-  toast('Ön rezervasyon talebi oluşturuldu','success');
+  toast(mukerrerVar
+    ? 'Mükerrer talep tespit edildi — Yönetici Onayı Bekliyor durumuna alındı'
+    : 'Ön rezervasyon talebi oluşturuldu, cihaz stoktan düşürüldü', mukerrerVar?'info':'success');
   closeModal('donanimSepetModal');
   window._donanimSepet = {};
   window._donanimSecimModu = false;
@@ -1178,22 +1533,92 @@ function _donanimSurecYetki(permKey, satanMyId, kcmId){
   return satanMyId === currentUser.my_id;
 }
 
+// V31.117: Donanım Satış Süreç Akışı V2 — yeni 7 adımlı akış. IMEI eşleştirme
+// artık Turkcell Finans Onay'dan ÖNCE, "Stok Onay Emei Giriş" adımının kendisinde
+// tamamlanıyor; 'Kısmen Eşleştirildi'/'Eşleştirildi' durumları geriye dönük
+// uyumluluk için (eski kayıtlar veya Hızlı Sevkiyat Konsolu'nun geçiş anı) haritada
+// tutuluyor ama normal akışta artık üretilmiyorlar.
 const DONANIM_SUREC_ADIMLARI = {
-  'Ön Rezervasyon':    {no:1, renk:'#e74c3c'},
-  'Onaylandı':         {no:2, renk:'#e67e22'},
-  'Hazırlanıyor':      {no:3, renk:'#f39c12'},
-  'Kısmen Eşleştirildi':{no:3, renk:'#e59866'},
-  'Eşleştirildi':      {no:4, renk:'#3498db'},
-  'Fatura Kesildi':    {no:5, renk:'#9b59b6'},
-  'Cihaz Gönderildi':  {no:6, renk:'#2ecc71'},
-  'Süresi Doldu':      {no:0, renk:'#b03a2e'},   // V31.58
-  'Kısmi Tamamlandı':  {no:4, renk:'#5d6d7e'},   // V31.58
-  'Reddedildi':        {no:0, renk:'#c0392b'},
-  'İptal':             {no:0, renk:'#7f8c8d'}
+  'Ön Rezervasyon':        {no:1, renk:'#e74c3c'},
+  'Yönetici Onayı Bekliyor':{no:1, renk:'#e67e22'},   // mükerrer talep — ara durum
+  'Onaylandı':             {no:2, renk:'#e67e22'},     // Rezervasyon Onayı
+  'Stok Onay Emei Giriş':  {no:3, renk:'#f39c12'},     // IMEI seçimi burada yapılır
+  'Kısmen Eşleştirildi':   {no:3, renk:'#e59866'},     // geriye dönük uyumluluk
+  'Eşleştirildi':          {no:3, renk:'#3498db'},     // geriye dönük uyumluluk
+  'Turkcell Finans Onay':  {no:4, renk:'#f1c40f'},     // IMEI'ler tam, finans onayı bekliyor
+  'Finans Onaylandı':      {no:5, renk:'#e67e22'},     // V31.119: finans onaylandı, Depo&Muhasebe fatura kesmeyi bekliyor
+  'Fatura Kesildi':        {no:6, renk:'#9b59b6'},     // fatura kesildi, sevkiyat bekliyor
+  'Tamamlandı':            {no:7, renk:'#2ecc71'},
+  'Cihaz Gönderildi':      {no:7, renk:'#2ecc71'},     // geriye dönük uyumluluk
+  'Süresi Doldu':          {no:0, renk:'#b03a2e'},   // V31.58
+  'Kısmi Tamamlandı':      {no:3, renk:'#5d6d7e'},   // V31.58
+  'Reddedildi':            {no:0, renk:'#c0392b'},
+  'İptal':                 {no:0, renk:'#7f8c8d'}
 };
 
 // v31.25: Satış Tipi renkleri (Peşin/OLM/Turkcell Finansman) — rozet gösterimi için
 const DONANIM_SATIS_TIPI_RENK = { 'Peşin':'#2ecc71', 'OLM':'#3498db', 'Turkcell Finansman':'#9b59b6' };
+
+// V31.131: kartta "sırada ne var / kim bekleniyor" açıklaması — durum bazlı statik metin
+const DONANIM_BEKLEYEN = {
+  'Ön Rezervasyon':          'Onay bekleniyor (Takım Lideri / KÇM Müdürü)',
+  'Yönetici Onayı Bekliyor': 'Mükerrer talep onayı bekleniyor (Takım Lideri / KÇM Müdürü)',
+  'Onaylandı':               'Stok Onay / IMEI girişi bekleniyor',
+  'Stok Onay Emei Giriş':    'IMEI eşleştirme sürüyor',
+  'Kısmen Eşleştirildi':     'IMEI eşleştirme tamamlanmadı',
+  'Eşleştirildi':            'Turkcell Finans Onayı bekleniyor',
+  'Turkcell Finans Onay':    'Turkcell Finans Onayı bekleniyor',
+  'Finans Onaylandı':        'Fatura kesilmesi bekleniyor (Depo & Muhasebe)',
+  'Fatura Kesildi':          'Sevkiyat (cihaz gönderimi) bekleniyor',
+  'Tamamlandı':              'Süreç tamamlandı',
+  'Cihaz Gönderildi':        'Süreç tamamlandı',
+  'Süresi Doldu':            'Süre doldu — işlem yapılmadı, cihaz stoğa iade edildi',
+  'Kısmi Tamamlandı':        'Kısmen tamamlandı',
+  'Reddedildi':              'Talep reddedildi',
+  'İptal':                   'İptal edildi'
+};
+
+// V31.120: Kart altındaki süreç özet barı + çerçeve rengi için mor→kırmızı→
+// turuncu→sarı→yeşil gradyanı. Index = DONANIM_SUREC_ADIMLARI[durum].no (1..7).
+// no:0 (Reddedildi/İptal/Süresi Doldu) bu gradyanı kullanmaz, kendi renginde kalır.
+const DONANIM_ADIM_TOPLAM = 7;
+const DONANIM_ADIM_RENK = ['var(--text3)','#8e44ad','#e74c3c','#e67e22','#f1c40f','#f39c12','#27ae60','#2ecc71'];
+
+// Kartın altına, mevcut adıma kadar dolu, kalanı siyah kutucuklardan oluşan
+// ince bir çubuk çizer. no<=0 (terminal negatif durumlar) için çubuk çizilmez.
+function _donanimSurecBarHTML(no){
+  no = Number(no);
+  if(!no || isNaN(no) || no<1) return '';
+  const renk = DONANIM_ADIM_RENK[no] || 'var(--text3)';
+  let kutular = '';
+  for(let i=1; i<=DONANIM_ADIM_TOPLAM; i++){
+    kutular += `<div style="flex:1;height:5px;border-radius:2px;background:${i<=no?renk:'#000'};"></div>`;
+  }
+  return `<div style="display:flex;gap:2px;margin-top:8px;">${kutular}</div>`;
+}
+
+// ============================================================
+// V31.113: DONANIM SÜREÇ AYARLARI — sistem_ayarlari'den okunur, kod içinde
+// sabit sayı YOK. Admin Panel > Uygulama Ayarları > Donanım Satış Süreç
+// Ayarları ekranından değiştirilir. Yüklenemezse (SQL henüz çalıştırılmadıysa)
+// aşağıdaki varsayılanlarla devam edilir — akış hiçbir zaman kilitlenmez.
+// ============================================================
+window._donanimAyar = window._donanimAyar || {
+  onrez_sure_saat: 6, onrez_uzatma_saat: 6, onrez_max_uzatma: 1,
+  emei_sure_saat: 48, mukerrer_esik: 2
+};
+async function _donanimAyarYukle(){
+  try{
+    const {data, error} = await sb.from('sistem_ayarlari').select('ayar_tipi,deger')
+      .in('ayar_tipi',['donanim_onrez_sure_saat','donanim_onrez_uzatma_saat','donanim_onrez_max_uzatma',
+        'donanim_emei_sure_saat','donanim_mukerrer_esik']).eq('aktif',true);
+    if(error || !data) return;
+    const map = { donanim_onrez_sure_saat:'onrez_sure_saat', donanim_onrez_uzatma_saat:'onrez_uzatma_saat',
+      donanim_onrez_max_uzatma:'onrez_max_uzatma', donanim_emei_sure_saat:'emei_sure_saat',
+      donanim_mukerrer_esik:'mukerrer_esik' };
+    data.forEach(r=>{ const k=map[r.ayar_tipi]; const v=parseInt(r.deger); if(k && v>0) window._donanimAyar[k]=v; });
+  }catch(e){ console.warn('[donanim] ayar yükleme:', e.message); }
+}
 
 // ============================================================
 // v31.26: Tedarik akışı bildirimi — Ana menüdeki 'Donanım Takip' ikonu üzerinde
@@ -1201,18 +1626,70 @@ const DONANIM_SATIS_TIPI_RENK = { 'Peşin':'#2ecc71', 'OLM':'#3498db', 'Turkcell
 // 'Onaylandı' adımına geçtiğinde rozette sayı görünür (görev rozetiyle aynı
 // desen: js/gorev.js updateGorevBadge/#gorevMenuBadge — okundu/okunmadı takibi
 // yok, adım değişince rozet kendiliğinden güncellenir/kaybolur).
+// V31.115: rozet artık ayrıca YÖNETİCİNİN onayını/reddini bekleyen kayıtları da
+// sayar — Ön Rezervasyon (donanim_rezerve_et yetkisi olanlar için) ve Yönetici
+// Onayı Bekliyor / mükerrer talep (donanim_mukerrer_onay yetkisi olanlar için).
+// V31.118: BUG FİX — rozet yalnız Ön Rezervasyon/Yönetici Onayı Bekliyor
+// durumlarını sayıyordu; Emei Girişi (Onaylandı/Stok Onay Emei Giriş) ve
+// Turkcell Finans Onayı bekleyen kayıtlar hiç sayılmıyordu, o yüzden finans
+// onaycılarında rozet hiç çıkmıyordu. Artık her "birinin eylemini bekleyen"
+// durum, o eylemin yetkisi+kapsamıyla ayrı ayrı sayılıyor.
+// Onay veya red verilene kadar sayı ekranda kalır (durum değişince otomatik düşer).
 // ============================================================
 async function _donanimBadgeGuncelle(){
   const badge = document.getElementById('donanimMenuBadge');
   if(!badge) return;
   const mid = currentUser?.my_id;
   if(!mid){ badge.style.display='none'; return; }
-  const {data, error} = await sb.from('stok_rezervasyonlari')
-    .select('sepet_id')
-    .eq('durum','Onaylandı')
-    .or(`satan_my_id.eq.${mid},rezerve_eden_id.eq.${mid}`);
-  if(error){ console.warn('_donanimBadgeGuncelle:', error.message); return; }
-  const sayi = new Set((data||[]).map(r=>r.sepet_id)).size;
+  let sayi = 0;
+
+  // 1) Kullanıcının kendi (satan/rezerve eden) siparişi 'Onaylandı' adımına geçmiş — bilgilendirme
+  const {data:kendi, error:kendiErr} = await sb.from('stok_rezervasyonlari')
+    .select('sepet_id').eq('durum','Onaylandı').or(`satan_my_id.eq.${mid},rezerve_eden_id.eq.${mid}`);
+  if(kendiErr){ console.warn('_donanimBadgeGuncelle (kendi):', kendiErr.message); }
+  else sayi += new Set((kendi||[]).map(r=>r.sepet_id)).size;
+
+  // 2) Kullanıcının ONAYINI/İLERLETMESİNİ bekleyen kayıtlar — süreç boyunca her
+  // adımda, o adımın yetkisi olan biri için. V31.118: Turkcell Finans Onay ve
+  // Fatura Kesildi (sevk) eklendi. V31.119: 'Finans Onaylandı' ara durumu da
+  // eklendi (fatura kesilmesini bekleyen, donanim_sevk).
+  const eylemGerektiren = ['donanim_rezerve_et','donanim_mukerrer_onay','donanim_emei_giris','donanim_finans_onay','donanim_sevk'];
+  if(eylemGerektiren.some(p=>hasPerm(p))){
+    const {data:bekleyen, error:bErr} = await sb.from('stok_rezervasyonlari')
+      .select('sepet_id,durum,satan_my_id,kcm_id')
+      .in('durum',['Ön Rezervasyon','Yönetici Onayı Bekliyor','Onaylandı','Stok Onay Emei Giriş','Turkcell Finans Onay','Finans Onaylandı','Fatura Kesildi']);
+    if(bErr){ console.warn('_donanimBadgeGuncelle (bekleyen):', bErr.message); }
+    else {
+      const setler = new Set();
+      (bekleyen||[]).forEach(r=>{
+        if(r.durum==='Ön Rezervasyon' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id)) setler.add(r.sepet_id);
+        if(r.durum==='Yönetici Onayı Bekliyor' && _donanimSurecYetki('donanim_mukerrer_onay', r.satan_my_id, r.kcm_id)) setler.add(r.sepet_id);
+        if((r.durum==='Onaylandı'||r.durum==='Stok Onay Emei Giriş') && _donanimSurecYetki('donanim_emei_giris', r.satan_my_id, r.kcm_id)) setler.add(r.sepet_id);
+        if(r.durum==='Turkcell Finans Onay' && _donanimSurecYetki('donanim_finans_onay', r.satan_my_id, r.kcm_id)) setler.add(r.sepet_id);
+        if((r.durum==='Finans Onaylandı'||r.durum==='Fatura Kesildi') && _donanimSurecYetki('donanim_sevk', r.satan_my_id, r.kcm_id)) setler.add(r.sepet_id);
+      });
+      sayi += setler.size;
+    }
+  }
+
+  // 3) V31.122: BUG FİX — Transfer talepleri (stok_transfer_talepleri) rozete
+  // hiç dahil edilmiyordu; onay bekleyen transfer talepleri bildirime hiç
+  // yansımıyordu. Aşama 1 (donanim_transfer_onay1, kaynak KÇM kapsamlı) ve
+  // Aşama 2 (donanim_transfer_onay2) bekleyenler artık ayrı ayrı sayılıyor.
+  if(hasPerm('donanim_transfer_onay1') || hasPerm('donanim_transfer_onay2')){
+    const {data:trBekleyen, error:trErr} = await sb.from('stok_transfer_talepleri')
+      .select('id,durum,kaynak_kcm_id').in('durum',['Aşama 1 Bekliyor','Aşama 2 Bekliyor']);
+    if(trErr){ console.warn('_donanimBadgeGuncelle (transfer):', trErr.message); }
+    else {
+      let trSayi = 0;
+      (trBekleyen||[]).forEach(t=>{
+        if(t.durum==='Aşama 1 Bekliyor' && _donanimTransferOnay1Yetkisi(t.kaynak_kcm_id)) trSayi++;
+        if(t.durum==='Aşama 2 Bekliyor' && hasPerm('donanim_transfer_onay2')) trSayi++;
+      });
+      sayi += trSayi;
+    }
+  }
+
   badge.textContent = sayi || '';
   badge.style.display = sayi > 0 ? 'inline-flex' : 'none';
 }
@@ -1334,6 +1811,7 @@ async function donanimTransferOnay1(id){
     user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id) });
   toast('1. onay verildi','success');
   loadDonanimTransferListesi();
+  if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
 }
 
 async function donanimTransferOnay2(id){
@@ -1355,8 +1833,22 @@ async function donanimTransferOnay2(id){
   if(kUpd || !kUpdData || !kUpdData.length){ toast('Kaynak stok güncellenemedi (eşzamanlı değişim?) — taşıma yapılmadı','error'); loadDonanimTransferListesi(); return; }
 
   // 2) Hedefe ekle (varsa +, yoksa yeni satır). Başarısız olursa kaynağı GERİ AL.
+  // V31.126 FIX: hedef satırı artık depo_id (metin değil, kayıtlı ANA depo
+  // kimliği) ile aranıyor/oluşturuluyor. Eskiden depo_adi (serbest metin)
+  // ile eşleştiriliyordu ve yeni satır INSERT edilirken depo_id HİÇ
+  // yazılmıyordu — bu, hedef KÇM'nin "hiçbir depoya bağlı olmayan" (yetim)
+  // stok satırları üretmesine sebep oluyordu (Depo modülü/Dağıtım Izgarası
+  // bu satırları hiç göremiyordu).
+  const hedefDepoId = await _donanimAnaDepoId(t.hedef_kcm_id);
+  if(!hedefDepoId){
+    // Kaynağı geri al, hedef KÇM'nin kayıtlı bir ANA deposu yoksa transfer yapılamaz
+    await sb.from('stok_urunleri').update({ toplam_adet: kaynak.toplam_adet, updated_at:new Date().toISOString() }).eq('urun_id',kaynak.urun_id);
+    toast('Hedef KÇM için kayıtlı bir ANA depo bulunamadı — taşıma yapılmadı','error');
+    loadDonanimTransferListesi();
+    return;
+  }
   const {data:hedef} = await sb.from('stok_urunleri').select('*')
-    .eq('kcm_id',t.hedef_kcm_id).eq('malzeme_kodu',kaynak.malzeme_kodu).eq('depo_adi',kaynak.depo_adi).maybeSingle();
+    .eq('depo_id',hedefDepoId).eq('malzeme_kodu',kaynak.malzeme_kodu).maybeSingle();
   let hedefErr=null;
   if(hedef){
     const {error:hUpd} = await sb.from('stok_urunleri')
@@ -1364,7 +1856,7 @@ async function donanimTransferOnay2(id){
     hedefErr = hUpd;
   } else {
     const {error:hIns} = await sb.from('stok_urunleri').insert({
-      kcm_id:t.hedef_kcm_id, depo_adi:kaynak.depo_adi, malzeme_kodu:kaynak.malzeme_kodu,
+      kcm_id:t.hedef_kcm_id, depo_id:hedefDepoId, depo_adi:kaynak.depo_adi, malzeme_kodu:kaynak.malzeme_kodu,
       marka:kaynak.marka, model:kaynak.model, renk:kaynak.renk, gb_hafiza:kaynak.gb_hafiza,
       fiyat:kaynak.fiyat, aciklama:kaynak.aciklama, toplam_adet:t.adet, rezerve_adet:0, on_rezerve_adet:0, aktif:true
     });
@@ -1388,6 +1880,7 @@ async function donanimTransferOnay2(id){
   toast('Transfer onaylandı, stok taşındı','success');
   loadDonanimTransferListesi();
   if(typeof loadDonanimListesi==='function') loadDonanimListesi();
+  if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
 }
 
 async function donanimTransferReddet(id){
@@ -1404,6 +1897,7 @@ async function donanimTransferReddet(id){
     detay:`Talep #${id} reddedildi${neden?': '+neden:''}`, user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id) });
   toast('Talep reddedildi','info');
   loadDonanimTransferListesi();
+  if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
 }
 
 async function donanimTransferIptal(id){
@@ -1417,6 +1911,7 @@ async function donanimTransferIptal(id){
     detay:`Talep #${id} talep eden tarafından iptal edildi`, user_id:currentUser.my_id, user_ad:currentUser.ad_soyad||String(currentUser.my_id) });
   toast('Talep iptal edildi','info');
   loadDonanimTransferListesi();
+  if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
 }
 
 async function donanimTransferModalAc(){
@@ -1501,6 +1996,74 @@ async function donanimTransferKaydet(){
   toast('Transfer talebi oluşturuldu','success');
   closeModal('donanimTransferModal');
   loadDonanimTransferListesi();
+  if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
+}
+
+// V31.120: Rezervasyon filtreleri — KÇM (yalnız TÜM kapsamı), MY/FMY arama,
+// süreç adımı, ödeme tipi, tarih aralığı. KÇM+scope sorguya server tarafında
+// eklenir; kişi/durum/ödeme tipi/tarih ise myMap/satisTipiMap hazır olduktan
+// sonra client tarafında uygulanır (küçük veri kümesi, ekstra sorgu gerekmez).
+let _donanimRezFiltreTimer=null;
+function donanimRezFiltreDegistiDebounce(){
+  clearTimeout(_donanimRezFiltreTimer);
+  _donanimRezFiltreTimer=setTimeout(loadDonanimRezervasyonlar,350);
+}
+function donanimRezFiltreTemizle(){
+  ['donanimRezKcmFiltre','donanimRezDurumFiltre','donanimRezSatisTipiFiltre'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['donanimRezKisiFiltre','donanimRezTarihBas','donanimRezTarihBit'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  loadDonanimRezervasyonlar();
+}
+let _donanimRezFiltreSecenekYuklendi=false;
+async function _loadDonanimRezFiltreSecenekleri(){
+  const scope = getScope('donanim_takip');
+  const kcmSel = document.getElementById('donanimRezKcmFiltre');
+  if(kcmSel) kcmSel.style.display = (scope==='TÜM') ? '' : 'none';
+  if(_donanimRezFiltreSecenekYuklendi) return;
+  _donanimRezFiltreSecenekYuklendi = true;
+  if(scope==='TÜM' && kcmSel){
+    const {data} = await sb.from('kcm_groups').select('kcm_id,kcm_adi').order('kcm_adi');
+    kcmSel.innerHTML = '<option value="">Tüm KÇM\'ler</option>' +
+      (data||[]).map(k=>`<option value="${k.kcm_id}">${escapeHTML(k.kcm_adi)}</option>`).join('');
+  }
+  // Süreç adımı seçenekleri — geriye dönük uyumluluk kayıtlarını (Kısmen Eşleştirildi,
+  // Eşleştirildi, Cihaz Gönderildi) hariç tutup, sırayla anlamlı olanları listeler.
+  const durumSel = document.getElementById('donanimRezDurumFiltre');
+  if(durumSel){
+    const siraliDurumlar = ['Ön Rezervasyon','Yönetici Onayı Bekliyor','Onaylandı','Stok Onay Emei Giriş',
+      'Turkcell Finans Onay','Finans Onaylandı','Fatura Kesildi','Tamamlandı','Süresi Doldu','Reddedildi','İptal'];
+    durumSel.innerHTML = '<option value="">Tüm süreç adımları</option>' +
+      siraliDurumlar.map(d=>`<option value="${escapeHTML(d)}">${escapeHTML(d)}</option>`).join('');
+  }
+}
+
+// V31.121: Rezervasyon listesi sıralaması — bkz. loadDonanimRezervasyonlar().
+// Kayıt, mevcut kullanıcının eyleminin (onay/red/ilerletme) o an adımda
+// bekleniyor olup olmadığına göre değerlendirilir — buOnaylayabilir/buEmeiGiris/
+// buFinansOnay/vb. ile AYNI yetki+kapsam kontrolleri, kart render'ından bağımsız
+// tek noktada (sıralama render'dan ÖNCE yapıldığı için ayrı fonksiyon gerekti).
+function _donanimBenimOnayimBekliyorMu(r){
+  switch(r.durum){
+    case 'Ön Rezervasyon': return _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
+    case 'Yönetici Onayı Bekliyor': return _donanimSurecYetki('donanim_mukerrer_onay', r.satan_my_id, r.kcm_id);
+    case 'Onaylandı':
+    case 'Stok Onay Emei Giriş':
+      return _donanimSurecYetki('donanim_emei_giris', r.satan_my_id, r.kcm_id);
+    case 'Turkcell Finans Onay':
+      return _donanimSurecYetki('donanim_finans_onay', r.satan_my_id, r.kcm_id);
+    case 'Finans Onaylandı':
+    case 'Fatura Kesildi':
+      return _donanimSurecYetki('donanim_sevk', r.satan_my_id, r.kcm_id);
+    default: return false;
+  }
+}
+// Sıralama grubu: 0=aktif/devam eden, 1=Tamamlandı, 2=Reddedildi, 3=Süresi
+// Doldu, 4=İptal (en altta). Bilinmeyen/legacy durumlar aktif kabul edilir.
+function _donanimDurumSiraGrubu(durum){
+  if(durum==='İptal') return 4;
+  if(durum==='Süresi Doldu') return 3;
+  if(durum==='Reddedildi') return 2;
+  if(durum==='Tamamlandı' || durum==='Cihaz Gönderildi') return 1;
+  return 0;
 }
 
 async function loadDonanimRezervasyonlar(){
@@ -1508,16 +2071,28 @@ async function loadDonanimRezervasyonlar(){
   if(!listEl) return;
   listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   await _donanimSureSupur(false);   // V31.58: fırsatçı süpürme (5 dk kısıtlamalı)
+  await _loadDonanimRezFiltreSecenekleri();
 
   const scope = getScope('donanim_takip');
   let q = sb.from('stok_rezervasyon_ozet').select('*').order('created_at',{ascending:false});
   if(scope==='PRT') q = q.or(`satan_my_id.eq.${currentUser.my_id},rezerve_eden_id.eq.${currentUser.my_id}`);
   else if(scope==='KÇM' && currentUser.kcm_id) q = q.eq('kcm_id', currentUser.kcm_id);
-  // TÜM: filtresiz
+  // TÜM: filtresiz — ama KÇM filtre seçiliyse ona daralt
+  const kcmFiltreDeger = document.getElementById('donanimRezKcmFiltre')?.value;
+  if(scope==='TÜM' && kcmFiltreDeger) q = q.eq('kcm_id', Number(kcmFiltreDeger));
 
-  const {data, error} = await q;
+  let {data, error} = await q;
   if(error){ listEl.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`; return; }
   if(!data || !data.length){ listEl.innerHTML = '<div class="empty">Kayıtlı rezervasyon yok.</div>'; return; }
+
+  // V31.120: durum + tarih aralığı filtreleri (server sorgusundan bağımsız, burada uygulanır)
+  const durumFiltreDeger = document.getElementById('donanimRezDurumFiltre')?.value;
+  if(durumFiltreDeger) data = data.filter(r=>r.durum===durumFiltreDeger);
+  const tarihBas = document.getElementById('donanimRezTarihBas')?.value;
+  const tarihBit = document.getElementById('donanimRezTarihBit')?.value;
+  if(tarihBas) data = data.filter(r=>r.created_at >= tarihBas);
+  if(tarihBit) data = data.filter(r=>r.created_at <= (tarihBit+'T23:59:59'));
+  if(!data.length){ listEl.innerHTML = '<div class="empty">Filtreye uyan kayıt yok.</div>'; return; }
 
   // v31.25: Satış Tipi — stok_rezervasyon_ozet view'ında yok, temel tablodan
   // sepet_id başına tek satır yeterli (aynı sepetteki tüm kalemler aynı satış tipini paylaşır).
@@ -1563,23 +2138,62 @@ async function loadDonanimRezervasyonlar(){
   // v30.89: onay yetkisi — KÇM Müdürü sadece kendi KÇM'si, Admin/Direktör/Depo hepsi
   // v30.90: yetki kontrolü _donanimRezOnayYetkisi() tek noktasına taşındı
 
+  // V31.120: ödeme tipi (satış tipi) + MY/FMY arama filtreleri — satisTipiMap ve
+  // myMap hazır olduktan sonra uygulanabiliyor, o yüzden burada.
+  const satisTipiFiltreDeger = document.getElementById('donanimRezSatisTipiFiltre')?.value;
+  if(satisTipiFiltreDeger) data = data.filter(r=>satisTipiMap[r.sepet_id]===satisTipiFiltreDeger);
+  const kisiFiltreDeger = (document.getElementById('donanimRezKisiFiltre')?.value||'').trim().toLocaleLowerCase('tr-TR');
+  if(kisiFiltreDeger){
+    data = data.filter(r=>{
+      const satanAd = (myMap[r.satan_my_id]?.ad_soyad||'').toLocaleLowerCase('tr-TR');
+      const rezAd = (myMap[r.rezerve_eden_id]?.ad_soyad||'').toLocaleLowerCase('tr-TR');
+      return satanAd.includes(kisiFiltreDeger) || rezAd.includes(kisiFiltreDeger);
+    });
+  }
+  if(!data.length){ listEl.innerHTML = '<div class="empty">Filtreye uyan kayıt yok.</div>'; return; }
+
+  // V31.121: sıralama — kendinden onay/eylem bekleyen kayıtlar adımı ne olursa
+  // olsun HER ZAMAN en üstte. Onun altında aktif (devam eden) kayıtlar, sonra
+  // Tamamlandı, sonra Reddedildi, sonra Süresi Doldu, en altta İptal — aynı
+  // grup içinde en yeni üstte (created_at azalan).
+  data = data.slice().sort((a,b)=>{
+    const aBekliyor = _donanimBenimOnayimBekliyorMu(a) ? 0 : 1;
+    const bBekliyor = _donanimBenimOnayimBekliyorMu(b) ? 0 : 1;
+    if(aBekliyor !== bBekliyor) return aBekliyor - bBekliyor;
+    const aGrup = _donanimDurumSiraGrubu(a.durum), bGrup = _donanimDurumSiraGrubu(b.durum);
+    if(aGrup !== bGrup) return aGrup - bGrup;
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
   listEl.innerHTML = data.map(r=>{
     const adim = DONANIM_SUREC_ADIMLARI[r.durum] || {no:'?', renk:'var(--text3)'};
     const my = myMap[r.satan_my_id];
     const tlAd = my && my.takim_lideri_id ? (myMap['TL_'+my.takim_lideri_id]?.ad_soyad||'—') : '—';
     const buOnaylayabilir = r.durum==='Ön Rezervasyon' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
+    // V31.113: mükerrer talep — Takım Lideri VEYA KÇM Müdürü onaylar (donanim_mukerrer_onay)
+    const buMukerrerOnay = r.durum==='Yönetici Onayı Bekliyor' && _donanimSurecYetki('donanim_mukerrer_onay', r.satan_my_id, r.kcm_id);
     // v30.99: onaycı; Ön Rezervasyon'u reddedebilir, Onaylandı'yı iptal edebilir
     // v31.06: sahip MY (rezerve eden) her aktif adımda kendi kaydını iptal edebilir
-    const _rezAktif = ['Ön Rezervasyon','Onaylandı','Hazırlanıyor','Eşleştirildi','Fatura Kesildi'].includes(r.durum);
+    // V31.113: 'Hazırlanıyor' kalktı, yeni ara adımlar eklendi
+    const _rezAktif = ['Ön Rezervasyon','Yönetici Onayı Bekliyor','Onaylandı','Stok Onay Emei Giriş',
+      'Turkcell Finans Onay','Kısmen Eşleştirildi','Eşleştirildi','Finans Onaylandı','Fatura Kesildi'].includes(r.durum);
     const _rezSahip = r.rezerve_eden_id === currentUser.my_id;
     const buIptalEdebilir = _rezAktif && (_rezSahip || (r.durum!=='Ön Rezervasyon' && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id)));
     // v31.00 (1.3): Ön Rezervasyon veya Onaylandı iken onaycı paketi düzenleyebilir
     const buDuzenleyebilir = ['Ön Rezervasyon','Onaylandı'].includes(r.durum) && _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id);
-    // v31.05: süreç ilerletme butonları (duruma + izne göre)
-    const buHazirla  = r.durum==='Onaylandı'      && _donanimSurecYetki('donanim_surec_ilerlet', r.satan_my_id, r.kcm_id);
-    const buEslestir = ['Hazırlanıyor','Kısmen Eşleştirildi'].includes(r.durum) && _donanimSurecYetki('donanim_imei_eslestir', r.satan_my_id, r.kcm_id);
-    const buFatura   = r.durum==='Eşleştirildi'   && _donanimSurecYetki('donanim_sevk', r.satan_my_id, r.kcm_id);
-    const buGonder   = r.durum==='Fatura Kesildi' && _donanimSurecYetki('donanim_sevk', r.satan_my_id, r.kcm_id);
+    // V31.117: süreç ilerletme butonları — IMEI seçimi artık Stok Onay/Emei
+    // Giriş adımının KENDİSİ (Turkcell Finans Onay'dan ÖNCE). "Onaylandı"
+    // durumunda buton doğrudan IMEI eşleştirme ekranını açar; tüm cihazlar
+    // eşleşene kadar durum 'Stok Onay Emei Giriş'te kalır, tamamlanınca
+    // otomatik 'Turkcell Finans Onay'a geçer (bkz. donanimImeiKaydet).
+    const buEmeiGiris  = r.durum==='Onaylandı'            && _donanimSurecYetki('donanim_emei_giris', r.satan_my_id, r.kcm_id);
+    const buEmeiDevam  = ['Stok Onay Emei Giriş','Kısmen Eşleştirildi','Eşleştirildi'].includes(r.durum) &&
+                         _donanimSurecYetki('donanim_emei_giris', r.satan_my_id, r.kcm_id);
+    const buFinansOnay = r.durum==='Turkcell Finans Onay' && _donanimSurecYetki('donanim_finans_onay', r.satan_my_id, r.kcm_id);
+    // V31.119: Finans onayı ile fatura kesme ayrı adımlar — Depo&Muhasebe/Admin
+    // (donanim_sevk) önce "Fatura Kesildi"yi, sonra "Cihaz Gönderildi"yi işaretler.
+    const buFaturaKes   = r.durum==='Finans Onaylandı'     && _donanimSurecYetki('donanim_sevk', r.satan_my_id, r.kcm_id);
+    const buGonder     = r.durum==='Fatura Kesildi'       && _donanimSurecYetki('donanim_sevk', r.satan_my_id, r.kcm_id);
     // v30.92: kartta gösterilecek yeni alanlar
     const musteriAd   = musteriMap[r.ncst] || r.ncst || '—';
     const musteriMyAd = myMap[r.musteri_my_id]?.ad_soyad || '—';
@@ -1594,88 +2208,190 @@ async function loadDonanimRezervasyonlar(){
     const sureRozet = _donanimSureRozet(_sure.bitis, r.durum);
     const buUzat = DONANIM_SURE_AKTIF.includes(r.durum) && !!_sure.bitis &&
                    (hasPerm('donanim_yonet') || _donanimRezOnayYetkisi(r.satan_my_id, r.kcm_id));
+    // V31.113: Ön Rezervasyon'un kendi (6+6 saat) uzatma yetkisi — donanim_onrez_uzat
+    const buOnRezUzat = r.durum==='Ön Rezervasyon' && !!_sure.bitis && (_sure.uzatma||0) < window._donanimAyar.onrez_max_uzatma &&
+                        _donanimSurecYetki('donanim_onrez_uzat', r.satan_my_id, r.kcm_id);
     const dikkatCek = buKendiYeniOnay ? 'background:rgba(230,126,34,0.10);box-shadow:0 0 0 1px rgba(230,126,34,0.5);' : '';
     const yeniOnayRozet = buKendiYeniOnay ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--red);color:#fff;margin-left:6px;white-space:nowrap;">🔔 Onaylandı</span>` : '';
-    return `<div class="visit-card" style="margin-bottom:8px;border-left:3px solid ${adim.renk};${dikkatCek}">
+    // V31.120: kartın TÜM çerçevesi artık mevcut adımın gradyan rengiyle çiziliyor
+    // (terminal negatif durumlarda — Reddedildi/İptal/Süresi Doldu — kendi rengi kalır),
+    // altına da o ana kadar dolu, kalanı siyah kutucuklardan oluşan süreç barı ekleniyor.
+    const cerceveRenk = (adim.no>=1) ? (DONANIM_ADIM_RENK[adim.no]||adim.renk) : adim.renk;
+    const surecBar = _donanimSurecBarHTML(adim.no);
+    // V31.130: kartta görünür kısa ID — sepet_id'nin ilk 8 hanesi (kod-only, DB değişikliği yok)
+    const rezKisaId = 'REZ-' + String(r.sepet_id||'').replace(/-/g,'').slice(0,8).toUpperCase();
+    return `<div class="visit-card" style="margin-bottom:8px;border:1.5px solid ${cerceveRenk};${dikkatCek}">
       <div style="cursor:pointer;" onclick="openDonanimRezDetay('${r.sepet_id}')">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div style="font-size:12px;color:var(--text3);">${escapeHTML(kcmMap[r.kcm_id]||'KÇM#'+r.kcm_id)} · ${escapeHTML(tlAd)} · <b>${escapeHTML(my?.ad_soyad||'MY#'+r.satan_my_id)}</b></div>
-          <div style="width:26px;height:26px;border-radius:50%;background:${adim.renk};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">${adim.no}</div>
+          <div style="width:26px;height:26px;border-radius:50%;background:${cerceveRenk};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">${adim.no}</div>
         </div>
+        <div style="font-size:10px;color:var(--text3);font-family:monospace;margin-top:3px;">${rezKisaId}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
-          <span style="font-size:11px;color:${adim.renk};font-weight:700;">${escapeHTML(r.durum)}${satisTipiRozet}${yeniOnayRozet}${sureRozet}</span>
+          <span style="font-size:13px;color:${cerceveRenk};font-weight:800;">${adim.no>=1?`Adım ${adim.no}/${DONANIM_ADIM_TOPLAM}: `:''}${escapeHTML(r.durum)}${satisTipiRozet}${yeniOnayRozet}${sureRozet}</span>
           <span style="font-size:14px;font-weight:800;">${Number(r.toplam_tutar||0).toLocaleString('tr-TR')} ₺</span>
         </div>
+        ${DONANIM_BEKLEYEN[r.durum] ? `<div style="font-size:11px;color:var(--text2);margin-top:2px;">🕓 ${escapeHTML(DONANIM_BEKLEYEN[r.durum])}</div>` : ''}
+        ${r.fatura_no ? `<div style="font-size:11px;color:var(--text2);margin-top:2px;">🧾 Fatura No: <b>${escapeHTML(r.fatura_no)}</b></div>` : ''}
         <div style="font-size:11px;color:var(--text3);margin-top:2px;">${r.kalem_sayisi} kalem · ${new Date(r.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'})}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:4px;border-top:1px solid var(--border);padding-top:4px;">
           Müşteri: <b>${escapeHTML(musteriAd)}</b><br>
           Müşterinin MY'si: ${escapeHTML(musteriMyAd)} · Rezerve eden: ${escapeHTML(rezEdenAd)}
         </div>
+        ${surecBar}
       </div>
-      ${(buOnaylayabilir||buIptalEdebilir||buDuzenleyebilir||buHazirla||buEslestir||buFatura||buGonder||buUzat) ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+      ${(buOnaylayabilir||buMukerrerOnay||buIptalEdebilir||buDuzenleyebilir||buEmeiGiris||buEmeiDevam||buFinansOnay||buFaturaKes||buGonder||buUzat||buOnRezUzat) ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
         ${buOnaylayabilir ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimRezervasyonOnayla('${r.sepet_id}')">✅ Onayla</button><button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">Reddet</button>` : ''}
+        ${buMukerrerOnay ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimMukerrerOnayla('${r.sepet_id}')">✅ Mükerrer Talebi Onayla</button><button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">Reddet</button>` : ''}
         ${buDuzenleyebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezDuzenleAc('${r.sepet_id}')">Düzenle</button>` : ''}
         ${buIptalEdebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonIptal('${r.sepet_id}')">İptal Et</button>` : ''}
-        ${buHazirla ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Hazırlanıyor')">Hazırla</button>` : ''}
-        ${buEslestir ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimImeiEslestirAc('${r.sepet_id}')">IMEI Eşleştir</button>` : ''}
-        ${buFatura ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Fatura Kesildi')">Fatura Kesildi</button>` : ''}
-        ${buGonder ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Cihaz Gönderildi')">Cihaz Gönderildi</button>` : ''}
+        ${buEmeiGiris ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimImeiEslestirAc('${r.sepet_id}')">Stok Onay / Emei Giriş</button>` : ''}
+        ${buEmeiDevam ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimImeiEslestirAc('${r.sepet_id}')">Emei Girişine Devam Et</button>` : ''}
+        ${buFinansOnay ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Finans Onaylandı')">Turkcell Finans Onayı</button>` : ''}
+        ${buFaturaKes ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Fatura Kesildi')">Fatura Kesildi</button>` : ''}
+        ${buGonder ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Tamamlandı')">Cihaz Gönderildi</button>` : ''}
         ${buUzat ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimSureUzat('${r.sepet_id}')">⏳ Süre Uzat${_sure.uzatma?` (${_sure.uzatma})`:''}</button>` : ''}
+        ${buOnRezUzat ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimOnRezUzat('${r.sepet_id}')">⏳ Ön Rez. Süresini Uzat</button>` : ''}
       </div>` : ''}
+      <div style="margin-top:6px;">
+        <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="event.stopPropagation();openDonanimRezTimeline('${r.sepet_id}')">📜 Geçmiş</button>
+      </div>
     </div>`;
   }).join('');
 
   _donanimBadgeGuncelle(); // v31.26
 }
 
-// v30.89: Ön Rezervasyon -> Rezervasyon (kesinleşme). SADECE bu adımda
-// stoktan gerçekten düşer: on_rezerve_adet azalır, rezerve_adet artar.
+// V31.113: Ön Rezervasyon -> Rezervasyon Onayı (durum: 'Onaylandı'). Cihaz zaten
+// Ön Rezervasyon anında rezerve_adet'e düşürülmüştü — bu adımda STOK SAYISI
+// DEĞİŞMEZ, sadece Emei süresi (varsayılan 48 iş saati) başlar.
 async function donanimRezervasyonOnayla(sepetId){
-  if(!confirm('Bu rezervasyon talebini onaylayıp kesinleştirmek istediğinize emin misiniz?\n\nOnaylanınca cihazlar stoktan düşecek ve 48 saatlik süre başlayacak.')) return;
-  await _donanimSureSupur(true);   // V31.58: stok sayısı güncel olsun
+  if(!confirm('Bu rezervasyon talebini onaylamak istediğinize emin misiniz?\n\nOnaylanınca Stok Onay/Emei Giriş adımına geçilecek ve Emei süresi başlayacak.')) return;
+  await _donanimOnRezSupur();   // V31.113: onaylamadan önce süresi dolmuş olabilir mi kontrol et
 
   const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
   if(error || !kalemler?.length){ toast('Hata: kayıtlar bulunamadı','error'); return; }
 
   // v30.90: savunmacı yetki kontrolü — buton görünmese de fonksiyon korunur
   const ilkK = kalemler[0];
+  if(ilkK.durum!=='Ön Rezervasyon'){ toast(`Bu kayıt '${ilkK.durum}' durumunda, onaylanamaz`,'info'); loadDonanimRezervasyonlar(); return; }
   if(!_donanimRezOnayYetkisi(ilkK.satan_my_id, ilkK.kcm_id)){
     toast('Bu rezervasyonu onaylama yetkiniz yok','error'); return;
   }
 
-  for(const k of kalemler){
-    const {data:urun} = await sb.from('stok_urunleri').select('on_rezerve_adet,rezerve_adet').eq('urun_id', k.urun_id).single();
-    if(!urun) continue;
-    const yeniOnRez = Math.max(0, (urun.on_rezerve_adet||0) - k.adet);
-    const yeniRez = (urun.rezerve_adet||0) + k.adet;
-    await sb.from('stok_urunleri').update({on_rezerve_adet:yeniOnRez, rezerve_adet:yeniRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
-  }
-
-  // V31.59: onayla birlikte 48 İŞ SAATİ'lik rezervasyon süresi başlar
-  //          (hafta sonu ve resmi tatiller süreye işlemez)
-  const _bitis = await _donanimSureBitisHesapla(new Date().toISOString());
+  // V31.59/113: onayla birlikte Emei süresi (varsayılan 48 iş saati, sistem_ayarlari'den)
+  //          başlar (hafta sonu ve resmi tatiller süreye işlemez)
+  const _bitis = await _donanimSureBitisHesapla(new Date().toISOString(), _donanimEmeiSureSaat());
   await sb.from('stok_rezervasyonlari').update({durum:'Onaylandı', rezervasyon_bitis:_bitis, updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
 
   await _donanimRezHareketLog('Rezervasyon Onaylandı', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
 
-  toast('Rezervasyon onaylandı, stoktan düşürüldü','success');
+  toast('Rezervasyon onaylandı, Emei süresi başladı','success');
   loadDonanimRezervasyonlar();
   if(typeof loadDonanimListesi==='function') loadDonanimListesi();
 }
 
+// V31.113: Mükerrer talep onayı — Takım Lideri VEYA KÇM Müdürü (donanim_mukerrer_onay).
+// Onaylanınca kayıt normal 'Ön Rezervasyon' durumuna döner ve 6 saatlik süre O ANDAN başlar.
+async function donanimMukerrerOnayla(sepetId){
+  if(!confirm('Bu mükerrer ön rezervasyon talebini onaylıyor musunuz?\n\nOnaylanınca normal Ön Rezervasyon sürecine (6 iş saati) alınacak.')) return;
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
+  if(error || !kalemler?.length){ toast('Hata: kayıtlar bulunamadı','error'); return; }
+  const ilkK = kalemler[0];
+  if(ilkK.durum!=='Yönetici Onayı Bekliyor'){ toast(`Bu kayıt '${ilkK.durum}' durumunda`,'info'); loadDonanimRezervasyonlar(); return; }
+  if(!_donanimSurecYetki('donanim_mukerrer_onay', ilkK.satan_my_id, ilkK.kcm_id)){ toast('Bu talebi onaylama yetkiniz yok','error'); return; }
+
+  const bitis = await _donanimSureBitisHesapla(new Date().toISOString(), window._donanimAyar.onrez_sure_saat);
+  await sb.from('stok_rezervasyonlari').update({durum:'Ön Rezervasyon', rezervasyon_bitis:bitis, updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
+  await _donanimRezHareketLog('Mükerrer Talep Onaylandı', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
+  toast('Mükerrer talep onaylandı, Ön Rezervasyon süreci başladı','success');
+  loadDonanimRezervasyonlar();
+}
+
+// V31.113: Ön Rezervasyon süresini uzatma (donanim_onrez_uzat) — sistem_ayarlari'deki
+// donanim_onrez_uzatma_saat kadar, en fazla donanim_onrez_max_uzatma kez.
+async function donanimOnRezUzat(sepetId){
+  const {data:kalemler, error} = await sb.from('stok_rezervasyonlari')
+    .select('rezervasyon_id,urun_id,adet,ncst,satan_my_id,kcm_id,durum,rezervasyon_bitis,uzatma_sayisi').eq('sepet_id', sepetId);
+  if(error || !kalemler?.length){ toast('Rezervasyon bulunamadı','error'); return; }
+  const ilk = kalemler[0];
+  if(ilk.durum!=='Ön Rezervasyon'){ toast('Sadece Ön Rezervasyon durumundaki kayıtlar uzatılabilir','info'); return; }
+  if(!_donanimSurecYetki('donanim_onrez_uzat', ilk.satan_my_id, ilk.kcm_id)){ toast('Süre uzatma yetkiniz yok','error'); return; }
+  if((ilk.uzatma_sayisi||0) >= window._donanimAyar.onrez_max_uzatma){ toast('Maksimum uzatma sayısına ulaşıldı','info'); return; }
+  if(!confirm(`Ön Rezervasyon süresi ${window._donanimAyar.onrez_uzatma_saat} iş saati uzatılsın mı?`)) return;
+
+  const mevcut = ilk.rezervasyon_bitis ? new Date(ilk.rezervasyon_bitis).getTime() : 0;
+  const taban  = new Date(Math.max(mevcut, Date.now())).toISOString();
+  const yeni   = await _donanimSureBitisHesapla(taban, window._donanimAyar.onrez_uzatma_saat);
+  const simdi  = new Date().toISOString();
+
+  for(const k of kalemler){
+    await sb.from('stok_rezervasyonlari').update({
+      rezervasyon_bitis: yeni, uzatma_sayisi:(k.uzatma_sayisi||0)+1,
+      uzatan_id: currentUser.my_id, uzatma_tarihi: simdi, updated_at: simdi
+    }).eq('rezervasyon_id', k.rezervasyon_id);
+  }
+  await _donanimRezHareketLog('Ön Rezervasyon Süresi Uzatıldı', kalemler, {ncst: ilk.ncst, satan_my_id: ilk.satan_my_id});
+  toast(`Ön Rezervasyon süresi ${window._donanimAyar.onrez_uzatma_saat} iş saati uzatıldı`,'success');
+  loadDonanimRezervasyonlar();
+}
+
+// V31.113: Ön Rezervasyon süresi (6+6 saat) dolmuş ve hâlâ onaylanmamış kayıtları
+// süpürür — cihaz stoğa (rezerve_adet--) geri döner, durum 'Süresi Doldu' olur.
+// _donanimSureSupur (48h Emei) ile aynı mantık, farklı durum/alan seti.
+async function _donanimOnRezSupur(){
+  try{
+    const {data, error} = await sb.from('stok_rezervasyonlari').select('*')
+      .in('durum', DONANIM_ONREZ_AKTIF).not('rezervasyon_bitis','is',null)
+      .lt('rezervasyon_bitis', new Date().toISOString());
+    if(error || !data?.length) return;
+    const sepetler = [...new Set(data.map(r=>r.sepet_id))];
+    for(const sepetId of sepetler){
+      const kalemler = data.filter(r=>r.sepet_id===sepetId);
+      for(const k of kalemler){
+        const {data:urun} = await sb.from('stok_urunleri').select('rezerve_adet').eq('urun_id', k.urun_id).maybeSingle();
+        if(urun) await sb.from('stok_urunleri').update({rezerve_adet:Math.max(0,(urun.rezerve_adet||0)-k.adet), updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
+      }
+      await sb.from('stok_rezervasyonlari').update({durum:'Süresi Doldu', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
+      await _donanimRezHareketLog('Ön Rezervasyon Süresi Doldu', kalemler, {ncst:kalemler[0].ncst, satan_my_id:kalemler[0].satan_my_id});
+    }
+    console.info('[donanim] süresi dolan ön rezervasyon işlendi:', sepetler.length);
+  }catch(e){ console.warn('[donanim] ön rezervasyon süpürme istisnası:', e.message); }
+}
+
 // v31.03: rezervasyon olayını HER KALEM için urun_id ile logla — ürün geçmişi + "kime verilmiş" izi
+// V31.131: (1) ürün adı artık detay metnine yazılıyor (hangi cihaz — önceden
+// sadece adet yazıyordu, ürün hiç görünmüyordu); (2) ctx.imeiMap {urun_id:[seri_no,...]}
+// verilirse IMEI Eşleştirme olaylarında bağlanan IMEI'ler de detaya ekleniyor;
+// (3) ctx.faturaNo verilirse (Fatura Kesildi adımı) fatura numarası detaya ekleniyor.
 async function _donanimRezHareketLog(aksiyon, kalemler, ctx){
+  ctx = ctx || {};
   let musteri = ctx.ncst || '—';
   if(ctx.ncst){ const {data:m}=await sb.from('customers').select('unvan').eq('ncst',ctx.ncst).maybeSingle(); if(m?.unvan) musteri=m.unvan; }
   let satan = ctx.satan_my_id ? ('MY#'+ctx.satan_my_id) : '—';
   if(ctx.satan_my_id){ const {data:u}=await sb.from('users').select('ad_soyad').eq('my_id',ctx.satan_my_id).maybeSingle(); if(u?.ad_soyad) satan=u.ad_soyad; }
-  const satirlar = (kalemler||[]).filter(k=>k.urun_id).map(k=>({
-    urun_id: parseInt(k.urun_id),
-    aksiyon,
-    detay: `${k.adet} adet · Müşteri: ${musteri}${ctx.ncst?` (${ctx.ncst})`:''} · Satan: ${satan}`,
-    user_id: currentUser.my_id,
-    user_ad: currentUser.ad_soyad || String(currentUser.my_id)
-  }));
+
+  const urunIds = [...new Set((kalemler||[]).map(k=>parseInt(k.urun_id)).filter(Boolean))];
+  const urunAdMap = {};
+  if(urunIds.length){
+    const {data:urunler} = await sb.from('stok_urunleri').select('urun_id,aciklama').in('urun_id', urunIds);
+    (urunler||[]).forEach(u=>{ urunAdMap[u.urun_id] = u.aciklama; });
+  }
+
+  const satirlar = (kalemler||[]).filter(k=>k.urun_id).map(k=>{
+    const uid = parseInt(k.urun_id);
+    const urunAd = urunAdMap[uid] || ('Ürün #'+uid);
+    const imeiListesi = (ctx.imeiMap && ctx.imeiMap[uid] && ctx.imeiMap[uid].length) ? ` · IMEI: ${ctx.imeiMap[uid].join(', ')}` : '';
+    const faturaBilgi = ctx.faturaNo ? ` · Fatura No: ${ctx.faturaNo}` : '';
+    return {
+      urun_id: uid,
+      sepet_id: k.sepet_id || null,
+      aksiyon,
+      detay: `${urunAd} · ${k.adet} adet · Müşteri: ${musteri}${ctx.ncst?` (${ctx.ncst})`:''} · Satan: ${satan}${imeiListesi}${faturaBilgi}`,
+      user_id: currentUser.my_id,
+      user_ad: currentUser.ad_soyad || String(currentUser.my_id)
+    };
+  });
   if(satirlar.length) await sb.from('stok_hareketleri').insert(satirlar);
 }
 
@@ -1685,14 +2401,15 @@ async function donanimRezervasyonRed(sepetId){
   if(error || !kalemler?.length){ toast('Hata: kayıtlar bulunamadı','error'); return; }
   const ilkK = kalemler[0];
   if(!_donanimRezOnayYetkisi(ilkK.satan_my_id, ilkK.kcm_id)){ toast('Bu talebi reddetme yetkiniz yok','error'); return; }
-  if(ilkK.durum!=='Ön Rezervasyon'){ toast('Sadece Ön Rezervasyon reddedilebilir','info'); loadDonanimRezervasyonlar(); return; }
-  if(!confirm('Bu ön rezervasyonu reddetmek istediğinize emin misiniz?\n\nStok değişmez, yalnız ön rezerve kaydı geri alınır.')) return;
+  if(!['Ön Rezervasyon','Yönetici Onayı Bekliyor'].includes(ilkK.durum)){ toast('Sadece Ön Rezervasyon/Yönetici Onayı Bekliyor reddedilebilir','info'); loadDonanimRezervasyonlar(); return; }
+  if(!confirm('Bu ön rezervasyonu reddetmek istediğinize emin misiniz?\n\nCihaz stoğa (müsait) geri dönecek.')) return;
 
+  // V31.113: cihaz Ön Rezervasyon anında rezerve_adet'e düşmüştü — red'de geri iade edilir
   for(const k of kalemler){
-    const {data:urun} = await sb.from('stok_urunleri').select('on_rezerve_adet').eq('urun_id', k.urun_id).single();
+    const {data:urun} = await sb.from('stok_urunleri').select('rezerve_adet').eq('urun_id', k.urun_id).single();
     if(!urun) continue;
-    const yeniOnRez = Math.max(0, (urun.on_rezerve_adet||0) - k.adet);
-    await sb.from('stok_urunleri').update({on_rezerve_adet:yeniOnRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
+    const yeniRez = Math.max(0, (urun.rezerve_adet||0) - k.adet);
+    await sb.from('stok_urunleri').update({rezerve_adet:yeniRez, updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
   }
   await sb.from('stok_rezervasyonlari').update({durum:'Reddedildi', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
   await _donanimRezHareketLog('Rezervasyon Reddedildi', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
@@ -1710,35 +2427,47 @@ async function donanimRezervasyonIptal(sepetId){
   const onayci  = _donanimRezOnayYetkisi(ilkK.satan_my_id, ilkK.kcm_id);
   if(!sahipMy && !onayci){ toast('Bu rezervasyonu iptal etme yetkiniz yok','error'); return; }
 
-  const aktif = ['Ön Rezervasyon','Onaylandı','Hazırlanıyor','Eşleştirildi','Fatura Kesildi'];
+  // V31.113: 'Hazırlanıyor' kalktı, yeni ara adımlar eklendi — hepsinde cihaz rezerve_adet'te durur
+  const aktif = ['Ön Rezervasyon','Yönetici Onayı Bekliyor','Onaylandı','Stok Onay Emei Giriş',
+    'Turkcell Finans Onay','Kısmen Eşleştirildi','Eşleştirildi','Finans Onaylandı','Fatura Kesildi'];
   if(!aktif.includes(ilkK.durum)){ toast(`Bu kayıt iptal edilemez (${ilkK.durum})`,'info'); loadDonanimRezervasyonlar(); return; }
-  const onRezDurum = ilkK.durum==='Ön Rezervasyon';
-  if(!confirm(onRezDurum
-      ? 'Bu ön rezervasyonu iptal etmek istediğinize emin misiniz?'
-      : 'Bu rezervasyonu iptal etmek istediğinize emin misiniz?\n\nCihazlar müsait stoğa geri dönecek.')) return;
+  if(!confirm('Bu rezervasyonu iptal etmek istediğinize emin misiniz?\n\nCihazlar müsait stoğa geri dönecek.')) return;
 
+  // V31.113: cihaz her durumda (Ön Rezervasyon dahil) rezerve_adet'te — iptalde tek yerden iade
   for(const k of kalemler){
-    const {data:urun} = await sb.from('stok_urunleri').select('on_rezerve_adet,rezerve_adet').eq('urun_id', k.urun_id).single();
+    const {data:urun} = await sb.from('stok_urunleri').select('rezerve_adet').eq('urun_id', k.urun_id).single();
     if(!urun) continue;
-    if(onRezDurum){
-      await sb.from('stok_urunleri').update({on_rezerve_adet:Math.max(0,(urun.on_rezerve_adet||0)-k.adet), updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
-    } else {
-      await sb.from('stok_urunleri').update({rezerve_adet:Math.max(0,(urun.rezerve_adet||0)-k.adet), updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
-    }
+    await sb.from('stok_urunleri').update({rezerve_adet:Math.max(0,(urun.rezerve_adet||0)-k.adet), updated_at:new Date().toISOString()}).eq('urun_id', k.urun_id);
   }
   // v31.06: bağlı IMEI/seri varsa havuza iade (eşleştirme yapılmış olabilir)
   await sb.from('stok_seri_no').update({durum:'Depoda', sepet_id:null}).eq('sepet_id', sepetId);
 
   await sb.from('stok_rezervasyonlari').update({durum:'İptal', updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
   await _donanimRezHareketLog('Rezervasyon İptal', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
-  toast('Rezervasyon iptal edildi'+(onRezDurum?'':', stok iade edildi'),'info');
+  toast('Rezervasyon iptal edildi, stok iade edildi','info');
   loadDonanimRezervasyonlar();
   if(typeof loadDonanimListesi==='function') loadDonanimListesi();
 }
 
-// v31.05 (2.2): Satış sürecini bir sonraki adıma ilerletir
-const DONANIM_GECIS = { 'Onaylandı':'Hazırlanıyor', 'Eşleştirildi':'Fatura Kesildi', 'Fatura Kesildi':'Cihaz Gönderildi' };
-const DONANIM_GECIS_PERM = { 'Hazırlanıyor':'donanim_surec_ilerlet', 'Fatura Kesildi':'donanim_sevk', 'Cihaz Gönderildi':'donanim_sevk' };
+// V31.119: Satış sürecini bir sonraki adıma ilerletir. IMEI eşleştirme artık
+// 'Onaylandı' → 'Stok Onay Emei Giriş' aralığında donanimImeiEslestirAc/
+// donanimImeiKaydet üzerinden yürüyor (bkz. aşağıda). BUG FİX: Turkcell Finans
+// Onayı ile Fatura Kesildi TEK butonda birleşmişti — finans onaycısı butona
+// basınca durum doğrudan 'Fatura Kesildi'ye atlıyor, Depo&Muhasebe'nin ekranında
+// ayrı bir "Fatura Kesildi" adımı hiç görünmüyordu (yalnız "Cihaz Gönderildi").
+// Artık aralarına 'Finans Onaylandı' ara durumu eklendi: finans onaycısı yalnız
+// finans onayını verir, Depo&Muhasebe/Admin (donanim_sevk) AYRI ADIM olarak
+// önce "Fatura Kesildi"yi, sonra "Cihaz Gönderildi"yi işaretler.
+const DONANIM_GECIS = {
+  'Turkcell Finans Onay':'Finans Onaylandı',
+  'Finans Onaylandı':'Fatura Kesildi',
+  'Fatura Kesildi':'Tamamlandı'
+};
+const DONANIM_GECIS_PERM = {
+  'Finans Onaylandı':'donanim_finans_onay',
+  'Fatura Kesildi':'donanim_sevk',
+  'Tamamlandı':'donanim_sevk'
+};
 
 async function donanimSurecIlerlet(sepetId, yeniDurum){
   const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
@@ -1748,10 +2477,20 @@ async function donanimSurecIlerlet(sepetId, yeniDurum){
   if(!gerekli || !_donanimSurecYetki(gerekli, ilkK.satan_my_id, ilkK.kcm_id)){ toast('Bu işlem için yetkiniz yok','error'); return; }
   if(DONANIM_GECIS[ilkK.durum]!==yeniDurum){ toast(`Bu kayıt '${ilkK.durum}' durumunda; '${yeniDurum}' geçişi yapılamaz`,'info'); loadDonanimRezervasyonlar(); return; }
 
+  // V31.131: Fatura Kesildi adımında fatura numarası zorunlu — timeline'da ve
+  // kartta görünmesi için kaydediliyor.
+  let faturaNo = null;
+  if(yeniDurum === 'Fatura Kesildi'){
+    faturaNo = (prompt('Fatura numarasını girin:', ilkK.fatura_no || '') || '').trim();
+    if(!faturaNo){ toast('Fatura numarası girilmeden bu adım tamamlanamaz','error'); return; }
+  }
+
   // V31.63: .select() eklendi — güncellenen satır sayısı KİLİT görevi görür.
   // Aynı anda başka bir oturum sevk ettiyse 0 satır döner ve stok bir daha düşmez.
+  const guncellemeAlan = {durum:yeniDurum, updated_at:new Date().toISOString()};
+  if(faturaNo) guncellemeAlan.fatura_no = faturaNo;
   const {data:guncellenen, error:uErr} = await sb.from('stok_rezervasyonlari')
-    .update({durum:yeniDurum, updated_at:new Date().toISOString()})
+    .update(guncellemeAlan)
     .eq('sepet_id',sepetId).eq('durum',ilkK.durum).select('rezervasyon_id');
   if(uErr){ toast('Hata: '+uErr.message,'error'); return; }
   if(!guncellenen || !guncellenen.length){
@@ -1759,10 +2498,10 @@ async function donanimSurecIlerlet(sepetId, yeniDurum){
     loadDonanimRezervasyonlar(); return;
   }
 
-  // V31.63: sevkiyat stoktan düşer. Yalnızca durumu değiştirmeyi BAŞARAN oturum girer.
-  if(yeniDurum === 'Cihaz Gönderildi') await _donanimSevkStokDus(sepetId, kalemler);
+  // V31.63/113: sevkiyat stoktan düşer. Yalnızca durumu değiştirmeyi BAŞARAN oturum girer.
+  if(yeniDurum === 'Tamamlandı') await _donanimSevkStokDus(sepetId, kalemler);
 
-  await _donanimRezHareketLog('Süreç: '+yeniDurum, kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
+  await _donanimRezHareketLog('Süreç: '+yeniDurum, kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id, faturaNo});
   toast(`Durum güncellendi: ${yeniDurum}`,'success');
   loadDonanimRezervasyonlar();
 }
@@ -1862,8 +2601,13 @@ async function donanimImeiEslestirAc(sepetId){
   const {data:kalemler, error} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
   if(error || !kalemler?.length){ toast('Kayıt bulunamadı','error'); return; }
   const ilk = kalemler[0];
-  if(!_donanimSurecYetki('donanim_imei_eslestir', ilk.satan_my_id, ilk.kcm_id)){ toast('IMEI eşleştirme yetkiniz yok','error'); return; }
-  if(!['Hazırlanıyor','Kısmen Eşleştirildi'].includes(ilk.durum)){ toast('Bu durumda eşleştirme yapılamaz','info'); loadDonanimRezervasyonlar(); return; }
+  // V31.117: IMEI eşleştirme artık Turkcell Finans Onay'dan ÖNCE, "Stok Onay /
+  // Emei Giriş" adımının kendisinde yapılıyor — yetki kontrolü donanim_emei_giris'e
+  // taşındı (donanim_imei_eslestir eski akışın kalıntısı, artık kullanılmıyor).
+  if(!_donanimSurecYetki('donanim_emei_giris', ilk.satan_my_id, ilk.kcm_id)){ toast('Emei giriş yetkiniz yok','error'); return; }
+  // 'Kısmen Eşleştirildi'/'Eşleştirildi' — eski akıştan veya Hızlı Sevkiyat
+  // Konsolu'nun yarıda kalmış bir çalışmasından kalan kayıtlar için kurtarma.
+  if(!['Onaylandı','Stok Onay Emei Giriş','Kısmen Eşleştirildi','Eşleştirildi'].includes(ilk.durum)){ toast('Bu durumda eşleştirme yapılamaz','info'); loadDonanimRezervasyonlar(); return; }
 
   const urunIds=[...new Set(kalemler.map(k=>k.urun_id))];
   const {data:urunler}=await sb.from('stok_urunleri').select('urun_id,aciklama').in('urun_id',urunIds);
@@ -1993,12 +2737,20 @@ async function donanimImeiKaydet(){
     await sb.from('stok_seri_no').update({durum:'Depoda', sepet_id:null, updated_at:new Date().toISOString()}).eq('seri_no_id',id);
   }
 
-  const yeniDurum = toplamDolu>=toplamSlot ? 'Eşleştirildi' : (toplamDolu>0 ? 'Kısmen Eşleştirildi' : 'Hazırlanıyor');
+  // V31.117: IMEI eşleştirme artık Turkcell Finans Onay'dan ÖNCE yapılıyor.
+  // Tüm kalemler eşleşince otomatik 'Turkcell Finans Onay'a geçer; eksikse
+  // (hiç girilmemiş veya kısmi) 'Stok Onay Emei Giriş'te kalır — Depo&Muhasebe
+  // "Emei Girişine Devam Et" ile aynı ekranı tekrar açıp tamamlayabilir.
+  const yeniDurum = toplamDolu>=toplamSlot ? 'Turkcell Finans Onay' : 'Stok Onay Emei Giriş';
   await sb.from('stok_rezervasyonlari').update({durum:yeniDurum, updated_at:new Date().toISOString()}).eq('sepet_id',sepetId);
 
   const {data:kalemler}=await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id',sepetId);
   const ilk=kalemler?.[0]||{};
-  await _donanimRezHareketLog(`IMEI Eşleştirme (${toplamDolu}/${toplamSlot})`, kalemler, {ncst:ilk.ncst, satan_my_id:ilk.satan_my_id});
+  // V31.131: bağlanan IMEI'ler de loglansın — st.kalemler[i].urun_id, stok_rezervasyonlari
+  // satırının kendi urun_id'si (havuz eşleşmesi değil), _donanimRezHareketLog ile uyumlu.
+  const imeiMap = {};
+  st.kalemler.forEach(k=>{ imeiMap[k.urun_id] = k.bagli.map(s=>s.seri_no); });
+  await _donanimRezHareketLog(`IMEI Eşleştirme (${toplamDolu}/${toplamSlot})`, kalemler, {ncst:ilk.ncst, satan_my_id:ilk.satan_my_id, imeiMap});
 
   toast(`Eşleştirme kaydedildi (${toplamDolu}/${toplamSlot})`,'success');
   closeModal('donanimImeiModal');
@@ -2387,15 +3139,24 @@ function _donanimDepoDetayRender(){
   if(!aile || !I || !el) return;
   const q = (document.getElementById('donanimDepoDetayAra')?.value||'').trim().toLocaleLowerCase('tr');
 
+  const merkezIdDetay = I.merkez ? I.merkez.depo_id : null;
   const bolum = (depo, cep)=>{
     if(!depo) return '';
     let satirlar = Object.keys(I.gruplar).map(kod=>{
-      const s = I.gruplar[kod].satirlar[depo.depo_id];
+      const grp = I.gruplar[kod];
+      const s = grp.satirlar[depo.depo_id];
       if(!s) return null;
-      const adet = s.toplam_adet||0;
+      let adet = s.toplam_adet||0;
+      // V31.123: Merkez (Havuz) için ham toplam yerine gerçek kalan
+      if(merkezIdDetay!==null && depo.depo_id===merkezIdDetay){
+        const dagitilan = Object.keys(grp.satirlar)
+          .filter(id=>Number(id)!==merkezIdDetay)
+          .reduce((t,id)=> t + (grp.satirlar[id].toplam_adet||0), 0);
+        adet = adet - dagitilan;
+      }
       const rez  = (s.rezerve_adet||0) + (s.on_rezerve_adet||0);
       if(adet === 0 && rez === 0) return null;
-      return {kod, ad: I.gruplar[kod].aciklama || kod, adet, rez, musait: adet - rez};
+      return {kod, ad: grp.aciklama || kod, adet, rez, musait: adet - rez};
     }).filter(Boolean);
 
     const toplamUrun = satirlar.length;
@@ -2753,11 +3514,28 @@ async function _donanimIzgaraVeri(){
     if(!g.aciklama) g.aciklama = s.aciklama || '';
   });
 
+  // V31.123: Merkez (Havuz) hücresi ham toplam_adet yerine GERÇEK KALAN
+  // (havuz - dağıtılan) ile sayılır — yoksa dağıtılan miktar hem Merkez'de
+  // hem hedef KÇM'de görünüp çift sayılır (bkz. _izgKalan).
+  const merkezIdOzet = merkez ? merkez.depo_id : null;
   const ozet = {};
   (window._donanimDepolar||[]).forEach(d=>{ ozet[d.depo_id] = {urun:0, adet:0}; });
-  satirlar.forEach(s=>{
-    if(!ozet[s.depo_id]) ozet[s.depo_id] = {urun:0, adet:0};
-    if((s.toplam_adet||0) > 0){ ozet[s.depo_id].urun++; ozet[s.depo_id].adet += (s.toplam_adet||0); }
+  Object.values(gruplar).forEach(g=>{
+    Object.keys(g.satirlar).forEach(depoIdStr=>{
+      const depoId = Number(depoIdStr);
+      const s = g.satirlar[depoId];
+      let adet = s.toplam_adet||0;
+      if(merkezIdOzet!==null && depoId===merkezIdOzet){
+        const dagitilan = Object.keys(g.satirlar)
+          .filter(id=>Number(id)!==merkezIdOzet)
+          .reduce((t,id)=> t + (g.satirlar[id].toplam_adet||0), 0);
+        adet = adet - dagitilan;
+      }
+      if(adet > 0){
+        if(!ozet[depoId]) ozet[depoId] = {urun:0, adet:0};
+        ozet[depoId].urun++; ozet[depoId].adet += adet;
+      }
+    });
   });
 
   window._donanimDepoUrun = gruplar;                    // eski fonksiyonlarla uyum
@@ -3118,6 +3896,24 @@ function _donanimRaporVeri(satirlar){
     }
     if(!g.ad) g.ad = s.aciklama || '';
   });
+
+  // V31.123: Merkez (Havuz) hücresi/toplamı ham toplam_adet yerine gerçek
+  // kalan (havuz - dağıtılan) ile hesaplanır — aksi halde dağıtılan miktar
+  // hem Merkez sütununda hem hedef KÇM sütununda sayılıp satır/GENEL TOPLAM
+  // şişer (bkz. _izgKalan, _donanimIzgaraVeri).
+  const merkezIdRapor = merkez ? merkez.depo_id : null;
+  if(merkezIdRapor!==null){
+    Object.values(gruplar).forEach(g=>{
+      if(g.hucre[merkezIdRapor] === undefined) return;
+      const ham = g.hucre[merkezIdRapor]||0;
+      const dagitilan = Object.keys(g.hucre)
+        .filter(id=>Number(id)!==merkezIdRapor)
+        .reduce((t,id)=> t + (g.hucre[id]||0), 0);
+      const kalan = ham - dagitilan;
+      g.toplam -= (ham - kalan);
+      g.hucre[merkezIdRapor] = kalan;
+    });
+  }
 
   const liste = Object.values(gruplar)
     .sort((a,b)=> (a.ad||a.kod).localeCompare(b.ad||b.kod,'tr'));
@@ -3613,8 +4409,48 @@ async function loadDonanimTalepListesi(){
   }
 }
 
+// V31.132: "Karşılandı" işaretlenmeden ÖNCE gerçekten karşılanmış mı diye
+// doğrulanıyor — cihazlar pahalı, bu buton önceden sadece durum yazısını
+// değiştiriyordu, arkasında hiçbir stok kontrolü yoktu. Artık iki şart aranır:
+//  (1) Talep eden KÇM'nin ANA deposunda bu ürün için gerçekten yeterli müsait
+//      adet var mı (KÇM'ler arası transfer veya yeni stok girişiyle karşılanmış
+//      olmalı — hiçbiri yapılmadan buton sadece durumu değiştiremez).
+//  (2) Bu ürün için sistem geneli mutabakat (SUM(toplam_adet) = IMEI sayısı)
+//      bozuk mu — bozuksa (dışarıdan adet girilmiş ama IMEI girilmemiş), önce
+//      o düzeltilmeden talep kapatılamaz.
 async function donanimTalepDurum(talepId, yeniDurum){
   if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
+
+  if(yeniDurum === 'Karşılandı'){
+    const {data:talep, error:tErr} = await sb.from('stok_tedarik_talepleri').select('*').eq('talep_id', talepId).single();
+    if(tErr || !talep){ toast('Talep bulunamadı','error'); return; }
+    const {data:urun} = await sb.from('stok_urunleri').select('malzeme_kodu,aciklama').eq('urun_id', talep.urun_id).maybeSingle();
+    const malzemeKodu = urun?.malzeme_kodu;
+    const urunAd = urun?.aciklama || ('Ürün #'+talep.urun_id);
+
+    // Şart 1: talep eden KÇM'nin ANA deposunda gerçekten yeterli müsait adet var mı?
+    const depoId = await _donanimAnaDepoId(talep.kcm_id);
+    let musaitAdet = 0;
+    if(depoId && malzemeKodu){
+      const {data:kcmSatir} = await sb.from('stok_urunleri').select('toplam_adet,rezerve_adet,on_rezerve_adet')
+        .eq('depo_id', depoId).eq('malzeme_kodu', malzemeKodu).maybeSingle();
+      if(kcmSatir) musaitAdet = (kcmSatir.toplam_adet||0) - (kcmSatir.rezerve_adet||0) - (kcmSatir.on_rezerve_adet||0);
+    }
+    if(musaitAdet < talep.adet){
+      toast(`Karşılanamaz: "${urunAd}" için KÇM'nin deposunda yeterli stok yok (gerekli ${talep.adet}, mevcut ${musaitAdet}). Önce stok girişi veya transfer yapın.`, 'error');
+      return;
+    }
+
+    // Şart 2: bu ürün için sistem geneli mutabakat bozuk mu?
+    if(malzemeKodu){
+      const m = await _donanimMutabakatGetir(malzemeKodu);
+      if(Number(m.fark) !== 0){
+        toast(`Karşılanamaz: "${urunAd}" için sistem/IMEI mutabakatı bozuk (sistem ${m.sistem_adet}, IMEI ${m.imei_adet}, fark ${m.fark}). Önce Mutabakat Raporu'ndan bu ürünü düzeltin.`, 'error');
+        return;
+      }
+    }
+  }
+
   const yama = {durum: yeniDurum, updated_at: new Date().toISOString()};
   if(yeniDurum === 'Karşılandı' || yeniDurum === 'Reddedildi'){
     yama.karsilayan_id = currentUser.my_id;
@@ -3625,6 +4461,299 @@ async function donanimTalepDurum(talepId, yeniDurum){
   toast('Talep durumu: '+yeniDurum,'success');
   loadDonanimTalepListesi();
   _donanimTalepBadge();
+}
+
+// V31.132: Mutabakat Raporu — sistemdeki toplam adet (SUM(toplam_adet), tüm
+// KÇM'ler) ile kayıtlı IMEI sayısı (stok_seri_no, 'Depoda'+'Ayrıldı') her ürün
+// için karşılaştırılır. Cihazlar pahalı ve KÇM depoları tamamen sanal (hepsi
+// fiziksel olarak aynı dolapta) olduğundan bu iki sayı HER ZAMAN eşit olmalı;
+// aksi halde bir yerde adet, IMEI girişi yapılmadan artırılmış demektir.
+async function openDonanimMutabakat(){
+  if(!hasPerm('donanim_mutabakat_gor')){ toast('Yetkiniz yok','error'); return; }
+  const icerik = document.getElementById('donanimMutabakatIcerik');
+  icerik.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  openModal('donanimMutabakatModal');
+
+  const {data, error} = await sb.from('stok_mutabakat_v').select('*');
+  if(error){ icerik.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`; return; }
+  if(!data || !data.length){ icerik.innerHTML = '<div class="empty">Kayıt yok.</div>'; return; }
+  window._donanimMutabakatListe = data;
+
+  const sorunlu = data.filter(r=>Number(r.fark)!==0);
+  const temiz = data.filter(r=>Number(r.fark)===0);
+
+  const satir = (r,sorunMu)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border-radius:6px;background:var(--navy3);${sorunMu?'border-left:3px solid var(--red);':''}">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:12.5px;font-weight:600;">${escapeHTML(r.aciklama||r.malzeme_kodu)}</div>
+      <div style="font-size:10.5px;color:var(--text3);">${escapeHTML(r.malzeme_kodu)}</div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:var(--text3);white-space:nowrap;">
+      Sistem: <b style="color:var(--text2);">${r.sistem_adet}</b> · IMEI: <b style="color:var(--text2);">${r.imei_adet}</b>
+      ${sorunMu?`<div style="color:var(--red);font-weight:800;font-size:13px;">Fark: ${r.fark>0?'+':''}${r.fark}</div>`:''}
+    </div>
+  </div>`;
+
+  icerik.innerHTML =
+    (sorunlu.length ? `<div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:6px;">⚠️ ${sorunlu.length} üründe uyuşmazlık var</div>` + sorunlu.map(r=>satir(r,true)).join('') : `<div style="font-size:12px;color:var(--green);font-weight:700;margin-bottom:10px;">✓ Tüm ürünler mutabık — fark yok</div>`) +
+    (temiz.length ? `<div style="font-size:11px;color:var(--text3);margin-top:${sorunlu.length?'14px':'0'};margin-bottom:6px;">Mutabık ürünler (${temiz.length})</div>` + temiz.map(r=>satir(r,false)).join('') : '');
+}
+
+// V31.135: Mutabakat Raporu'nu Excel'e aktarır (SheetJS — proje genelinde
+// zaten kullanılıyor, bkz. donanimExcelRaporIndir / donanimRaporExcelIndir).
+function donanimMutabakatExcelIndir(){
+  if(typeof window._donanimMutabakatListe === 'undefined' || !window._donanimMutabakatListe || !window._donanimMutabakatListe.length){
+    toast('İndirilecek veri yok — önce raporu açın','error'); return;
+  }
+  const satirlar = window._donanimMutabakatListe.map(r=>({
+    'Malzeme Kodu': r.malzeme_kodu, 'Ürün': r.aciklama,
+    'Sistem Adedi': r.sistem_adet, 'IMEI Adedi': r.imei_adet, 'Fark': r.fark
+  }));
+  const ws = XLSX.utils.json_to_sheet(satirlar);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Mutabakat');
+  const tarih = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `stok_mutabakat_raporu_${tarih}.xlsx`);
+}
+
+// V31.132: bir malzeme kodu için sistem/IMEI mutabakatı (tek satır)
+async function _donanimMutabakatGetir(malzemeKodu){
+  const {data, error} = await sb.from('stok_mutabakat_v').select('*').eq('malzeme_kodu', malzemeKodu).maybeSingle();
+  if(error || !data) return {sistem_adet:0, imei_adet:0, fark:0};
+  return data;
+}
+
+// V31.135: STOK HAREKET RAPORU — stok_hareketleri tablosundaki TÜM kayıtları
+// (rezervasyon/transfer/excel yükleme/mutabakat vb. — donanim modülünün her
+// yerinde loglanan olaylar) tarih/aksiyon/ürün filtreli listeler, Excel'e
+// aktarılabilir. Depo & Muhasebe'nin "hangi cihaza ne oldu" sorusunu tek
+// ekrandan, dışarı aktarılabilir şekilde cevaplaması için.
+window._donanimHrListe = [];
+window._donanimHrFiltreTimer = null;
+
+async function openDonanimHareketRaporu(){
+  if(!hasPerm('donanim_hareket_raporu_gor')){ toast('Yetkiniz yok','error'); return; }
+  openModal('donanimHareketRaporuModal');
+  const bitisEl = document.getElementById('donanimHrBitis');
+  const basEl = document.getElementById('donanimHrBaslangic');
+  if(bitisEl && !bitisEl.value) bitisEl.value = new Date().toISOString().slice(0,10);
+  if(basEl && !basEl.value){
+    const otuzGunOnce = new Date(); otuzGunOnce.setDate(otuzGunOnce.getDate()-30);
+    basEl.value = otuzGunOnce.toISOString().slice(0,10);
+  }
+  // Aksiyon tipleri dropdown'u — mevcut kayıtlardan tekilleştirilir (yalnız ilk açılışta)
+  const aksiyonSel = document.getElementById('donanimHrAksiyon');
+  if(aksiyonSel && aksiyonSel.options.length <= 1){
+    const {data:orn} = await sb.from('stok_hareketleri').select('aksiyon').limit(3000);
+    const tekil = [...new Set((orn||[]).map(r=>r.aksiyon).filter(Boolean))].sort();
+    tekil.forEach(a=>{ const o=document.createElement('option'); o.value=a; o.textContent=a; aksiyonSel.appendChild(o); });
+  }
+  donanimHareketRaporuFiltrele();
+}
+
+function donanimHareketRaporuFiltreDebounce(){
+  clearTimeout(window._donanimHrFiltreTimer);
+  window._donanimHrFiltreTimer = setTimeout(donanimHareketRaporuFiltrele, 350);
+}
+
+async function donanimHareketRaporuFiltrele(){
+  const icerik = document.getElementById('donanimHareketRaporuIcerik');
+  const ozetEl = document.getElementById('donanimHrOzet');
+  if(!icerik) return;
+  icerik.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+
+  const bas = document.getElementById('donanimHrBaslangic')?.value;
+  const bit = document.getElementById('donanimHrBitis')?.value;
+  const aksiyon = document.getElementById('donanimHrAksiyon')?.value;
+  const arama = (document.getElementById('donanimHrAra')?.value||'').trim().toLowerCase();
+
+  let q = sb.from('stok_hareketleri').select('*').order('created_at',{ascending:false}).limit(1000);
+  if(bas) q = q.gte('created_at', bas+'T00:00:00');
+  if(bit) q = q.lte('created_at', bit+'T23:59:59');
+  if(aksiyon) q = q.eq('aksiyon', aksiyon);
+
+  const {data, error} = await q;
+  if(error){ icerik.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(error.message)}</div>`; return; }
+  let liste = data||[];
+
+  // Ürün adları — malzeme kodu/açıklama araması için gerekli
+  const urunIds = [...new Set(liste.map(r=>r.urun_id).filter(Boolean))];
+  const urunMap = {};
+  for(let i=0;i<urunIds.length;i+=200){
+    const {data:us} = await sb.from('stok_urunleri').select('urun_id,aciklama,malzeme_kodu').in('urun_id', urunIds.slice(i,i+200));
+    (us||[]).forEach(u=>{ urunMap[u.urun_id]=u; });
+  }
+  liste = liste.map(r=>({...r, _urunAd: urunMap[r.urun_id]?.aciklama || (r.urun_id?('Ürün #'+r.urun_id):'—'), _malzemeKodu: urunMap[r.urun_id]?.malzeme_kodu||''}));
+
+  if(arama){
+    liste = liste.filter(r=>{
+      const metin = [r._urunAd, r._malzemeKodu, r.user_ad, r.detay, r.aksiyon].filter(Boolean).join(' ').toLowerCase();
+      return metin.includes(arama);
+    });
+  }
+
+  window._donanimHrListe = liste;
+  if(ozetEl) ozetEl.textContent = `${liste.length} kayıt` + (liste.length>=1000?' (ilk 1000 — daraltmak için filtre kullanın)':'');
+
+  if(!liste.length){ icerik.innerHTML = '<div class="empty">Kayıt bulunamadı.</div>'; return; }
+
+  icerik.innerHTML = liste.map(r=>`
+    <div style="padding:7px 9px;margin-bottom:5px;border-radius:6px;background:var(--navy3);border-left:3px solid var(--blue);">
+      <div style="display:flex;justify-content:space-between;gap:8px;">
+        <span style="font-weight:600;font-size:12px;">${escapeHTML(r.aksiyon||'—')}</span>
+        <span style="font-size:10.5px;color:var(--text3);white-space:nowrap;">${new Date(r.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'})}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;">${escapeHTML(r._urunAd)}${r._malzemeKodu?` · ${escapeHTML(r._malzemeKodu)}`:''}</div>
+      ${r.detay?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">${escapeHTML(r.detay)}</div>`:''}
+      <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">👤 ${escapeHTML(r.user_ad||'—')}</div>
+    </div>`).join('');
+}
+
+// V31.136: ürün bilgisiyle (marka/model/gb/renk/malzeme kodu/açıklama/fiyat)
+// zenginleştirilmiş IMEI listesi — Giriş/Çıkış/Rezerve sayfaları ortak kullanır.
+async function _donanimSeriListesiUrunBilgisiyle(seriler){
+  const urunIds = [...new Set(seriler.map(s=>s.urun_id).filter(Boolean))];
+  const urunMap = {};
+  for(let i=0;i<urunIds.length;i+=200){
+    const {data:us} = await sb.from('stok_urunleri').select('urun_id,aciklama,marka,model,renk,gb_hafiza,malzeme_kodu,fiyat').in('urun_id', urunIds.slice(i,i+200));
+    (us||[]).forEach(u=>{ urunMap[u.urun_id]=u; });
+  }
+  return seriler.map(s=>({...s, _urun: urunMap[s.urun_id]||{}}));
+}
+
+// Marka+Model+GB+Renk kırılımında özet (adet sayımı)
+function _donanimOzetGrupla(seriler){
+  const grup = {};
+  seriler.forEach(s=>{
+    const u = s._urun||{};
+    const anahtar = [u.marka||'', u.model||'', u.gb_hafiza||'', u.renk||'', u.malzeme_kodu||''].join('|');
+    if(!grup[anahtar]) grup[anahtar] = {Marka:u.marka||'', Model:u.model||'', GB:u.gb_hafiza||'', Renk:u.renk||'', 'Malzeme Kodu':u.malzeme_kodu||'', 'Ürün':u.aciklama||'', Adet:0};
+    grup[anahtar].Adet++;
+  });
+  return Object.values(grup).sort((a,b)=>b.Adet-a.Adet);
+}
+
+// V31.136: Stok Hareket Raporu artık TEK Excel dosyasında 7 sayfa üretir:
+// 1) Stok Hareketleri (ekrandaki filtreli liste, aynen)
+// 2-3) Cihaz Giriş — Detay/Özet (tarih aralığındaki stok_seri_no oluşturma kayıtları)
+// 4-5) Cihaz Çıkış — Detay/Özet (tarih aralığında 'Satıldı' olan IMEI'ler, müşteri/MY ile)
+// 6-7) Rezerve Cihazlar — Detay/Özet (ŞU AN 'Ayrıldı' durumundaki IMEI'ler — canlı anlık durum,
+//      tarih filtresine bağlı değil, çünkü "şu anki durum" isteniyor)
+async function donanimHareketRaporuExcelIndir(){
+  const liste = window._donanimHrListe||[];
+  if(!liste.length){ toast('İndirilecek veri yok — önce raporu açın','error'); return; }
+  toast('Excel hazırlanıyor, birkaç saniye sürebilir...','info');
+  try{
+
+  const bas = document.getElementById('donanimHrBaslangic')?.value;
+  const bit = document.getElementById('donanimHrBitis')?.value;
+
+  const wb = XLSX.utils.book_new();
+
+  // 1) Stok Hareketleri — ekranda gösterilen liste aynen
+  const hareketSatir = liste.map(r=>({
+    'Tarih': r.created_at ? new Date(r.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'}) : '',
+    'Aksiyon': r.aksiyon||'', 'Ürün': r._urunAd||'', 'Malzeme Kodu': r._malzemeKodu||'',
+    'Detay': r.detay||'', 'Kullanıcı': r.user_ad||''
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hareketSatir), 'Stok Hareketleri');
+
+  // 2-3) Cihaz Giriş — stok_seri_no.created_at tarih aralığında olanlar (ilk kayıt = stoğa giriş anı)
+  let girisQ = sb.from('stok_seri_no').select('seri_no,urun_id,durum,created_at').order('created_at',{ascending:false}).limit(5000);
+  if(bas) girisQ = girisQ.gte('created_at', bas+'T00:00:00');
+  if(bit) girisQ = girisQ.lte('created_at', bit+'T23:59:59');
+  const {data:girisHam} = await girisQ;
+  const giris = await _donanimSeriListesiUrunBilgisiyle(girisHam||[]);
+  const girisDetaySatir = giris.map(s=>({
+    'Seri/IMEI No': s.seri_no, 'Marka': s._urun.marka||'', 'Model': s._urun.model||'',
+    'GB': s._urun.gb_hafiza||'', 'Renk': s._urun.renk||'', 'Malzeme Kodu': s._urun.malzeme_kodu||'',
+    'Ürün': s._urun.aciklama||'', 'Stok Giriş Tarihi': s.created_at ? new Date(s.created_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'}) : '',
+    'Şu An Durumu': s.durum||''
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(girisDetaySatir), 'Cihaz Giriş - Detay');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(_donanimOzetGrupla(giris)), 'Cihaz Giriş - Özet');
+
+  // 4-5) Cihaz Çıkış — durum='Satıldı', updated_at tarih aralığında (çıkış anı = sevkiyatta Satıldı'ya geçiş)
+  let cikisQ = sb.from('stok_seri_no').select('seri_no,urun_id,durum,sepet_id,updated_at').eq('durum','Satıldı').order('updated_at',{ascending:false}).limit(5000);
+  if(bas) cikisQ = cikisQ.gte('updated_at', bas+'T00:00:00');
+  if(bit) cikisQ = cikisQ.lte('updated_at', bit+'T23:59:59');
+  const {data:cikisHam} = await cikisQ;
+  const cikis = await _donanimSeriListesiUrunBilgisiyle(cikisHam||[]);
+  // sevkedilen cihazların hangi rezervasyona/müşteriye/MY'ye ait olduğu
+  const cikisSepetIds = [...new Set(cikis.map(s=>s.sepet_id).filter(Boolean))];
+  const cikisRezMap = {};
+  for(let i=0;i<cikisSepetIds.length;i+=200){
+    const {data:rz} = await sb.from('stok_rezervasyonlari').select('sepet_id,ncst,satan_my_id,kcm_id').in('sepet_id', cikisSepetIds.slice(i,i+200));
+    (rz||[]).forEach(r=>{ if(!cikisRezMap[r.sepet_id]) cikisRezMap[r.sepet_id]=r; });
+  }
+  const cikisMyIds = [...new Set(Object.values(cikisRezMap).map(r=>r.satan_my_id).filter(Boolean))];
+  const cikisMyMap = {};
+  for(let i=0;i<cikisMyIds.length;i+=200){
+    const {data:us} = await sb.from('users').select('my_id,ad_soyad').in('my_id', cikisMyIds.slice(i,i+200));
+    (us||[]).forEach(u=>{ cikisMyMap[u.my_id]=u.ad_soyad; });
+  }
+  const cikisNcstler = [...new Set(Object.values(cikisRezMap).map(r=>r.ncst).filter(Boolean))];
+  const cikisMusteriMap = {};
+  for(let i=0;i<cikisNcstler.length;i+=200){
+    const {data:ms} = await sb.from('customers').select('ncst,unvan').in('ncst', cikisNcstler.slice(i,i+200));
+    (ms||[]).forEach(m=>{ cikisMusteriMap[m.ncst]=m.unvan; });
+  }
+  const cikisDetaySatir = cikis.map(s=>{
+    const rz = cikisRezMap[s.sepet_id]||{};
+    return {
+      'Seri/IMEI No': s.seri_no, 'Marka': s._urun.marka||'', 'Model': s._urun.model||'',
+      'GB': s._urun.gb_hafiza||'', 'Renk': s._urun.renk||'', 'Malzeme Kodu': s._urun.malzeme_kodu||'',
+      'Ürün': s._urun.aciklama||'', 'Çıkış (Sevk) Tarihi': s.updated_at ? new Date(s.updated_at).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'}) : '',
+      'Müşteri': cikisMusteriMap[rz.ncst]||rz.ncst||'', 'Satan MY': cikisMyMap[rz.satan_my_id]||''
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cikisDetaySatir), 'Cihaz Çıkış - Detay');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(_donanimOzetGrupla(cikis)), 'Cihaz Çıkış - Özet');
+
+  // 6-7) Rezerve Cihazlar — ŞU AN 'Ayrıldı' (sevk edilmemiş, sepete bağlı) — canlı anlık durum
+  const {data:rezHam} = await sb.from('stok_seri_no').select('seri_no,urun_id,durum,sepet_id,updated_at').eq('durum','Ayrıldı').limit(5000);
+  const rez = await _donanimSeriListesiUrunBilgisiyle(rezHam||[]);
+  const rezSepetIds = [...new Set(rez.map(s=>s.sepet_id).filter(Boolean))];
+  const rezMap = {};
+  for(let i=0;i<rezSepetIds.length;i+=200){
+    const {data:rz} = await sb.from('stok_rezervasyonlari').select('sepet_id,ncst,satan_my_id,kcm_id,durum').in('sepet_id', rezSepetIds.slice(i,i+200));
+    (rz||[]).forEach(r=>{ if(!rezMap[r.sepet_id]) rezMap[r.sepet_id]=r; });
+  }
+  const rezMyIds = [...new Set(Object.values(rezMap).map(r=>r.satan_my_id).filter(Boolean))];
+  const rezKcmIds = [...new Set(Object.values(rezMap).map(r=>r.kcm_id).filter(Boolean))];
+  const rezMyMap = {}, rezKcmMap = {};
+  for(let i=0;i<rezMyIds.length;i+=200){
+    const {data:us} = await sb.from('users').select('my_id,ad_soyad').in('my_id', rezMyIds.slice(i,i+200));
+    (us||[]).forEach(u=>{ rezMyMap[u.my_id]=u.ad_soyad; });
+  }
+  for(let i=0;i<rezKcmIds.length;i+=200){
+    const {data:ks} = await sb.from('kcm_groups').select('kcm_id,kcm_adi').in('kcm_id', rezKcmIds.slice(i,i+200));
+    (ks||[]).forEach(k=>{ rezKcmMap[k.kcm_id]=k.kcm_adi; });
+  }
+  const rezNcstler = [...new Set(Object.values(rezMap).map(r=>r.ncst).filter(Boolean))];
+  const rezMusteriMap = {};
+  for(let i=0;i<rezNcstler.length;i+=200){
+    const {data:ms} = await sb.from('customers').select('ncst,unvan').in('ncst', rezNcstler.slice(i,i+200));
+    (ms||[]).forEach(m=>{ rezMusteriMap[m.ncst]=m.unvan; });
+  }
+  const rezDetaySatir = rez.map(s=>{
+    const r = rezMap[s.sepet_id]||{};
+    return {
+      'Seri/IMEI No': s.seri_no, 'Marka': s._urun.marka||'', 'Model': s._urun.model||'',
+      'GB': s._urun.gb_hafiza||'', 'Renk': s._urun.renk||'', 'Malzeme Kodu': s._urun.malzeme_kodu||'',
+      'KÇM': rezKcmMap[r.kcm_id]||'', 'Satan MY': rezMyMap[r.satan_my_id]||'',
+      'Müşteri': rezMusteriMap[r.ncst]||r.ncst||'', 'Süreç Durumu': r.durum||'',
+      'Kısa Rezervasyon ID': 'REZ-'+String(s.sepet_id||'').replace(/-/g,'').slice(0,8).toUpperCase()
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rezDetaySatir), 'Rezerve Cihazlar - Detay');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(_donanimOzetGrupla(rez)), 'Rezerve Cihazlar - Özet');
+
+  const tarih = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `stok_hareket_raporu_${tarih}.xlsx`);
+  }catch(err){
+    console.error('donanimHareketRaporuExcelIndir hata:', err);
+    toast('Excel oluşturulurken hata oluştu: '+(err?.message||'bilinmeyen hata'),'error');
+  }
 }
 
 // Talepler sekmesindeki bekleyen sayısı (yalnız karşılayan rolde anlamlı)
@@ -3657,8 +4786,13 @@ async function _donanimTalepBadge(){
    Saat 'Onaylandı' adiminda baslar, 'Eşleştirildi'de durur.
    ============================================================ */
 
-const DONANIM_SURE_SAAT = 48;                       // rezervasyon süresi
-const DONANIM_SURE_AKTIF = ['Onaylandı','Hazırlanıyor','Kısmen Eşleştirildi'];
+const DONANIM_SURE_SAAT = 48;                       // varsayılan (sistem_ayarlari okunamazsa)
+function _donanimEmeiSureSaat(){ return window._donanimAyar?.emei_sure_saat || DONANIM_SURE_SAAT; }
+// V31.113: yeni akışta 'Hazırlanıyor' kalktı — sayaç Rezervasyon Onayı'ndan
+// (durum: 'Onaylandı') Emei Eşleştirme tamamlanana kadar işler.
+const DONANIM_SURE_AKTIF = ['Onaylandı','Stok Onay Emei Giriş','Turkcell Finans Onay','Kısmen Eşleştirildi'];
+// Ön Rezervasyon'un kendi (6+6 saat) süre sayacı — ayrı bir zaman penceresi
+const DONANIM_ONREZ_AKTIF = ['Ön Rezervasyon'];
 
 // Fırsatçı süpürme. Hata hiçbir zaman kullanıcı akışını kesmez.
 async function _donanimSureSupur(zorla){
@@ -3675,10 +4809,13 @@ async function _donanimSureSupur(zorla){
 // durdurur; yarım gün (arife) tarihlerinde 13:00'a kadar sayar. Hesabı DB'deki
 // is_saati_ekle() yapar (takvim tek yerde tutulur). RPC'ye ulaşılamazsa takvim
 // saatiyle devam eder — süre hesabı hiçbir koşulda kullanıcı akışını kesmez.
-async function _donanimSureBitisHesapla(bastanISO){
+// V31.113: saat parametresi verilebilir (Ön Rezervasyon 6 saat, Rezervasyon Onayı
+// sonrası 48 saat gibi) — verilmezse eski davranış (48 saat) korunur.
+async function _donanimSureBitisHesapla(bastanISO, saat){
   const taban = bastanISO || new Date().toISOString();
+  const p_saat = saat || DONANIM_SURE_SAAT;
   try{
-    const {data, error} = await sb.rpc('is_saati_ekle', {p_bas: taban, p_saat: DONANIM_SURE_SAAT});
+    const {data, error} = await sb.rpc('is_saati_ekle', {p_bas: taban, p_saat});
     if(error) throw new Error(error.message);
     if(!data)  throw new Error('boş dönüş');
     const d = new Date(data);
@@ -3686,13 +4823,13 @@ async function _donanimSureBitisHesapla(bastanISO){
     return d.toISOString();
   }catch(e){
     console.warn('[donanim] is_saati_ekle kullanılamadı, takvim saati uygulandı:', e.message);
-    return new Date(new Date(taban).getTime() + DONANIM_SURE_SAAT*3600000).toISOString();
+    return new Date(new Date(taban).getTime() + p_saat*3600000).toISOString();
   }
 }
 
 // Kalan süre rozeti — kart üzerinde gösterilir
 function _donanimSureRozet(bitis, durum){
-  if(!bitis || !DONANIM_SURE_AKTIF.includes(durum)) return '';
+  if(!bitis || !(DONANIM_SURE_AKTIF.includes(durum) || DONANIM_ONREZ_AKTIF.includes(durum))) return '';
   const kalanMs = new Date(bitis).getTime() - Date.now();
   if(isNaN(kalanMs)) return '';
   let metin, renk;
@@ -3780,7 +4917,7 @@ window._svk = window._svk || null;
 
 function _svkYeni(){
   return {adim:1, my:null, musteri:null, satisTipi:null, kalemler:[],
-          fatura:false, calisiyor:false, depoId:null, bitti:null};
+          fatura:false, faturaNo:'', calisiyor:false, depoId:null, bitti:null};
 }
 
 const _svkAdet  = () => (window._svk?.kalemler||[]).reduce((t,k)=>t+k.adet,0);
@@ -3878,7 +5015,9 @@ function _svkGovde(no){
     <label class="svk-onay">
       <input type="checkbox" id="donanimSvkFatura" ${S.fatura?'checked':''} onchange="donanimSvkFatura(this.checked)">
       <span><b>Fatura kesildi</b><br><span style="font-size:11px;color:var(--text3);">Sevkiyat tamamlanınca durum zincirine “Fatura Kesildi” de yazılır.</span></span>
-    </label>`;
+    </label>
+    <input type="text" id="donanimSvkFaturaNo" placeholder="Fatura numarası…" autocomplete="off" style="margin-top:8px;"
+      value="${escapeHTML(S.faturaNo||'')}" oninput="donanimSvkFaturaNoGir(this.value)">`;
 }
 
 function donanimSvkAdimAc(no){
@@ -4095,6 +5234,8 @@ function donanimSvkImeiKaldir(i, seriNoId){
 
 /* ---------------- 6) fatura + özet ---------------- */
 function donanimSvkFatura(v){ window._svk.fatura = !!v; _svkOzet(); }
+// V31.131: fatura numarası — Fatura Kesildi adımı için zorunlu alan
+function donanimSvkFaturaNoGir(v){ window._svk.faturaNo = (v||'').trim(); _svkOzet(); }
 
 function _svkOzet(){
   const S = window._svk;
@@ -4109,22 +5250,23 @@ function _svkOzet(){
     + sat('Satış tipi',S.satisTipi?escapeHTML(S.satisTipi):'')
     + sat('Cihaz',     S.kalemler.length?(S.kalemler.length+' kalem · '+_svkAdet()+' adet'):'')
     + sat('IMEI',      S.kalemler.length?(_svkImei()+'/'+_svkAdet()):'')
-    + sat('Fatura',    S.fatura?'kesildi':'');
+    + sat('Fatura',    S.fatura?('kesildi — No: '+(S.faturaNo||'—')):'');
 
   if(zn){
     const zincir = [
-      ['Ön Rezervasyon',  !!(S.my && S.musteri && S.satisTipi && S.kalemler.length)],
-      ['Onaylandı',       S.kalemler.length>0],
-      ['Hazırlanıyor',    S.kalemler.length>0],
-      ['Eşleştirildi',    _svkImeiTam()],
-      ['Fatura Kesildi',  S.fatura],
-      ['Cihaz Gönderildi',!!S.bitti]
+      ['Ön Rezervasyon',        !!(S.my && S.musteri && S.satisTipi && S.kalemler.length)],
+      ['Onaylandı',             S.kalemler.length>0],
+      ['Stok Onay/Emei Giriş',  S.kalemler.length>0],
+      ['Turkcell Finans Onay',  S.kalemler.length>0],
+      ['Eşleştirildi',          _svkImeiTam()],
+      ['Fatura Kesildi',        S.fatura],
+      ['Tamamlandı',            !!S.bitti]
     ];
     zn.innerHTML = '<div class="svk-zincir-bas">Yazılacak durum zinciri</div>' +
       zincir.map(([ad,ok])=>`<div class="svk-z ${ok?'ok':''}"><i></i>${escapeHTML(ad)}</div>`).join('');
   }
   if(bt){
-    bt.disabled = !(_svkImeiTam() && S.fatura && !S.calisiyor && !S.bitti);
+    bt.disabled = !(_svkImeiTam() && S.fatura && S.faturaNo && !S.calisiyor && !S.bitti);
     bt.textContent = S.calisiyor ? 'Gönderiliyor…' : 'Sevkiyatı tamamla';
   }
 }
@@ -4139,7 +5281,7 @@ async function donanimSvkTamamla(){
   const S = window._svk;
   if(!S || S.calisiyor) return;
   if(!hasPerm('donanim_yonet') || !hasPerm('donanim_sevk')){ toast('Yetkiniz yok','error'); return; }
-  if(!_svkImeiTam() || !S.fatura){ toast('Eksik adım var','error'); return; }
+  if(!_svkImeiTam() || !S.fatura || !S.faturaNo){ toast('Eksik adım var (fatura numarası zorunlu)','error'); return; }
   if(!confirm(`${_svkAdet()} cihaz ${S.musteri.unvan||S.musteri.ncst} adına sevk edilecek. Onaylıyor musunuz?`)) return;
 
   S.calisiyor = true; _svkOzet();
@@ -4159,33 +5301,30 @@ async function donanimSvkTamamla(){
     }));
     const {error:insErr} = await sb.from('stok_rezervasyonlari').insert(kayitlar);
     if(insErr) throw new Error(insErr.message);
+    // V31.113: cihaz DOĞRUDAN rezerve_adet'e düşer (eski on_rezerve_adet aşaması kalktı)
     for(const k of S.kalemler){
-      const {data:u} = await sb.from('stok_urunleri').select('on_rezerve_adet').eq('urun_id',k.urun_id).maybeSingle();
-      await sb.from('stok_urunleri').update({on_rezerve_adet:(u?.on_rezerve_adet||0)+k.adet, updated_at:simdi()}).eq('urun_id',k.urun_id);
+      const {data:u} = await sb.from('stok_urunleri').select('rezerve_adet').eq('urun_id',k.urun_id).maybeSingle();
+      await sb.from('stok_urunleri').update({rezerve_adet:(u?.rezerve_adet||0)+k.adet, updated_at:simdi()}).eq('urun_id',k.urun_id);
     }
     await _donanimRezHareketLog('Ön Rezervasyon', kayitlar, {ncst:S.musteri.ncst, satan_my_id:S.my.my_id});
 
-    /* 2) Onaylandı — sayaç on_rezerve'den rezerve'ye geçer, süre damgası basılır */
+    /* 2) Onaylandı — stok zaten rezerve_adet'te, sadece Emei süre damgası basılır */
     adimAdi = 'Onaylandı';
-    for(const k of S.kalemler){
-      const {data:u} = await sb.from('stok_urunleri').select('on_rezerve_adet,rezerve_adet').eq('urun_id',k.urun_id).maybeSingle();
-      await sb.from('stok_urunleri').update({
-        on_rezerve_adet: Math.max(0,(u?.on_rezerve_adet||0)-k.adet),
-        rezerve_adet:    (u?.rezerve_adet||0)+k.adet,
-        updated_at: simdi()
-      }).eq('urun_id',k.urun_id);
-    }
-    const bitis = await _donanimSureBitisHesapla(new Date().toISOString());
+    const bitis = await _donanimSureBitisHesapla(new Date().toISOString(), _donanimEmeiSureSaat());
     const {error:onayErr} = await sb.from('stok_rezervasyonlari')
       .update({durum:'Onaylandı', rezervasyon_bitis:bitis, updated_at:simdi()}).eq('sepet_id',sepetId);
     if(onayErr) throw new Error(onayErr.message);
     await _donanimRezHareketLog('Rezervasyon Onaylandı', kayitlar, {ncst:S.musteri.ncst, satan_my_id:S.my.my_id});
 
-    /* 3) Hazırlanıyor */
-    adimAdi = 'Hazırlanıyor';
-    const {error:hzErr} = await sb.from('stok_rezervasyonlari')
-      .update({durum:'Hazırlanıyor', updated_at:simdi()}).eq('sepet_id',sepetId);
-    if(hzErr) throw new Error(hzErr.message);
+    /* 3) Stok Onay/Emei Giriş + Turkcell Finans Onay — Hızlı Konsol tek oturumda ilerletir */
+    adimAdi = 'Stok Onay Emei Giriş';
+    const {error:egErr} = await sb.from('stok_rezervasyonlari')
+      .update({durum:'Stok Onay Emei Giriş', updated_at:simdi()}).eq('sepet_id',sepetId);
+    if(egErr) throw new Error(egErr.message);
+    adimAdi = 'Turkcell Finans Onay';
+    const {error:foErr} = await sb.from('stok_rezervasyonlari')
+      .update({durum:'Turkcell Finans Onay', updated_at:simdi()}).eq('sepet_id',sepetId);
+    if(foErr) throw new Error(foErr.message);
 
     /* 4) IMEI bağlama — her seri yalnız 'Depoda' iken bağlanır */
     adimAdi = 'Eşleştirildi';
@@ -4202,24 +5341,32 @@ async function donanimSvkTamamla(){
     const {error:esErr} = await sb.from('stok_rezervasyonlari')
       .update({durum:'Eşleştirildi', updated_at:simdi()}).eq('sepet_id',sepetId);
     if(esErr) throw new Error(esErr.message);
-    await _donanimRezHareketLog(`IMEI Eşleştirme (${_svkImei()}/${_svkAdet()})`, kayitlar, {ncst:S.musteri.ncst, satan_my_id:S.my.my_id});
+    const svkImeiMap = {};
+    S.kalemler.forEach(k=>{ svkImeiMap[k.urun_id] = (k.seri||[]).map(s=>s.seri_no); });
+    await _donanimRezHareketLog(`IMEI Eşleştirme (${_svkImei()}/${_svkAdet()})`, kayitlar, {ncst:S.musteri.ncst, satan_my_id:S.my.my_id, imeiMap:svkImeiMap});
 
-    /* 5) Fatura Kesildi */
+    /* 5) Finans Onaylandı → Fatura Kesildi — V31.119: Hızlı Konsol da aynı ara
+       durumdan geçer (tek oturumda, duraksamadan) — log/tutarlılık için. */
+    adimAdi = 'Finans Onaylandı';
+    const {error:foaErr} = await sb.from('stok_rezervasyonlari')
+      .update({durum:'Finans Onaylandı', updated_at:simdi()}).eq('sepet_id',sepetId);
+    if(foaErr) throw new Error(foaErr.message);
     adimAdi = 'Fatura Kesildi';
     const {error:ftErr} = await sb.from('stok_rezervasyonlari')
-      .update({durum:'Fatura Kesildi', updated_at:simdi()}).eq('sepet_id',sepetId);
+      .update({durum:'Fatura Kesildi', fatura_no:S.faturaNo, updated_at:simdi()}).eq('sepet_id',sepetId);
     if(ftErr) throw new Error(ftErr.message);
+    await _donanimRezHareketLog('Süreç: Fatura Kesildi', kayitlar, {ncst:S.musteri.ncst, satan_my_id:S.my.my_id, faturaNo:S.faturaNo});
 
-    /* 6) Cihaz Gönderildi + stok düşümü (V31.63 ortak fonksiyonu) */
-    adimAdi = 'Cihaz Gönderildi';
+    /* 6) Tamamlandı (Cihaz Gönderildi) + stok düşümü (V31.63 ortak fonksiyonu) */
+    adimAdi = 'Tamamlandı';
     const {data:sonKalemler} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id',sepetId);
     const {data:gonderildi, error:gnErr} = await sb.from('stok_rezervasyonlari')
-      .update({durum:'Cihaz Gönderildi', updated_at:simdi()})
+      .update({durum:'Tamamlandı', updated_at:simdi()})
       .eq('sepet_id',sepetId).eq('durum','Fatura Kesildi').select('rezervasyon_id');
     if(gnErr) throw new Error(gnErr.message);
     if(!gonderildi || !gonderildi.length) throw new Error('Kayıt bu sırada başkası tarafından değiştirilmiş');
     await _donanimSevkStokDus(sepetId, sonKalemler||kayitlar);
-    await _donanimRezHareketLog('Süreç: Cihaz Gönderildi', kayitlar, {ncst:S.musteri.ncst, satan_my_id:S.my.my_id});
+    await _donanimRezHareketLog('Süreç: Tamamlandı (Cihaz Gönderildi)', kayitlar, {ncst:S.musteri.ncst, satan_my_id:S.my.my_id});
 
     S.bitti = {sepetId, zaman:new Date().toLocaleString('tr-TR')};
     S.calisiyor = false;

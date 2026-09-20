@@ -1,7 +1,22 @@
 // ============================================================
-// yetki.js — v1.2.8
-// Son güncelleme: 2026-09-15
+// yetki.js — v1.3.1
+// Son güncelleme: 2026-09-19
 // Değişiklikler:
+//   v1.3.1 — (V31.135) Yeni izin anahtarı: donanim_hareket_raporu_gor — Stok
+//     Hareket Raporu (tüm stok hareketleri, tarih/aksiyon/ürün filtreli,
+//     Excel'e aktarılabilir) ekranını görüntüleme. Otomatik atanmadı, Rol&Yetki
+//     ekranından elle verilmesi gerekiyor.
+// yetki.js — v1.3.0
+// Son güncelleme: 2026-09-19
+// Değişiklikler:
+//   v1.3.0 — (V31.133) Yeni izin anahtarı: donanim_mutabakat_gor — Stok
+//     Mutabakat Raporu (sistem adedi vs IMEI sayısı) ekranını görüntüleme.
+//     Bu yeni bir anahtar olduğundan hiçbir role otomatik atanmadı; Depo &
+//     Muhasebe rolüne Rol&Yetki ekranından elle verilmesi gerekiyor.
+//   v1.2.9 — (V31.113) Donanım Satış Süreç Akışı V2 — yeni izin anahtarları:
+//     donanim_onrez_uzat, donanim_mukerrer_onay, donanim_emei_giris,
+//     donanim_finans_onay ('Donanım Takip' grubuna eklendi). Adım onay
+//     yetkileri Rol & Yetki ekranından atanır, kodda sabit rol adı yok.
 //   v1.2.8 — (V31.96) KAPSAM GÜVENLİK FIX: YETKI_MODUL_ADLARI'na 'hedef_giris'
 //     eklendi — Yönetici Paneli > Hedef Yönetimi > Hedef Girişi ekranı hiç
 //     kapsam kontrolü yapmıyordu, her yönetici tüm şirket personelini görüyordu.
@@ -72,7 +87,13 @@ const YETKI_ACTION_GRUP = [
       donanim_surec_ilerlet:'Satış sürecini ilerletir (Hazırla / süreç adımları)',
       donanim_imei_eslestir:'IMEI eşleştirme yapar (barcode)',
       donanim_sevk:'Fatura kesildi / Cihaz gönderildi adımları',
-      donanim_imei_gor:'IMEI numaralarını tam (maskesiz) görüntüler' } },
+      donanim_imei_gor:'IMEI numaralarını tam (maskesiz) görüntüler',
+      donanim_onrez_uzat:'Ön rezervasyon süresini uzatır',
+      donanim_mukerrer_onay:'Mükerrer ön rezervasyon talebini onaylar',
+      donanim_emei_giris:'Stok Onay / Emei Giriş adımını ilerletir',
+      donanim_finans_onay:'Turkcell Finans Onay adımını ilerletir',
+      donanim_mutabakat_gor:'Stok Mutabakat Raporu\'nu görüntüler (sistem adedi vs IMEI sayısı)',
+      donanim_hareket_raporu_gor:'Stok Hareket Raporu\'nu görüntüler (tüm stok hareketleri, filtreli, Excel)' } },
   { grup:'Yönetim', items:{
       admin_panel:'Admin paneline girebilir',
       yonetici_panel:'Yönetici paneline girebilir',
