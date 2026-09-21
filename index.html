@@ -707,7 +707,7 @@
     <div class="auth-title">Hoş Geldiniz 👋</div>
     <div class="field"><label>E-Posta</label><input type="email" id="loginEmail" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"></div>
     <div class="field"><label>Şifre</label><input type="password" id="loginPass" onkeydown="if(event.key==='Enter')doLogin()"></div>
-    <button class="btn" style="background:var(--blue);" onclick="doLogin()">Giriş Yap</button>
+    <button class="btn" style="background:var(--green);color:#04301f;" onclick="doLogin()">Giriş Yap</button>
     <div style="text-align:center;margin-top:14px;">
       <span style="font-size:13px;color:var(--text3);">Şifrenizi mi unuttunuz? </span>
       <span style="font-size:13px;color:var(--blue);cursor:pointer;font-weight:600;" onclick="showSifreUnuttum()">Yöneticinize başvurun →</span>
@@ -769,7 +769,7 @@
       <!-- V31.97: Yeni Ürün Ekle / Excel ile Stok Yükle — eskiden tüm sekmelerde
            sabit üstteydi, artık sadece Stok sekmesinde. -->
       <button id="donanimYeniUrunBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="openDonanimYeniUrun()">+ Yeni Ürün Ekle</button>
-      <button id="donanimExcelYukleBtn" class="btn btn-orange-outline" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimExcelYukle()">📤 Excel ile Stok Yükle</button>
+      <button id="donanimExcelYukleBtn" class="btn btn-orange-outline" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimStokModal()">📤 Stok Yükle/Stoktan Çıkart</button>
       <!-- V31.134: Mutabakat Raporu, Taleplerden Stok sekmesine taşındı —
            stok bütünlüğü konusu, Depolar/Stok ekranına ait bir kontrol. -->
       <button id="donanimMutabakatBtn" class="btn btn-orange" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimMutabakat()">📊 Mutabakat Raporu</button>
@@ -984,7 +984,11 @@
 <div class="modal-overlay" id="donanimExcelModal" onclick="if(event.target===this)closeModal('donanimExcelModal')">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Excel ile Stok Yükle</div>
+    <div class="modal-title" id="donanimStokModalBaslik">Stok Yükle/Stoktan Çıkart</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <button id="donanimStokModYukleBtn" class="btn btn-sm" style="background:var(--blue);" onclick="donanimStokModAc('yukle')">📤 Yükle</button>
+      <button id="donanimStokModCikartBtn" class="btn btn-ghost btn-sm" onclick="donanimStokModAc('cikart')">📦 Çıkart</button>
+    </div>
     <div id="donanimExcelAdim1">
       <div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;line-height:1.5;color:var(--text2);">
         <div style="font-weight:700;color:var(--text);margin-bottom:4px;">Hedef: ANA DEPO (cihaz havuzu)</div>
@@ -1019,6 +1023,82 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <button class="btn btn-ghost" onclick="closeModal('donanimExcelModal')">Kapat</button>
           <button class="btn btn-orange-outline" onclick="donanimExcelRaporIndir()">📥 Raporu İndir (Excel)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- V31.151: STOKTAN ÇIKART -->
+    <div id="donanimCikartForm" class="hide">
+      <div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;line-height:1.5;color:var(--text2);">
+        Seçilen depodan cihazlar kalıcı olarak <b>'Çıkarıldı'</b> durumuna alınır — kayıt sistemde iz olarak kalır, tekrar stoğa girmek için ayrıca geri alınması gerekir.
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Çıkış Yapılacak Depo <span style="color:var(--red);">*</span></label>
+        <select id="donanimCikartDepo" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;">
+          <option value="">Depo seçin...</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Çıkış Sebebi <span style="color:var(--red);">*</span></label>
+        <select id="donanimCikartSebep" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;">
+          <option value="">Sebep seçin...</option>
+          <option value="Arıza">Arıza</option>
+          <option value="Kayıp">Kayıp</option>
+          <option value="İade">İade</option>
+          <option value="Diğer">Diğer</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Kime Verildi / Nereye Gitti <span style="color:var(--red);">*</span></label>
+        <input type="text" id="donanimCikartHedef" placeholder="Örn. Servis - ABC Teknik, Kurye - X Kargo..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;">
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Açıklama (opsiyonel)</label>
+        <input type="text" id="donanimCikartAciklama" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;">
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>IMEI Listesi — Excel</label>
+        <input type="file" id="donanimCikartDosya" accept=".xlsx,.xls" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;">
+      </div>
+      <div class="field" style="margin-bottom:16px;">
+        <label>veya IMEI Listesi — Elle Yapıştır (her satıra bir IMEI)</label>
+        <textarea id="donanimCikartImeiMetin" rows="4" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;font-family:inherit;"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn-iptal" onclick="closeModal('donanimExcelModal')">✕ İptal</button>
+        <button class="btn" style="background:var(--red);" onclick="donanimCikartIsle()">Stoktan Çıkart</button>
+      </div>
+    </div>
+    <div id="donanimCikartAdim2" class="hide">
+      <div id="donanimCikartIlerleme" style="text-align:center;padding:20px;">
+        <div class="loader"><div class="spinner"></div></div>
+        <div style="font-size:12px;color:var(--text2);margin-top:8px;" id="donanimCikartIlerlemeMetin">İşleniyor...</div>
+      </div>
+      <div id="donanimCikartSonuc" class="hide">
+        <div id="donanimCikartOzetYazi" style="font-size:13px;font-weight:700;margin-bottom:10px;"></div>
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px;">Detay (IMEI bazlı)</div>
+        <div style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:12px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead><tr style="background:var(--navy2);position:sticky;top:0;">
+              <th style="padding:6px;text-align:left;">IMEI</th><th style="padding:6px;text-align:left;">Ürün</th>
+              <th style="padding:6px;text-align:left;">Depo</th><th style="padding:6px;text-align:left;">Sebep</th>
+            </tr></thead>
+            <tbody id="donanimCikartDetayTablo"></tbody>
+          </table>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px;">Özet (adetsel, IMEI'siz)</div>
+        <div style="max-height:160px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:12px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead><tr style="background:var(--navy2);position:sticky;top:0;">
+              <th style="padding:6px;text-align:left;">Ürün</th><th style="padding:6px;text-align:left;">Malzeme Kodu</th>
+              <th style="padding:6px;text-align:right;">Adet</th>
+            </tr></thead>
+            <tbody id="donanimCikartOzetTablo"></tbody>
+          </table>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button class="btn btn-ghost" onclick="closeModal('donanimExcelModal')">Kapat</button>
+          <button class="btn btn-orange-outline" onclick="donanimCikartRaporIndir()">📥 Raporu İndir (Excel)</button>
         </div>
       </div>
     </div>
@@ -3518,11 +3598,11 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.150"></script>
+<script src="js/config.js?v=v31.151"></script>
 <script src="js/yetki.js?v=v31.150"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
-<script src="js/donanim.js?v=v31.150"></script>
+<script src="js/donanim.js?v=v31.151"></script>
 <script src="js/utils.js?v=v31.101"></script>
 <script src="js/auth.js?v=v31.112"></script>
 <script src="js/gorev.js?v=v31.150"></script>

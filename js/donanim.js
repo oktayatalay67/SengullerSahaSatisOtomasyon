@@ -976,7 +976,52 @@ async function openDonanimExcelYukle(){
   document.getElementById('donanimExcelAdim2').classList.add('hide');
   document.getElementById('donanimExcelSonuc').classList.add('hide');
   document.getElementById('donanimExcelDosya').value='';
+  donanimStokModAc('yukle');
   openModal('donanimExcelModal');
+}
+
+/* V31.151: "Excel ile Stok Yükle" modali "Stok Yükle/Stoktan Çıkart" olarak
+   iki moda ayrıldı. Bu, dışarıdan çağrılan ana giriş noktası. */
+async function openDonanimStokModal(){
+  document.getElementById('donanimExcelDosya').value='';
+  document.getElementById('donanimExcelSonuc').classList.add('hide');
+  const cikartDosya = document.getElementById('donanimCikartDosya');
+  const cikartMetin = document.getElementById('donanimCikartImeiMetin');
+  const cikartHedef = document.getElementById('donanimCikartHedef');
+  const cikartAciklama = document.getElementById('donanimCikartAciklama');
+  if(cikartDosya) cikartDosya.value='';
+  if(cikartMetin) cikartMetin.value='';
+  if(cikartHedef) cikartHedef.value='';
+  if(cikartAciklama) cikartAciklama.value='';
+  document.getElementById('donanimCikartSonuc').classList.add('hide');
+  document.getElementById('donanimCikartAdim2').classList.add('hide');
+  await _donanimDepolarYukle();
+  _donanimCikartDepoSecenekleriDoldur();
+  donanimStokModAc('yukle');
+  openModal('donanimExcelModal');
+}
+
+function donanimStokModAc(mod){
+  const yukleBtn = document.getElementById('donanimStokModYukleBtn');
+  const cikartBtn = document.getElementById('donanimStokModCikartBtn');
+  const yukleBlok = document.getElementById('donanimExcelAdim1');
+  const cikartBlok = document.getElementById('donanimCikartForm');
+  const yukleAdim2 = document.getElementById('donanimExcelAdim2');
+  const cikartAdim2 = document.getElementById('donanimCikartAdim2');
+  const baslik = document.getElementById('donanimStokModalBaslik');
+  if(mod==='cikart'){
+    yukleBlok.classList.add('hide'); yukleAdim2.classList.add('hide');
+    cikartBlok.classList.remove('hide');
+    yukleBtn.classList.add('btn-ghost'); yukleBtn.style.background='';
+    cikartBtn.classList.remove('btn-ghost'); cikartBtn.style.background='var(--red)';
+    if(baslik) baslik.textContent = 'Stoktan Çıkart';
+  } else {
+    cikartBlok.classList.add('hide'); cikartAdim2.classList.add('hide');
+    yukleBlok.classList.remove('hide');
+    cikartBtn.classList.add('btn-ghost'); cikartBtn.style.background='';
+    yukleBtn.classList.remove('btn-ghost'); yukleBtn.style.background='var(--blue)';
+    if(baslik) baslik.textContent = 'Stok Yükle/Stoktan Çıkart';
+  }
 }
 
 // Excel'i satır dizisine çevirir (Seri No'yu METİN olarak korur — bilimsel gösterim/baştaki 0 kaybı olmasın)
@@ -1232,6 +1277,246 @@ async function donanimExcelIsle(){
     toast('Hata: '+err.message,'error');
     alert('Yükleme durdu, hiçbir kayıt yazılmamış olabilir:\n\n'+err.message);
   }
+}
+
+/* ============================================================
+   V31.151 — STOKTAN ÇIKART
+   ------------------------------------------------------------
+   Excel (IMEI listesi) VEYA elle IMEI yapıştırma ile, seçilen depodan
+   cihazları 'Çıkarıldı' durumuna alır. IMEI kaydı SİLİNMEZ, kalıcı iz
+   olarak sistemde kalır (cikis_* kolonları). Merkez seçildiyse sadece
+   havuz (katalog) adedi yeniden sayılır; bir KÇM/Cep seçildiyse ayrıca
+   o deponun stok_urunleri satırındaki toplam_adet elle düşürülür —
+   çünkü IMEI'ler mimari gereği yalnızca katalog (Merkez) satırına
+   bağlıdır, KÇM satırları seri taşımaz (bkz. TASARIM_Donanim_Cihaz_
+   Havuzu). "Hangi depodan çıktığı" bu yüzden kullanıcı tarafından
+   seçilir — sistemde IMEI'nin hangi KÇM'de fiziken bulunduğuna dair
+   ayrı bir kayıt yoktur.
+   ============================================================ */
+
+function _donanimCikartDepoSecenekleriDoldur(){
+  const sel = document.getElementById('donanimCikartDepo');
+  if(!sel) return;
+  const mevcut = sel.value;
+  sel.innerHTML = '<option value="">Depo seçin...</option>' +
+    (window._donanimDepolar||[]).map(d=>
+      `<option value="${d.depo_id}">${escapeHTML(_depoAd(d))}</option>`
+    ).join('');
+  if(mevcut) sel.value = mevcut;
+}
+
+async function _donanimCikartImeiListesi(){
+  const dosyaEl = document.getElementById('donanimCikartDosya');
+  const dosya = dosyaEl && dosyaEl.files[0];
+  const metin = document.getElementById('donanimCikartImeiMetin').value||'';
+  let hamListe = [];
+  if(dosya){
+    const rows = await _donanimExcelOku(dosya);
+    const kOf = (row, ...adaylar)=>{ for(const a of adaylar){ if(row[a]!==undefined) return row[a]; } return ''; };
+    hamListe = rows.map(r=> _donanimSeriTemizle(kOf(r,'Seri No','SERİ NO','Seri no','IMEI','imei','Imei')))
+      .filter(Boolean);
+  }
+  const satirlar = metin.split(/[\n,;]+/).map(s=>_donanimSeriTemizle(s)).filter(Boolean);
+  hamListe = hamListe.concat(satirlar);
+  return [...new Set(hamListe)];
+}
+
+async function donanimCikartIsle(){
+  const depoId = parseInt(document.getElementById('donanimCikartDepo').value,10);
+  const sebep  = document.getElementById('donanimCikartSebep').value;
+  const hedef  = (document.getElementById('donanimCikartHedef').value||'').trim();
+  const aciklama = (document.getElementById('donanimCikartAciklama').value||'').trim();
+
+  if(!depoId){ toast('Depo seçin','error'); return; }
+  if(!sebep){ toast('Çıkış sebebi seçin','error'); return; }
+  if(!hedef){ toast('Kime verildiği / nereye gittiği bilgisini girin','error'); return; }
+
+  const tumImei = await _donanimCikartImeiListesi();
+  if(!tumImei.length){ toast('Excel yükleyin veya IMEI listesi yapıştırın','error'); return; }
+
+  document.getElementById('donanimCikartForm').classList.add('hide');
+  document.getElementById('donanimCikartAdim2').classList.remove('hide');
+  document.getElementById('donanimCikartIlerleme').classList.remove('hide');
+  document.getElementById('donanimCikartSonuc').classList.add('hide');
+  const ilerlemeEl = document.getElementById('donanimCikartIlerlemeMetin');
+  const CHUNK = 500;
+
+  try{
+    const depo = (window._donanimDepolar||[]).find(d=>d.depo_id===depoId);
+    if(!depo) throw new Error('Seçilen depo bulunamadı — depo listesi yenilenmiş olabilir, modalı kapatıp tekrar açın.');
+    const merkez = _depoMerkez();
+    const merkezMi = !!(merkez && depo.depo_id===merkez.depo_id);
+
+    ilerlemeEl.textContent = 'IMEI kayıtları aranıyor...';
+    const bulunanMap = {};
+    for(let i=0;i<tumImei.length;i+=CHUNK){
+      const parca = tumImei.slice(i,i+CHUNK);
+      const {data,error} = await sb.from('stok_seri_no')
+        .select('seri_no_id,seri_no,urun_id,durum').in('seri_no',parca);
+      if(error) throw new Error('IMEI arama hatası: '+error.message);
+      (data||[]).forEach(d=>{ bulunanMap[d.seri_no]=d; });
+    }
+
+    const bulunamayan = [], zatenCikarilmis = [], baskaDurum = [], adaylar = [];
+    tumImei.forEach(imei=>{
+      const k = bulunanMap[imei];
+      if(!k){ bulunamayan.push(imei); return; }
+      if(k.durum==='Çıkarıldı'){ zatenCikarilmis.push(imei); return; }
+      if(k.durum!=='Depoda'){ baskaDurum.push({imei, durum:k.durum}); return; }
+      adaylar.push(k);
+    });
+
+    if(!adaylar.length) throw new Error('Çıkarılabilecek (durum=Depoda) hiçbir IMEI bulunamadı.');
+
+    const urunIdler = [...new Set(adaylar.map(a=>a.urun_id))];
+    const urunMap = {};
+    for(let i=0;i<urunIdler.length;i+=200){
+      const parca = urunIdler.slice(i,i+200);
+      const {data,error} = await sb.from('stok_urunleri')
+        .select('urun_id,malzeme_kodu,aciklama').in('urun_id',parca);
+      if(error) throw new Error('Ürün bilgisi çekilirken hata: '+error.message);
+      (data||[]).forEach(d=>{ urunMap[d.urun_id]=d; });
+    }
+
+    let depoSatirMap = {};
+    if(!merkezMi){
+      ilerlemeEl.textContent = 'Depo stok satırları kontrol ediliyor...';
+      const kodlar = [...new Set(adaylar.map(a=> urunMap[a.urun_id]?.malzeme_kodu).filter(Boolean))];
+      if(kodlar.length){
+        const {data,error} = await sb.from('stok_urunleri')
+          .select('urun_id,malzeme_kodu,toplam_adet,rezerve_adet,on_rezerve_adet')
+          .eq('depo_id', depoId).in('malzeme_kodu', kodlar);
+        if(error) throw new Error('Depo stok satırları okunamadı: '+error.message);
+        (data||[]).forEach(d=>{ depoSatirMap[d.malzeme_kodu]=d; });
+      }
+      const grupAdet = {};
+      adaylar.forEach(a=>{
+        const kod = urunMap[a.urun_id]?.malzeme_kodu;
+        if(kod) grupAdet[kod] = (grupAdet[kod]||0)+1;
+      });
+      const yetersiz = [];
+      Object.keys(grupAdet).forEach(kod=>{
+        const satir = depoSatirMap[kod];
+        const mevcutAdet = satir ? (satir.toplam_adet||0) : 0;
+        if(mevcutAdet < grupAdet[kod]) yetersiz.push(`${kod}: depoda ${mevcutAdet} adet, ${grupAdet[kod]} adet çıkarılmak isteniyor`);
+      });
+      if(yetersiz.length) throw new Error('Seçilen depoda yeterli stok yok:\n'+yetersiz.join('\n'));
+    }
+
+    ilerlemeEl.textContent = `${adaylar.length} IMEI çıkarılıyor...`;
+    const simdi = new Date().toISOString();
+    const basarili = [], guncellemeHatasi = [];
+    for(let i=0;i<adaylar.length;i+=CHUNK){
+      const parca = adaylar.slice(i,i+CHUNK);
+      const idler = parca.map(a=>a.seri_no_id);
+      const {data:upd, error:updErr} = await sb.from('stok_seri_no')
+        .update({
+          durum:'Çıkarıldı', cikis_sebep:sebep, cikis_hedef:hedef,
+          cikis_aciklama:aciklama||null, cikis_depo_id:depoId,
+          cikis_tarihi:simdi, cikis_kullanici_id:currentUser.my_id,
+          updated_at:simdi
+        })
+        .in('seri_no_id', idler).eq('durum','Depoda').select('seri_no_id,seri_no,urun_id');
+      if(updErr){ parca.forEach(a=>guncellemeHatasi.push(a)); }
+      else{
+        const okSet = new Set((upd||[]).map(u=>u.seri_no_id));
+        parca.forEach(a=>{ if(okSet.has(a.seri_no_id)) basarili.push(a); else guncellemeHatasi.push(a); });
+      }
+      ilerlemeEl.textContent = `IMEI çıkarılıyor... (${Math.min(i+CHUNK,adaylar.length)}/${adaylar.length})`;
+    }
+
+    ilerlemeEl.textContent = 'Havuz adetleri güncelleniyor...';
+    const etkilenenUrunIdler = [...new Set(basarili.map(a=>a.urun_id))];
+    await _donanimKatalogAdetYenile(etkilenenUrunIdler);
+
+    if(!merkezMi && basarili.length){
+      const grupAdet = {};
+      basarili.forEach(a=>{
+        const kod = urunMap[a.urun_id]?.malzeme_kodu;
+        if(kod) grupAdet[kod] = (grupAdet[kod]||0)+1;
+      });
+      for(const kod of Object.keys(grupAdet)){
+        const satir = depoSatirMap[kod];
+        if(!satir) continue;
+        const yeniAdet = Math.max(0, (satir.toplam_adet||0) - grupAdet[kod]);
+        await sb.from('stok_urunleri').update({toplam_adet:yeniAdet, updated_at:simdi}).eq('urun_id', satir.urun_id);
+      }
+    }
+
+    const depoAdSoyad = _depoAd(depo);
+    const detay = basarili.map(a=>({
+      seri_no:a.seri_no,
+      urun_adi: (urunMap[a.urun_id]&&(urunMap[a.urun_id].aciklama||urunMap[a.urun_id].malzeme_kodu)) || '',
+      malzeme_kodu: (urunMap[a.urun_id]&&urunMap[a.urun_id].malzeme_kodu) || '',
+      depo: depoAdSoyad, sebep, hedef, aciklama, tarih: simdi
+    }));
+    const ozetMap = {};
+    detay.forEach(d=>{
+      const k = d.malzeme_kodu||d.urun_adi;
+      ozetMap[k] = ozetMap[k] || {urun_adi:d.urun_adi, malzeme_kodu:d.malzeme_kodu, adet:0};
+      ozetMap[k].adet++;
+    });
+    const ozet = Object.values(ozetMap);
+    window._donanimCikartDetay = detay;
+    window._donanimCikartOzet = ozet;
+
+    const { error:logErr } = await sb.from('stok_hareketleri').insert({
+      aksiyon: 'Toplu Stok Çıkışı',
+      detay: `${basarili.length} cihaz "${depoAdSoyad}" deposundan çıkarıldı — sebep: ${sebep}, kime: ${hedef}. `+
+             `${bulunamayan.length} IMEI bulunamadı, ${zatenCikarilmis.length} zaten çıkarılmış, ${baskaDurum.length} başka durumda, ${guncellemeHatasi.length} güncelleme hatası.`,
+      user_id: currentUser.my_id,
+      user_ad: currentUser.ad_soyad || String(currentUser.my_id)
+    });
+    if(logErr) console.error('Timeline log hatası:', logErr.message);
+
+    document.getElementById('donanimCikartIlerleme').classList.add('hide');
+    document.getElementById('donanimCikartSonuc').classList.remove('hide');
+    const sorunSayisi = bulunamayan.length + zatenCikarilmis.length + baskaDurum.length + guncellemeHatasi.length;
+    document.getElementById('donanimCikartOzetYazi').innerHTML =
+      `✅ <span style="color:var(--green);">${basarili.length} cihaz çıkarıldı</span>` +
+      (sorunSayisi? ` · ⚠️ <span style="color:var(--amber);">${sorunSayisi} satır işlenemedi</span>` : '') +
+      `<br><span style="font-weight:400;color:var(--text2);font-size:12px;">Depo: ${escapeHTML(depoAdSoyad)} · Sebep: ${escapeHTML(sebep)} · Kime: ${escapeHTML(hedef)}</span>`;
+    document.getElementById('donanimCikartDetayTablo').innerHTML = detay.map(d=>`<tr>
+      <td style="padding:6px;border-bottom:1px solid var(--border);">${escapeHTML(d.seri_no)}</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);">${escapeHTML(d.urun_adi)}</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);">${escapeHTML(d.depo)}</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);">${escapeHTML(d.sebep)}</td>
+    </tr>`).join('') || '<tr><td colspan="4" style="padding:8px;color:var(--text2);">Kayıt yok</td></tr>';
+    document.getElementById('donanimCikartOzetTablo').innerHTML = ozet.map(o=>`<tr>
+      <td style="padding:6px;border-bottom:1px solid var(--border);">${escapeHTML(o.urun_adi)}</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);">${escapeHTML(o.malzeme_kodu)}</td>
+      <td style="padding:6px;border-bottom:1px solid var(--border);text-align:right;">${o.adet}</td>
+    </tr>`).join('') || '<tr><td colspan="3" style="padding:8px;color:var(--text2);">Kayıt yok</td></tr>';
+
+    if(sorunSayisi>0) toast(`Çıkış tamamlandı ama ${sorunSayisi} satır işlenemedi — raporu kontrol edin`,'error');
+    else toast(`${basarili.length} cihaz stoktan çıkarıldı`,'success');
+    loadDonanimListesi();
+  }catch(err){
+    console.error(err);
+    document.getElementById('donanimCikartIlerleme').classList.add('hide');
+    document.getElementById('donanimCikartForm').classList.remove('hide');
+    document.getElementById('donanimCikartAdim2').classList.add('hide');
+    toast('Hata: '+err.message,'error');
+    alert('Çıkış işlemi durdu, kısmen kayıt yazılmış olabilir — raporu ve stok durumunu kontrol edin:\n\n'+err.message);
+  }
+}
+
+function donanimCikartRaporIndir(){
+  const detay = window._donanimCikartDetay || [];
+  const ozet  = window._donanimCikartOzet  || [];
+  if(!detay.length){ toast('İndirilecek rapor yok','error'); return; }
+  const wsDetay = XLSX.utils.json_to_sheet(detay.map(d=>({
+    'IMEI': d.seri_no, 'Ürün': d.urun_adi, 'Malzeme Kodu': d.malzeme_kodu,
+    'Depo': d.depo, 'Sebep': d.sebep, 'Kime Verildi': d.hedef, 'Açıklama': d.aciklama, 'Tarih': d.tarih
+  })));
+  const wsOzet = XLSX.utils.json_to_sheet(ozet.map(o=>({
+    'Ürün': o.urun_adi, 'Malzeme Kodu': o.malzeme_kodu, 'Adet': o.adet
+  })));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsDetay, 'Detay (IMEI)');
+  XLSX.utils.book_append_sheet(wb, wsOzet, 'Özet (Adet)');
+  const tarih = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `stok_cikis_raporu_${tarih}.xlsx`);
 }
 
 // Rapor Excel olarak indirilir (SheetJS ile)

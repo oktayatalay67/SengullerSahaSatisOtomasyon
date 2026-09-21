@@ -1,7 +1,28 @@
 // ============================================================
-// config.js — v1.3.92
+// config.js — v1.3.93
 // Son güncelleme: 2026-09-21
 // Değişiklikler:
+//   v1.3.93 — APP_VERSION → V31.151. YENİ: Donanım — "Excel ile Stok Yükle"
+//     butonu "Stok Yükle/Stoktan Çıkart" oldu (Stok sekmesi). Modal iki
+//     moda ayrıldı: Yükle (davranış değişmedi) ve yeni Çıkart. Çıkart:
+//     Excel IMEI listesi VEYA elle IMEI yapıştırma ile, seçilen depodan
+//     cihazlar kalıcı 'Çıkarıldı' durumuna alınır (IMEI kaydı silinmez,
+//     iz olarak kalır — cikis_sebep/cikis_hedef/cikis_aciklama/
+//     cikis_depo_id/cikis_tarihi/cikis_kullanici_id kolonlarıyla, bkz.
+//     TASARIM_Donanim_Stok_Giris_Cikis_ve_Veri_Sifirlama). Zorunlu alanlar:
+//     depo, sebep (Arıza/Kayıp/İade/Diğer), kime verildi. Merkez seçilirse
+//     havuz adedi yeniden sayılır; KÇM/Cep seçilirse o deponun toplam_adet'i
+//     ayrıca elle düşürülür (IMEI'ler mimari gereği yalnızca katalog
+//     satırına bağlı, KÇM satırı seri taşımaz — "hangi depodan çıktığı"
+//     bu yüzden kullanıcı seçimiyle belirlenir). İşlem sonunda Detay (IMEI
+//     bazlı, hangi depo/sebep/kime) + Özet (ürün×adet, IMEİ'siz) raporu
+//     ekranda gösterilir ve iki sayfalı Excel olarak indirilebilir.
+//     Mükerrer IMEI kontrolü (stok girişinde) zaten tüm sistemi kapsıyordu
+//     (stok_seri_no'da seri_no varlığı durum/depo fark etmeksizin
+//     kontrol ediliyordu) — bu yüzden ayrı bir değişiklik gerekmedi,
+//     'Çıkarıldı' durumundaki IMEI de zaten tekrar girişe kapalı.
+//     UI: Giriş ekranı "Giriş Yap" tuşu mavi→yeşil (Onayla ailesiyle
+//     tutarlı, Oktay'ın talebiyle).
 //   v1.3.92 — APP_VERSION → V31.150. UI FIX: Uygulama genelinde tuş renk/
 //     ikon sistemi kesinleştirildi ve tam tarama yapıldı (~45 düzeltme).
 //     (a) İPTAL/VAZGEÇ — 24 adet düz İptal/Vazgeç tuşuna ✕ ikonu eklendi
@@ -820,7 +841,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.150';
+const APP_VERSION = 'V31.151';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
