@@ -38,8 +38,8 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
    "resmi/kesinleştirici" his) aynı yeşil ailede ama net ayrışıyor. */
 .btn-kaydet{width:100%;padding:15px;background:var(--green);border:none;border-radius:var(--radius-sm);color:#04301f;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px;}
 .btn-kaydet:active{transform:scale(.97);background:#00b87b;}
-.btn-confirm{width:100%;padding:15px;background:#0d1f17;border:2px solid var(--green);border-radius:var(--radius-sm);color:var(--green);font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
-.btn-confirm:active{transform:scale(.97);background:#122a1f;}
+.btn-confirm{width:100%;padding:15px;background:var(--green);border:none;border-radius:var(--radius-sm);color:#04301f;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.btn-confirm:active{transform:scale(.97);background:#00b87b;}
 /* V31.142 FINAL: Sil = tam dolgulu kırmızı (en ağır/kalıcı işlem). Reddet =
    Onayla ile BİREBİR AYNI YAPI (fon siyah, 2px kenarlık, kenarlık=metin
    rengi, aynı font/boyut) — sadece renk kırmızı: fon #000 (tam siyah),
@@ -50,8 +50,8 @@ html,body{height:100%;background:var(--navy);color:var(--text);overflow:hidden;}
 .btn-sil:active{transform:scale(.97);background:var(--red-dark);}
 .btn-reddet{width:100%;padding:15px;background:#000;border:2px solid var(--red);border-radius:var(--radius-sm);color:var(--red);font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
 .btn-reddet:active{transform:scale(.97);background:#1a0508;}
-.btn-iptal{width:100%;padding:15px;background:rgba(224,4,42,.12);border:none;border-radius:var(--radius-sm);color:#fff;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
-.btn-iptal:active{transform:scale(.97);background:rgba(224,4,42,.22);}
+.btn-iptal{width:100%;padding:15px;background:#350f18;border:1.5px solid #ed2345;border-radius:var(--radius-sm);color:#fff;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.btn-iptal:active{transform:scale(.97);background:#42131d;}
 /* V31.137: .btn-ghost kenarlığı rgba(255,255,255,.08) — pratikte görünmüyordu,
    "tuş olduğu anlaşılmıyor" şikayeti buradan kaynaklanıyordu. Kenarlık ve metin
    rengi kontrastı yükseltildi; ghost artık her ekranda buton gibi görünüyor. */

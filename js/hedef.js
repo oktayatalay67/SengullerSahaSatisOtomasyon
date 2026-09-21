@@ -326,8 +326,8 @@ async function loadIptalBekleyenler(){
         <div style="font-size:12px;font-weight:700;margin-bottom:4px;">📦 ${escapeHTML(o.urun_adi||'—')}</div>
         ${o.aciklama?`<div style="font-size:11px;color:var(--text2);margin-bottom:8px;">${escapeHTML(o.aciklama)}</div>`:''}
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-sm" style="flex:1;background:var(--green);color:#000;" onclick="onaylaIptal(${o.opp_id})">✅ Onayla</button>
-          <button class="btn btn-ghost btn-sm" style="flex:1;border-color:var(--red);color:var(--red);" onclick="reddetIptal(${o.opp_id})">❌ Reddet</button>
+          <button class="btn btn-sm" style="flex:1;background:var(--green);color:#04301f;" onclick="onaylaIptal(${o.opp_id})">✅ Onayla</button>
+          <button class="btn btn-sm" style="flex:1;background:#000;border:2px solid var(--red);color:var(--red);" onclick="reddetIptal(${o.opp_id})">❌ Reddet</button>
         </div>
       </div>`).join('');
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${e.message}</div>`;}

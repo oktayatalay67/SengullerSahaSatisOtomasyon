@@ -583,9 +583,10 @@ function setOpportunityConfirm(val){
     xBtn.style.borderColor='';
     xBtn.style.color='';
   } else {
-    xBtn.style.background='rgba(224,4,42,.2)';
-    xBtn.style.borderColor='var(--red)';
-    xBtn.style.color='var(--red)';
+    xBtn.style.background='#350f18';
+    xBtn.style.borderWidth='1.5px';
+    xBtn.style.borderColor='#ed2345';
+    xBtn.style.color='#fff';
     okBtn.style.background='transparent';
     okBtn.style.borderColor='rgba(0,214,143,.4)';
     okBtn.style.color='var(--text2)';

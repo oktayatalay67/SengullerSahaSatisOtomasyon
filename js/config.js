@@ -1,7 +1,102 @@
 // ============================================================
-// config.js — v1.3.85
-// Son güncelleme: 2026-09-20
+// config.js — v1.3.92
+// Son güncelleme: 2026-09-21
 // Değişiklikler:
+//   v1.3.92 — APP_VERSION → V31.150. UI FIX: Uygulama genelinde tuş renk/
+//     ikon sistemi kesinleştirildi ve tam tarama yapıldı (~45 düzeltme).
+//     (a) İPTAL/VAZGEÇ — 24 adet düz İptal/Vazgeç tuşuna ✕ ikonu eklendi
+//     (Donanım, Arama, Anket, Birleşik Onay, Zoptlar, Şifre, Plan, Ürün,
+//     Hedef Kalem, Kullanıcı, Şifre Sıfırla, Müşteri, Kişi, Ziyaret, Yeni
+//     Müşteri, ZPot, Görev modalları). yetkiRolModal İptal yanlış gri
+//     (.navy3) kullanıyordu → kesin İptal rengine çekildi. (b) ONAYLA/
+//     DEVAM/TAMAMLA — kural netleşti: bu aile artık HER ZAMAN Kaydet ile
+//     birebir aynı düz dolgu yeşil (fark sadece ikon). 9 yerde bordürlü
+//     yeşil kalmıştı (Pipeline/Temas/Ziyaret/Müşteri Raporu Getir x4,
+//     Portföy Onayla ve Güncelle, Plan Tamamlandı, Fırsat Onayla, Fırsat
+//     İptal Onayı, TDM Kullanıcı Onayla) → düz yeşile çevrildi; ✓ ikonu
+//     eklendi (Talebi Gönder, Sevkiyatı Tamamla). (c) .btn-green SINIFI
+//     EMEKLİ EDİLDİ — bu sınıf siyah metin kullanıyordu, standart dışıydı;
+//     5+ Kaydet tuşu (Hedef Tümünü Kaydet, Yetki Kaydet, Görev Tipi
+//     Kaydet, Arama Ayar Kaydet, Donanım Süreç Ayar Kaydet) ve Tamamla
+//     tuşu açık background:var(--green);color:#04301f; + ikon ile
+//     değiştirildi. (d) SİSTEMİK KIRMIZI-VARSAYILAN HATASI — class="btn"
+//     olup background tanımlamayan 7 tuş, .btn taban sınıfının kırmızı
+//     varsayılanına düşüyordu (Giriş Yap, Bağlan/Setup, Talebi Gönder,
+//     TDM Mesaj Gönder, Yeni Talep, Aramadan Kapat, Veri Kalitesi Tekrar
+//     Tara) → doğru renklere (mavi/yeşil) çekildi. (e) MOR İHLALİ —
+//     Görev "▶ Başla" tuşundaki satır-içi mor (#a78bfa) kaldırıldı, Oktay
+//     onayıyla yeşile çevrildi (Onayla ailesi). Görev Tipi "Ekle" tuşu
+//     .btn-green'den mavi (Yeni Kayıt ailesi) yapıldı. (f) admin.js —
+//     uygulamaAyarlariSekmeAc() fonksiyonel hatası düzeltildi: sekme
+//     butonları aktif/pasif renk mantığı çalışmıyordu (ikisi de .btn
+//     varsayılanından kırmızı görünüyordu), donanimTabGeç kalıbına göre
+//     açık background ataması eklendi. Dosyalar: index.html, config.js,
+//     gorev.js, donanim.js, arama.js, admin.js, yetki.js, hedef.js,
+//     main.css.
+//   v1.3.91 — APP_VERSION → V31.149. UI FIX: Kapsamlı tam-uygulama tekrar
+//     taraması (Oktay'ın bulduğu 3 hatanın ardından). (a) "Aramadan Kapat"
+//     (arama.js), Görev Tipi düzenleme "İptal" (gorev.js), Donanım Transfer
+//     "İptal" (donanim.js), Portföy "İptal" (index.html) — hepsi eski
+//     format/btn-ghost kullanıyordu → kesin İptal rengine (#350f18 fon,
+//     1.5px #ed2345 çerçeve, beyaz metin) çekildi. (b) Donanım sepet alt
+//     çubuğu "Devam Et →" içi dolu yeşile çevrildi (bordürlü Onayla değil);
+//     aynı çubuktaki İptal'in width:100% taşması düzeltilip tek satıra
+//     alındı. (c) EXCEL TUŞLARI — kuralımız "Excel Aktar/Yükle/İndir =
+//     turuncu outline" idi ama 8 yerde hâlâ yeşil/mavi/gri kalmıştı:
+//     Donanım Rapor Excel İndir, Pipeline/Temas Raporu/Ziyaret Analizi
+//     Excel İndir, Portföy Sonuç Excel İndir, Veri Kalitesi Excel Rapor,
+//     Donanım Izgara Excel, Donanım Excel Raporu İndir, Hedef Giriş Excel
+//     Yükle — hepsi .btn-orange-outline'a çevrildi. (d) MOR RENK İHLALİ —
+//     Arama "Seçilenleri tek görüşmede teyit et" mor kullanıyordu; mor
+//     artık sadece Hızlı Sevkiyat'a özel olduğundan maviye çevrildi.
+//     (e) ONAYLA/TAMAMLA TUŞLARI — 3 yerde düz dolgu yeşil (Kaydet ile
+//     karışan) kullanılmış: Portföy "Onayla ve Güncelle", Plan "Tamamlandı
+//     — Temas Gir", Fırsat "Onayla → Gerçekleşen" — hepsi bordürlü Onayla
+//     stiline (koyu fon + yeşil çerçeve/metin) çevrildi.
+//   v1.3.90 — APP_VERSION → V31.148 (KESİN İPTAL RENGİ). Oktay'ın DeepSeek
+//     ile birebir üretip onayladığı spesifikasyon uygulandı: fon #350f18,
+//     çerçeve 1.5px solid #ed2345, metin beyaz. (a) main.css → .btn-iptal
+//     sınıfı bu değerlere güncellendi — uygulama genelindeki tüm "İptal"
+//     tuşlarını kapsar. (b) temas.js → setOpportunityConfirm() — Temas
+//     ekranı 7. bölüm "Bu temastan fırsat doğdu mu?" sorusunda "Hayır"
+//     seçili durumu aynı değerlere çekildi. "Onayla/Evet" (yeşil) tuşlarına
+//     KESİNLİKLE dokunulmadı, Oktay'ın açık talimatıyla. Not: bir önceki
+//     v1.3.88 kaydında denenen ara format (transparent dolgu + #ff8ca2
+//     metin) yanlıştı, bu kayıtla geçersiz — kalıcı doğru değer budur.
+//   v1.3.87 — APP_VERSION → V31.146. UI FIX: "Yeni Müşteri Kartı" modalı
+//     bir önceki round'da kaçmıştı — İptal (btn-ghost/siyah) → .btn-iptal,
+//     Kaydet (yeşil ama .btn-kaydet değildi) → .btn-kaydet + ikon. Aynı
+//     kaçan kalıp (İptal tuşunun yanlışlıkla .btn-ghost/Kapat stiliyle
+//     kodlanmış olması) tüm index.html'de tarandı: 16 adet daha "İptal"
+//     tuşu .btn-ghost kullanıyordu (Donanım Talep/Yeni Ürün/Dağıtım/Excel/
+//     Sepet/Transfer/Seçim modalleri, Zpot, Şifre Değiştir/Sıfırla, Plan
+//     Düzenle, Ürün, Hedef Kalemi, Kullanıcı, Müşteri Düzenle, HM Zpot
+//     modalleri) → hepsi .btn-iptal'e (hafif kırmızı) çevrildi. Kapat
+//     (yan etkisiz gerçek kapatma) ile İptal (bir işlemi vazgeçme)
+//     arasındaki ayrım artık uygulama genelinde tutarlı.
+//   v1.3.86 — APP_VERSION → V31.145. UI FIX: Oktay'ın 13 maddelik ekran
+//     taramasına göre tüm uygulama genelinde renk standardı süpürmesi.
+//     Düzeltilenler: Donanım Reddet tuşu format hatası; "Devam Et" (Emei
+//     girişi) Onayla rengine; "Ön Rezervasyon Oluştur" Onayla rengine;
+//     Temas/Fırsat/Kontak modallarının "Kaydet" tuşları (hâlâ kırmızı/mavi
+//     kalanlar) .btn-kaydet yeşiline; Donanım Depo&Muhasebe "Excel ile
+//     Stok Yükle" siyah tuşu turuncu outline'a; "Hızlı Sevkiyat Başlat"
+//     çift çerçeveli mor özel tuş; Yeni Görev "İptal" tuşu düzeltmesi;
+//     Arama menüsü "Ara" mavi (yeni kayıt), "Aramadan Kapat" iptal rengi;
+//     Teyit arama "Vazgeç" iptal rengi; Arama analiz "Uygula" yeşil/onay;
+//     Temas raporu "Raporu Getir" yeşil/onay. Ayrıca aynı mantıkla
+//     uygulama genelinde ek taramada bulunan uyumsuzluklar: 9 adet Kaydet
+//     tuşu (Zpot/Plan/Ürün/Hedef Kalemi/Kullanıcı/Müşteri/Fırsat/HM Zpot
+//     modalleri) hâlâ mavi idi → .btn-kaydet yeşiline çevrildi; Veri
+//     Kalitesi "Taramayı Başlat" kırmızıdan maviye (yıkıcı işlem değil);
+//     Veri Kalitesi "Seçilenleri Düzelt" düz yeşilden Onayla çerçeveli
+//     yeşile; Fırsat modalı "İptal Talebi Onayı" (Onayla/Reddet) ve
+//     Müdür Onayı ikinci seçim tuşu (mor → amber, mor artık sadece Hızlı
+//     Sevkiyat'a özel); Görev sapma bildirimi "Evet Kapansın/Hayır
+//     Tamamlanmadı" Onayla/Reddet çerçeveli stiline; Fırsat İptal Onayı
+//     (hedef.js) Onayla/Reddet çerçeveli stiline. Bu round'da CSS
+//     class'ları (main.css) değişmedi — tüm düzeltmeler inline stil veya
+//     mevcut .btn-kaydet/.btn-confirm/.btn-reddet kalıplarıyla yapıldı.
 //   v1.3.85 — APP_VERSION → V31.144. UI FIX: Tüm uygulamadaki "+ Yeni X"
 //     tuşları taranıp maviye çevrildi (Yeni Kayıt = her zaman mavi kuralı):
 //     + Yeni Ürün, + Yeni Kullanıcı, + Yeni Hedef Kalemi, + Yeni Görev
@@ -725,7 +820,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.144';
+const APP_VERSION = 'V31.150';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

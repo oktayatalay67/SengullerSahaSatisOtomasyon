@@ -915,7 +915,7 @@ async function renderAramaAyarlari(){
       <div style="display:flex;gap:8px;">
         <input type="number" min="1" id="aramaAyar_${a.id}" value="${escapeHTML(String(a.deger))}"
           style="flex:1;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">
-        <button class="btn btn-sm btn-green" onclick="aramaAyarKaydet(${a.id})">Kaydet</button>
+        <button class="btn btn-sm" style="background:var(--green);color:#04301f;" onclick="aramaAyarKaydet(${a.id})">💾 Kaydet</button>
       </div>
     </div>`).join('');
 }
@@ -939,7 +939,7 @@ function uygulamaAyarlariSekmeAc(sekme){
     const p=document.getElementById('uygAyarPanel_'+s);
     const b=document.getElementById('uygAyarTab_'+s);
     if(p) p.style.display = (s===sekme) ? '' : 'none';
-    if(b) b.classList.toggle('active', s===sekme);
+    if(b){ b.style.background = (s===sekme) ? 'var(--blue)' : ''; b.classList.toggle('btn-ghost', s!==sekme); }
   });
   if(sekme==='arama')   renderAramaAyarlari();
   if(sekme==='donanim') renderDonanimSurecAyarlari();
@@ -959,7 +959,7 @@ async function renderDonanimSurecAyarlari(){
       <div style="display:flex;gap:8px;">
         <input type="number" min="1" id="donanimSurecAyar_${a.id}" value="${escapeHTML(String(a.deger))}"
           style="flex:1;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">
-        <button class="btn btn-sm btn-green" onclick="donanimSurecAyarKaydet(${a.id})">Kaydet</button>
+        <button class="btn btn-sm" style="background:var(--green);color:#04301f;" onclick="donanimSurecAyarKaydet(${a.id})">💾 Kaydet</button>
       </div>
     </div>`).join('');
 }
@@ -1657,7 +1657,7 @@ async function initVeriKaliteDenetim(){
   }
   const yetkiliCalistir = (typeof hasPerm==='function') ? hasPerm('veri_kalite_calistir') : false;
   el.innerHTML = `
-    <button class="btn" style="width:100%;background:var(--red);margin-bottom:10px;"
+    <button class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;"
       onclick="veriKaliteTaraBaslat()" ${yetkiliCalistir?'':'disabled title="Tarama çalıştırma yetkiniz yok"'}>
       🔍 Veri Kalitesi Taramasını Başlat
     </button>
@@ -1719,11 +1719,11 @@ async function _vkSonucRenderla(sonuc, el){
 
   const yetkiliCalistir = (typeof hasPerm==='function') ? hasPerm('veri_kalite_calistir') : false;
   if(yetkiliCalistir){
-    html += `<button class="btn" style="width:100%;background:var(--navy2);border:1px solid var(--border);margin-bottom:10px;"
+    html += `<button class="btn btn-orange-outline" style="width:100%;margin-bottom:10px;"
       onclick="veriKaliteExcelIndir('${sonuc.taramaId}')">📊 Detaylı Excel Rapor İndir</button>`;
   }
   if(yetkiliOnayla && duzeltilebilirSayisi>0){
-    html += `<button class="btn" style="width:100%;background:var(--green);margin-bottom:10px;"
+    html += `<button class="btn" style="width:100%;background:var(--green);color:#04301f;margin-bottom:10px;"
       onclick="veriKaliteDuzeltUygula('${sonuc.taramaId}')">✅ Seçilenleri Düzelt</button>`;
   }
 
@@ -1751,7 +1751,7 @@ async function _vkSonucRenderla(sonuc, el){
     </tr>`;
   });
   html += '</table></div>';
-  html += `<button class="btn" style="width:100%;margin-top:10px;" onclick="veriKaliteTaraBaslat()">🔍 Tekrar Tara</button>`;
+  html += `<button class="btn" style="width:100%;margin-top:10px;background:var(--blue);" onclick="veriKaliteTaraBaslat()">🔍 Tekrar Tara</button>`;
 
   el.innerHTML = html;
 }

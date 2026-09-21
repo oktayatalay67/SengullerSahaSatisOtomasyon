@@ -839,17 +839,17 @@ function renderGorevKarti(t) {
 
   // v1.2.2: Atandı → Başla butonu (atanan + yöneticisi)
   if (t.durum === 'Atandı' && (benimGorevim || ystRoller.includes(r2))) {
-    aksiyonlar += '<button class="btn btn-green btn-sm" style="padding:5px 10px;font-size:11px;background:#a78bfa;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Başladı\')">▶ Başla</button> ';
+    aksiyonlar += '<button class="btn btn-sm" style="padding:5px 10px;font-size:11px;background:var(--green);color:#04301f;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Başladı\')">✓ Başla</button> ';
   }
 
   if (benimGorevim && !['Atandı','Tamamlandı','Reddedildi','İptal'].includes(t.durum)) {
-    aksiyonlar += '<button class="btn btn-green btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Tamamlandı\')">✓ Tamamla</button> ';
+    aksiyonlar += '<button class="btn btn-sm" style="padding:5px 10px;font-size:11px;background:var(--green);color:#04301f;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Tamamlandı\')">✓ Tamamla</button> ';
     if (t.durum !== 'Beklemede')
       aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Beklemede\')">⏸ Beklet</button> ';
   }
   if (benimatadim && t.durum === 'Tamamlandı' && !t.onay_tarihi) {
-    aksiyonlar += '<button class="btn btn-green btn-sm" style="padding:5px 10px;font-size:11px;background:var(--green);" onclick="gorevOnayla(' + t.task_id + ')">✓ Onayla</button> ';
-    aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;color:var(--red);" onclick="gorevReddet(' + t.task_id + ')">✗ Reddet</button> ';
+    aksiyonlar += '<button class="btn btn-sm" style="padding:5px 10px;font-size:11px;background:var(--green);color:#04301f;" onclick="gorevOnayla(' + t.task_id + ')">✓ Onayla</button> ';
+    aksiyonlar += '<button class="btn btn-sm" style="padding:5px 10px;font-size:11px;background:#000;border:2px solid var(--red);color:var(--red);" onclick="gorevReddet(' + t.task_id + ')">✗ Reddet</button> ';
   }
   if ((benimatadim || ystRoller.includes(r2)) && !['Tamamlandı','İptal'].includes(t.durum)) {
     aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openGorevEdit(' + t.task_id + ')">✏️</button> ';
@@ -948,8 +948,8 @@ async function openGorevDetay(taskId) {
     });
   }
   if (benimatadim && t.durum === 'Tamamlandı' && !t.onay_tarihi) {
-    aksiyonHTML += '<button class="btn" style="background:var(--green);padding:6px 12px;" onclick="gorevOnayla(' + taskId + ');closeModal(\'gorevDetayModal\')">✓ Tamamlandı Onayla</button>';
-    aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;color:var(--red);border-color:var(--red);" onclick="gorevReddet(' + taskId + ');closeModal(\'gorevDetayModal\')">✗ Reddet</button>';
+    aksiyonHTML += '<button class="btn" style="background:var(--green);color:#04301f;padding:6px 12px;" onclick="gorevOnayla(' + taskId + ');closeModal(\'gorevDetayModal\')">✓ Tamamlandı Onayla</button>';
+    aksiyonHTML += '<button class="btn btn-sm" style="padding:6px 12px;background:#000;border:2px solid var(--red);color:var(--red);" onclick="gorevReddet(' + taskId + ');closeModal(\'gorevDetayModal\')">✗ Reddet</button>';
   }
   // v1.2.6: Admin için görev silme — durum/sahiplik farketmez, her zaman görünür
   const isAdmin = (currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';
@@ -1522,8 +1522,8 @@ async function renderGorevTipleriAdmin() {
       '<div class="field"><label style="font-size:11px;">Otomatik Ziyaret Amacı</label>' +
         '<input id="gt_amac_'+t.type_id+'" value="'+escapeHTML(t.ziyaret_amaci||'')+'" placeholder="Boş bırakılabilir" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px;font-size:13px;"></div>' +
       '<div style="display:flex;gap:8px;">' +
-        '<button class="btn btn-green btn-sm" onclick="gorevTipiKaydet('+t.type_id+')">Kaydet</button>' +
-        '<button class="btn btn-ghost btn-sm" onclick="gorevTipiEditKapat('+t.type_id+')">İptal</button>' +
+        '<button class="btn btn-sm" style="background:var(--green);color:#04301f;" onclick="gorevTipiKaydet('+t.type_id+')">💾 Kaydet</button>' +
+        '<button class="btn btn-sm" style="background:#350f18;border:1.5px solid #ed2345;color:#fff;" onclick="gorevTipiEditKapat('+t.type_id+')">✕ İptal</button>' +
       '</div>' +
     '</div>';
   }).join('') || '<div class="empty">Görev tipi yok.</div>';

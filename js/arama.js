@@ -713,8 +713,8 @@ function _aramaKart(t,unvanMap,vMap,mod){
     // degil) erken arama yapmakta teknik bir engel yoktu, sadece arayuz kisitliydi.
     const deadlineSatiri=(mod==='gelecek')?`<div class="visit-my" style="color:var(--text3);">Aranacak: ${t.deadline||'—'}</div>`:'';
     alt=`${deadlineSatiri}<div style="display:flex;gap:6px;margin-top:8px;">
-      <button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="araModalAc(${t.task_id})">📞 Ara</button>
-      <button class="btn btn-sm btn-ghost" style="flex:1;" onclick="aramadanKapatAc(${t.task_id})">Aramadan Kapat</button></div>`;
+      <button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="araModalAc(${t.task_id})">📞 Ara</button>
+      <button class="btn btn-sm" style="flex:1;background:#350f18;border:1.5px solid #ed2345;color:#fff;" onclick="aramadanKapatAc(${t.task_id})">Aramadan Kapat</button></div>`;
   } else {
     // v31.23: her zaman anlamlı bir özet (_aramaSonucOzet) + Detay modalı + yeniden ara
     alt=`<div class="visit-my">${escapeHTML(t.durum)}${t._sonuc?(' · '+escapeHTML(t._sonuc)):''}</div>
@@ -1499,7 +1499,7 @@ function _aramaTelKutuRender(telefon, contactAd){
      </div>`;
 
   const araTus = n.gecerli
-    ? `<a href="tel:${n.e164}" class="btn btn-sm" style="background:var(--green);text-decoration:none;
+    ? `<a href="tel:${n.e164}" class="btn btn-sm" style="background:var(--blue);text-decoration:none;
          display:flex;align-items:center;justify-content:center;min-width:52px;font-size:18px;"
          title="Aramayı başlat">📞</a>`
     : `<div class="btn btn-sm" style="background:var(--navy3);color:var(--text3);min-width:52px;
@@ -2231,7 +2231,7 @@ async function loadAramaAnaliz(){
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
         <input type="date" id="analizBas" value="${ARAMA.analiz.bas}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
         <input type="date" id="analizBit" value="${ARAMA.analiz.bit}" style="flex:1;min-width:120px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;">
-        <button class="btn btn-sm" style="background:var(--blue);" onclick="loadAramaAnaliz()">Uygula</button></div>
+        <button class="btn btn-sm" style="background:var(--green);color:#04301f;" onclick="loadAramaAnaliz()">✓ Uygula</button></div>
       <div class="chip-btn" style="width:100%;text-align:center;margin-bottom:10px;" onclick="_aramaKirilimToggle()">
         📈 MY/FMY Ziyaret Performans Değerlendirme <span id="aramaKirilimOk">▾</span>
       </div>

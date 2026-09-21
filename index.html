@@ -678,7 +678,7 @@
 <!-- SheetJS (repo-içi, js/ altında, DB-bağımsız) — Temas Raporu Excel çıktısı için -->
 <script src="js/xlsx.full.min.js?v=v30.79"></script>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/main.css?v=v31.142">
+<link rel="stylesheet" href="css/main.css?v=v31.150">
 </head>
 <body>
 <div class="toast-container" id="toastContainer" style="z-index:10001;"></div>
@@ -696,7 +696,7 @@
     <div class="auth-title">⚙️ Sistem Ayarları</div>
     <div class="field"><label>Supabase URL</label><input type="url" id="sbUrl"></div>
     <div class="field"><label>Supabase Key</label><input type="password" id="sbKey"></div>
-    <button class="btn" onclick="saveSetup()">Bağlan</button>
+    <button class="btn" style="background:var(--blue);" onclick="saveSetup()">Bağlan</button>
   </div>
 </div>
 
@@ -707,7 +707,7 @@
     <div class="auth-title">Hoş Geldiniz 👋</div>
     <div class="field"><label>E-Posta</label><input type="email" id="loginEmail" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"></div>
     <div class="field"><label>Şifre</label><input type="password" id="loginPass" onkeydown="if(event.key==='Enter')doLogin()"></div>
-    <button class="btn" onclick="doLogin()">Giriş Yap</button>
+    <button class="btn" style="background:var(--blue);" onclick="doLogin()">Giriş Yap</button>
     <div style="text-align:center;margin-top:14px;">
       <span style="font-size:13px;color:var(--text3);">Şifrenizi mi unuttunuz? </span>
       <span style="font-size:13px;color:var(--blue);cursor:pointer;font-weight:600;" onclick="showSifreUnuttum()">Yöneticinize başvurun →</span>
@@ -765,11 +765,11 @@
     <div id="donanimStokSekme" class="hide">
       <!-- V31.97: Hızlı Sevkiyat kısayolu — Stok ve Rezervasyon sekmelerinin en
            üstünde (admin + Stok&Muhasebe = donanim_yonet+donanim_sevk yetkisi). -->
-      <button id="donanimStokSvkKisayol" class="btn" style="width:100%;background:var(--green);color:#04301f;margin-bottom:10px;display:none;" onclick="navTo('pageSevkiyat')">⚡ Hızlı sevkiyat başlat</button>
+      <button id="donanimStokSvkKisayol" class="btn" style="width:100%;background:rgba(168,85,247,.14);border:4px double var(--purple);color:var(--purple);font-weight:800;margin-bottom:10px;display:none;" onclick="navTo('pageSevkiyat')">⚡ Hızlı sevkiyat başlat</button>
       <!-- V31.97: Yeni Ürün Ekle / Excel ile Stok Yükle — eskiden tüm sekmelerde
            sabit üstteydi, artık sadece Stok sekmesinde. -->
       <button id="donanimYeniUrunBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="openDonanimYeniUrun()">+ Yeni Ürün Ekle</button>
-      <button id="donanimExcelYukleBtn" class="btn btn-ghost" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimExcelYukle()">📤 Excel ile Stok Yükle</button>
+      <button id="donanimExcelYukleBtn" class="btn btn-orange-outline" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimExcelYukle()">📤 Excel ile Stok Yükle</button>
       <!-- V31.134: Mutabakat Raporu, Taleplerden Stok sekmesine taşındı —
            stok bütünlüğü konusu, Depolar/Stok ekranına ait bir kontrol. -->
       <button id="donanimMutabakatBtn" class="btn btn-orange" style="width:100%;margin-bottom:10px;display:none;" onclick="openDonanimMutabakat()">📊 Mutabakat Raporu</button>
@@ -801,7 +801,7 @@
            birebir aynı akışı açar (o sekmeye geçip seçim modunu başlatır). -->
       <button id="donanimRezYeniBtn" class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;display:none;" onclick="donanimTabGeç('stok');donanimSecimModunuAc();">📌 Yeni Rezervasyon</button>
       <!-- V31.65: Hızlı Sevkiyat kısayolu — sonucu bu listeye düştüğü için burada -->
-      <button id="donanimRezSvkKisayol" class="btn" style="width:100%;background:var(--green);color:#04301f;margin-bottom:10px;display:none;" onclick="navTo('pageSevkiyat')">⚡ Hızlı sevkiyat başlat</button>
+      <button id="donanimRezSvkKisayol" class="btn" style="width:100%;background:rgba(168,85,247,.14);border:4px double var(--purple);color:var(--purple);font-weight:800;margin-bottom:10px;display:none;" onclick="navTo('pageSevkiyat')">⚡ Hızlı sevkiyat başlat</button>
       <!-- V31.120: Rezervasyon filtreleri — KÇM (yalnız TÜM kapsamında), MY/FMY
            arama, süreç adımı, ödeme tipi, tarih aralığı. -->
       <div id="donanimRezFiltreWrap" style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px;">
@@ -851,7 +851,7 @@
         <label class="izg-sw" title="Kapalıyken havuzda ve depolarda hiç cihazı olmayan ürünler gizlenir">
           <input type="checkbox" id="donanimIzgaraBos" onchange="donanimIzgaraFiltreDegisti()"> Stoğu olmayanlar
         </label>
-        <button class="btn btn-ghost btn-sm" onclick="donanimIzgaraExcel()">📥 Excel</button>
+        <button class="btn btn-orange-outline btn-sm" onclick="donanimIzgaraExcel()">📥 Excel</button>
       </div>
       <div id="donanimIzgaraDurum" class="izg-durum">Değişiklikler hücreden çıkınca kaydedilir.</div>
       <div id="donanimIzgaraKutu" class="izg-kutu"><div id="donanimIzgara"></div></div>
@@ -873,8 +873,8 @@
   <div id="donanimSepetBar" class="hide" style="position:sticky;bottom:0;left:0;right:0;background:var(--navy2);border-top:1px solid var(--border);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
     <span id="donanimSepetSayac" style="font-size:13px;font-weight:700;">0 ürün seçili</span>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost btn-sm" onclick="donanimSecimModunuKapat()">İptal</button>
-      <button class="btn btn-sm" style="background:var(--blue);" onclick="donanimSepetiAc()">Devam Et →</button>
+      <button class="btn-iptal" style="width:auto;flex:0 0 auto;font-size:13px;padding:10px 16px;white-space:nowrap;" onclick="donanimSecimModunuKapat()">✕ İptal</button>
+      <button class="btn btn-sm" style="background:var(--green);color:#04301f;white-space:nowrap;" onclick="donanimSepetiAc()">Devam Et →</button>
     </div>
   </div>
 </div>
@@ -908,8 +908,8 @@
       <textarea id="donanimTalepNot" rows="2" placeholder="Teslim tarihi beklentisi, alternatif model vb." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;resize:vertical;"></textarea>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('donanimTalepModal')">İptal</button>
-      <button class="btn" id="donanimTalepGonderBtn" style="background:var(--blue);" onclick="donanimTalepGonder()">Talebi Gönder</button>
+      <button class="btn-iptal" onclick="closeModal('donanimTalepModal')">✕ İptal</button>
+      <button class="btn" id="donanimTalepGonderBtn" style="background:var(--green);color:#04301f;" onclick="donanimTalepGonder()">✓ Talebi Gönder</button>
     </div>
   </div>
 </div>
@@ -923,7 +923,7 @@
       <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;">
         <input type="checkbox" id="donanimRaporBosGoster" onchange="donanimRaporBosDegisti()"> Stoğu olmayanları da göster
       </label>
-      <button class="btn btn-sm" style="background:var(--green);margin-left:auto;" onclick="donanimRaporExcelIndir()">📥 Excel İndir</button>
+      <button class="btn btn-sm btn-orange-outline" style="margin-left:auto;" onclick="donanimRaporExcelIndir()">📥 Excel İndir</button>
     </div>
     <div id="donanimRaporGovde" style="max-height:60vh;overflow-y:auto;"></div>
     <div style="margin-top:10px;">
@@ -943,7 +943,7 @@
     <div class="field"><label>Başlangıç Adedi</label><input type="number" id="donanimYeniUrunAdet" min="0" step="1" value="0"></div>
     <label class="donanim-form-check"><input type="checkbox" id="donanimYeniUrunOrtak"> Tüm KÇM'lerde ortak stok olarak göster</label>
     <div class="donanim-modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('donanimYeniUrunModal')">İptal</button>
+      <button class="btn-iptal" onclick="closeModal('donanimYeniUrunModal')">✕ İptal</button>
       <button class="btn" id="donanimYeniUrunKaydetBtn" style="background:var(--blue);" onclick="donanimYeniUrunKaydet()">Ürünü Ekle</button>
     </div>
   </div>
@@ -974,8 +974,8 @@
     <div id="donanimDagitimSatirlar" style="max-height:46vh;overflow-y:auto;"></div>
     <div id="donanimDagitimToplam"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('donanimDagitimModal')">İptal</button>
-      <button class="btn" id="donanimDagitimKaydetBtn" style="background:var(--blue);" onclick="donanimDagitimKaydet()">Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('donanimDagitimModal')">✕ İptal</button>
+      <button class="btn-kaydet" id="donanimDagitimKaydetBtn" onclick="donanimDagitimKaydet()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -996,7 +996,7 @@
         <input type="file" id="donanimExcelDosya" accept=".xlsx,.xls" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button class="btn btn-ghost" onclick="closeModal('donanimExcelModal')">İptal</button>
+        <button class="btn-iptal" onclick="closeModal('donanimExcelModal')">✕ İptal</button>
         <button class="btn" style="background:var(--blue);" onclick="donanimExcelIsle()">İşle</button>
       </div>
     </div>
@@ -1018,7 +1018,7 @@
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <button class="btn btn-ghost" onclick="closeModal('donanimExcelModal')">Kapat</button>
-          <button class="btn" style="background:var(--green);" onclick="donanimExcelRaporIndir()">📥 Raporu İndir (Excel)</button>
+          <button class="btn btn-orange-outline" onclick="donanimExcelRaporIndir()">📥 Raporu İndir (Excel)</button>
         </div>
       </div>
     </div>
@@ -1074,8 +1074,8 @@
       <textarea id="donanimSepetNot" rows="2" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px;"></textarea>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('donanimSepetModal')">İptal</button>
-      <button class="btn" style="background:var(--blue);" onclick="donanimSepetGonder()">📌 Ön Rezervasyon Oluştur</button>
+      <button class="btn-iptal" onclick="closeModal('donanimSepetModal')">✕ İptal</button>
+      <button class="btn" style="background:var(--green);color:#04301f;" onclick="donanimSepetGonder()">📌 Ön Rezervasyon Oluştur</button>
     </div>
   </div>
 </div>
@@ -1111,7 +1111,7 @@
     <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;">Açıklama (opsiyonel)</label>
     <textarea id="donanimTransferAciklama" rows="2" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;"></textarea>
     <button class="btn" style="width:100%;background:var(--blue);margin-top:12px;" onclick="donanimTransferKaydet()">Talep Oluştur</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('donanimTransferModal')">İptal</button>
+    <button class="btn-iptal" style="margin-top:8px;" onclick="closeModal('donanimTransferModal')">✕ İptal</button>
   </div>
 </div>
 
@@ -1140,8 +1140,8 @@
         <button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="donanimRezDuzenleCihazEkle()">Ekle</button>
       </div>
     </div>
-    <button class="btn" style="width:100%;background:var(--green);margin-top:12px;" onclick="donanimRezDuzenleKaydet()">Kaydet</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('donanimRezDuzenleModal')">Vazgeç</button>
+    <button class="btn-kaydet" style="margin-top:12px;" onclick="donanimRezDuzenleKaydet()">💾 Kaydet</button>
+    <button class="btn-iptal" style="margin-top:8px;" onclick="closeModal('donanimRezDuzenleModal')">✕ Vazgeç</button>
   </div>
 </div>
 
@@ -1195,8 +1195,8 @@
     <div class="modal-title">IMEI Eşleştirme</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Cihazları barcode ile okutun veya IMEI arayıp seçin. Kısmi eşleştirme yapılabilir.</div>
     <div id="donanimImeiIcerik" style="max-height:60vh;overflow-y:auto;"></div>
-    <button class="btn" style="width:100%;background:var(--green);margin-top:12px;" onclick="donanimImeiKaydet()">Kaydet</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('donanimImeiModal')">Vazgeç</button>
+    <button class="btn-kaydet" style="margin-top:12px;" onclick="donanimImeiKaydet()">💾 Kaydet</button>
+    <button class="btn-iptal" style="margin-top:8px;" onclick="closeModal('donanimImeiModal')">✕ Vazgeç</button>
   </div>
 </div>
 
@@ -1218,7 +1218,7 @@
           <div id="donanimSvkOzet"></div>
           <div id="donanimSvkZincir"></div>
           <div id="donanimSvkUyari"></div>
-          <button class="btn" id="donanimSvkTamamlaBtn" style="background:var(--green);color:#04301f;" onclick="donanimSvkTamamla()" disabled>Sevkiyatı tamamla</button>
+          <button class="btn" id="donanimSvkTamamlaBtn" style="background:var(--green);color:#04301f;" onclick="donanimSvkTamamla()" disabled>✓ Sevkiyatı tamamla</button>
         </aside>
       </div>
   </div>
@@ -1469,7 +1469,7 @@
       </div>
       <!-- /GÖREV TİPİ DİNAMİK BLOK -->
 
-      <button class="btn" onclick="saveTemas()" id="saveTemasBtn">💾 Teması Kaydet</button>
+      <button class="btn-kaydet" onclick="saveTemas()" id="saveTemasBtn">💾 Teması Kaydet</button>
     </div>
   </div>
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Yeni temas kaydedin.</div>
@@ -1561,7 +1561,7 @@
         </div>
       </div>
 
-      <button class="btn" onclick="saveFirsatForm()" style="margin:0 14px 20px;width:calc(100% - 28px);">💾 Fırsatı Kaydet</button>
+      <button class="btn-kaydet" onclick="saveFirsatForm()" style="margin:0 14px 20px;width:calc(100% - 28px);">💾 Fırsatı Kaydet</button>
     </div>
   </div>
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Yeni fırsat kaydedin.</div>
@@ -1733,8 +1733,8 @@
         <div class="chip-btn" onclick="setPrPeriod('hafta',this)">Bu Hafta</div>
         <div class="chip-btn" onclick="setPrPeriod('ay',this)">Bu Ay</div>
       </div>
-      <button class="btn" onclick="fetchPipelineReport()" style="width:100%;background:var(--purple);">🔍 Raporu Getir</button>
-      <button id="prExcelBtn" onclick="downloadPipelineExcel()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir</button>
+      <button class="btn" onclick="fetchPipelineReport()" style="width:100%;background:var(--green);color:#04301f;">🔍 Raporu Getir</button>
+      <button id="prExcelBtn" onclick="downloadPipelineExcel()" class="hide btn-orange-outline" style="width:100%;margin-top:8px;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">📥 Excel İndir</button>
     </div>
     <!-- Özet -->
     <div id="prSummary" class="hide" style="padding:0 14px 8px;">
@@ -1825,8 +1825,8 @@
           <div class="chip-btn" onclick="setRepPeriod('hafta',this)">Bu Hafta</div>
           <div class="chip-btn" onclick="setRepPeriod('ay',this)">Bu Ay</div>
         </div>
-        <button class="btn" onclick="fetchAdvancedReport()" style="width:100%;background:var(--blue);">🔍 Raporu Getir</button>
-        <button id="repExcelBtn" onclick="downloadTemasExcel()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir (2 Sekme: Detay + MY Özet)</button>
+        <button class="btn" onclick="fetchAdvancedReport()" style="width:100%;background:var(--green);color:#04301f;">🔍 Raporu Getir</button>
+        <button id="repExcelBtn" onclick="downloadTemasExcel()" class="hide btn-orange-outline" style="width:100%;margin-top:8px;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">📥 Excel İndir (2 Sekme: Detay + MY Özet)</button>
       </div>
       <div id="reportListContent"><div class="empty">Filtreleyin.</div></div>
     </div>
@@ -1839,10 +1839,10 @@
           <div><label style="font-size:11px;color:var(--text3);font-weight:700;">Bitiş</label><input type="date" id="zaBitis" style="width:100%;margin-top:4px;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;"></div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button class="btn" onclick="ziyaretAnaliziGetir()" style="background:var(--blue);">🔍 Raporu Getir</button>
+          <button class="btn" onclick="ziyaretAnaliziGetir()" style="background:var(--green);color:#04301f;">🔍 Raporu Getir</button>
           <span id="zaProg" style="font-size:11px;color:var(--text3);"></span>
         </div>
-        <button id="zaExcelBtn" onclick="ziyaretAnaliziExcelIndir()" class="hide" style="width:100%;margin-top:8px;background:var(--green);border:none;border-radius:8px;padding:10px;color:#fff;font-weight:700;cursor:pointer;">📥 Excel İndir (5 Sekme)</button>
+        <button id="zaExcelBtn" onclick="ziyaretAnaliziExcelIndir()" class="hide btn-orange-outline" style="width:100%;margin-top:8px;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">📥 Excel İndir (5 Sekme)</button>
       </div>
 
       <!-- Özet kutuları -->
@@ -1968,7 +1968,7 @@
         </select>
       </div>
 
-      <button class="btn" onclick="fetchMusteriRapor()" style="width:100%;background:var(--blue);">🔍 Raporu Getir</button>
+      <button class="btn" onclick="fetchMusteriRapor()" style="width:100%;background:var(--green);color:#04301f;">🔍 Raporu Getir</button>
     </div>
 
     <!-- Özet Kartlar -->
@@ -2209,7 +2209,7 @@
       <input type="hidden" id="talepOnc" value="Normal">
     </div>
 
-    <button class="btn" style="width:100%;padding:14px;font-size:15px;" onclick="saveTalep()">📤 Talebi Gönder</button>
+    <button class="btn" style="width:100%;padding:14px;font-size:15px;background:var(--green);color:#04301f;" onclick="saveTalep()">✓ Talebi Gönder</button>
   </div>
 </div>
 
@@ -2220,7 +2220,7 @@
     <div class="topbar-title">Uygulama Taleplerim</div>
   </div>
   <div class="scroll" style="padding:16px;">
-    <button class="btn" style="width:100%;padding:14px;font-size:15px;margin-bottom:16px;" onclick="navTo('pageTalepGir')">➕ Yeni Talep</button>
+    <button class="btn" style="width:100%;padding:14px;font-size:15px;margin-bottom:16px;background:var(--blue);" onclick="navTo('pageTalepGir')">➕ Yeni Talep</button>
     <div id="taleplerimList"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 </div>
@@ -2256,8 +2256,8 @@
     <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Bu kaydı arama yapmadan kapatıyorsunuz. Neden:</div>
     <div class="sonuc-grid" id="aramadanKapatNedenler"></div>
     <div class="field" style="margin-top:10px;"><label>Not (opsiyonel)</label><textarea id="aramadanKapatNot"></textarea></div>
-    <button class="btn" style="width:100%;margin-top:8px;" onclick="aramadanKapatKaydet()">Kapat</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('aramadanKapatModal')">Vazgeç</button>
+    <button class="btn" style="width:100%;margin-top:8px;background:var(--green);color:#04301f;" onclick="aramadanKapatKaydet()">✓ Kapat</button>
+    <button class="btn-iptal" style="margin-top:8px;" onclick="closeModal('aramadanKapatModal')">✕ Vazgeç</button>
   </div>
 </div>
 
@@ -2275,7 +2275,7 @@
     <div id="aramaAnketTel" style="margin-bottom:10px;"></div>
     <div id="aramaAnketGovde" style="max-height:58vh;overflow-y:auto;"></div>
     <div id="aramaAnketAksiyon" style="margin-top:10px;"></div>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('aramaAnketModal')">Vazgeç</button>
+    <button class="btn-iptal" style="margin-top:8px;" onclick="closeModal('aramaAnketModal')">✕ Vazgeç</button>
   </div>
 </div>
 
@@ -2286,8 +2286,8 @@
     <div class="modal-handle"></div>
     <div class="modal-title">🔗 Birleşik Arama</div>
     <div id="birlesikGovde" style="max-height:52vh;overflow-y:auto;margin-bottom:10px;"></div>
-    <button class="btn" style="width:100%;background:var(--purple);" onclick="araBirlesikBasla()">Seçilenleri tek görüşmede teyit et</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('birlesikOnayModal')">Vazgeç</button>
+    <button class="btn" style="width:100%;background:var(--blue);" onclick="araBirlesikBasla()">Seçilenleri tek görüşmede teyit et</button>
+    <button class="btn-iptal" style="margin-top:8px;" onclick="closeModal('birlesikOnayModal')">✕ Vazgeç</button>
   </div>
 </div>
 
@@ -2351,7 +2351,7 @@
         <option value="">— Seçin (isteğe bağlı) —</option>
       </select>
     </div>
-    <button class="btn btn-green" onclick="gorevTipiEkle()">Ekle</button>
+    <button class="btn" style="background:var(--blue);" onclick="gorevTipiEkle()">+ Ekle</button>
   </div>
   <div class="section-title">Mevcut Görev Tipleri</div>
   <div id="gorevTipleriListesi" style="margin-top:8px;"></div>
@@ -2456,8 +2456,8 @@
         <select id="zoptModalParentSelect" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;box-sizing:border-box;"></select>
       </div>
       <div style="display:flex;gap:8px;">
-        <button onclick="closeModal('zoptModal')" class="btn btn-ghost" style="flex:1;">İptal</button>
-        <button onclick="zoptModalKaydet()" class="btn" style="flex:1;background:var(--blue);">Kaydet</button>
+        <button onclick="closeModal('zoptModal')" class="btn-iptal" style="flex:1;">✕ İptal</button>
+        <button onclick="zoptModalKaydet()" class="btn-kaydet" style="flex:1;">💾 Kaydet</button>
       </div>
     </div>
   </div>
@@ -2575,10 +2575,10 @@
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
       <select id="hedefGirisAy" style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-size:13px;flex:1;min-width:140px;" onchange="loadHedefGirisTable()"></select>
       <button class="btn btn-ghost btn-sm" onclick="downloadHedefTemplate()">⬇️ Şablon İndir</button>
-      <label class="btn btn-ghost btn-sm" style="cursor:pointer;">📤 Excel Yükle<input type="file" accept=".csv" style="display:none;" onchange="uploadHedefExcel(this)"></label>
+      <label class="btn btn-orange-outline btn-sm" style="cursor:pointer;">📤 Excel Yükle<input type="file" accept=".csv" style="display:none;" onchange="uploadHedefExcel(this)"></label>
     </div>
     <div id="hedefGirisTable"></div>
-    <button class="btn btn-green" onclick="saveAllHedefler()" style="margin-top:14px;display:none;" id="hedefSaveBtn">💾 Tümünü Kaydet</button>
+    <button class="btn" style="background:var(--green);color:#04301f;margin-top:14px;display:none;" onclick="saveAllHedefler()" id="hedefSaveBtn">💾 Tümünü Kaydet</button>
   </div>
   <div class="app-footer">&#169; Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Hedef Girişi</div>
 </div>
@@ -2608,14 +2608,14 @@
         <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">Önizleme — Değişecek Kayıtlar</div>
         <div id="portfoyOnizlemeTablo" style="overflow-x:auto;margin-bottom:12px;max-height:400px;overflow-y:auto;"></div>
         <div style="display:flex;gap:8px;">
-          <button class="btn" onclick="portfoyGuncelle()" style="flex:1;background:var(--green);">&#10003; Onayla ve Güncelle</button>
-          <button class="btn btn-ghost" onclick="portfoyIptal()" style="flex:1;">&#10005; İptal</button>
+          <button class="btn" onclick="portfoyGuncelle()" style="flex:1;background:var(--green);color:#04301f;">&#10003; Onayla ve Güncelle</button>
+          <button class="btn" onclick="portfoyIptal()" style="flex:1;background:#350f18;border:1.5px solid #ed2345;color:#fff;">&#10005; İptal</button>
         </div>
       </div>
       <div id="portfoySonuc" class="hide">
         <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">Güncelleme Tamamlandı</div>
         <div id="portfoySonucTablo" style="overflow-x:auto;margin-bottom:12px;max-height:400px;overflow-y:auto;"></div>
-        <button class="btn" onclick="portfoyExcelIndir()" style="width:100%;background:var(--blue);">&#8595; Sonuç Excel İndir</button>
+        <button class="btn btn-orange-outline" onclick="portfoyExcelIndir()" style="width:100%;">&#8595; Sonuç Excel İndir</button>
       </div>
     </div>
   </div>
@@ -2656,7 +2656,7 @@
       <input type="password" id="sifreYeniTekrar" placeholder="Yeni şifre tekrar..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" id="sifreIptalBtn" onclick="closeModal('sifreModal')">İptal</button>
+      <button class="btn-iptal" id="sifreIptalBtn" onclick="closeModal('sifreModal')">✕ İptal</button>
       <button class="btn" onclick="saveSifre()" style="background:var(--blue);">🔑 Değiştir</button>
     </div>
   </div>
@@ -2669,10 +2669,10 @@
     <div class="modal-title">Plan Düzenle</div>
     <div id="editPlanForm"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
-      <button class="btn btn-ghost" id="editPlanCancelBtn" onclick="closeModal('editPlanModal')">İptal</button>
-      <button class="btn" id="editPlanUpdateBtn" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-iptal" id="editPlanCancelBtn" onclick="closeModal('editPlanModal')">✕ İptal</button>
+      <button class="btn-kaydet" id="editPlanUpdateBtn">💾 Kaydet</button>
     </div>
-    <button class="btn" id="editPlanCompleteBtn" style="width:100%;margin-top:8px;background:var(--green);">✅ Tamamlandı — Temas Gir</button>
+    <button class="btn" id="editPlanCompleteBtn" style="width:100%;margin-top:8px;background:var(--green);color:#04301f;">✅ Tamamlandı — Temas Gir</button>
   </div>
 </div>
 
@@ -2708,8 +2708,8 @@
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('modalUrun')">İptal</button>
-      <button class="btn" onclick="saveUrun()" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('modalUrun')">✕ İptal</button>
+      <button class="btn-kaydet" onclick="saveUrun()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -2740,8 +2740,8 @@
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('modalHedefKalem')">İptal</button>
-      <button class="btn" onclick="saveHedefKalem()" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('modalHedefKalem')">✕ İptal</button>
+      <button class="btn-kaydet" onclick="saveHedefKalem()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -2790,8 +2790,8 @@
       <input type="text" id="yrAciklama" placeholder="Rolün kısa tanımı..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="btn" onclick="closeModal('yetkiRolModal')" style="background:var(--navy3);color:var(--text2);">İptal</button>
-      <button class="btn btn-green" onclick="yetkiRolKaydet()">Kaydet</button>
+      <button class="btn" onclick="closeModal('yetkiRolModal')" style="background:#350f18;border:1.5px solid #ed2345;color:#fff;">✕ İptal</button>
+      <button class="btn" style="background:var(--green);color:#04301f;" onclick="yetkiRolKaydet()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -2869,8 +2869,8 @@
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('modalKullanici')">İptal</button>
-      <button class="btn" id="kullSaveBtn" onclick="saveKullanici()" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('modalKullanici')">✕ İptal</button>
+      <button class="btn-kaydet" id="kullSaveBtn" onclick="saveKullanici()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -2892,7 +2892,7 @@
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" id="sifreSifirlaIptalBtn" onclick="closeModal('modalSifreSifirla')">İptal</button>
+      <button class="btn-iptal" id="sifreSifirlaIptalBtn" onclick="closeModal('modalSifreSifirla')">✕ İptal</button>
       <button class="btn" onclick="saveSifreSifirla()" style="background:var(--blue);">🔑 Sıfırla</button>
     </div>
   </div>
@@ -3053,8 +3053,8 @@
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('custEditModal')">İptal</button>
-      <button class="btn" id="custEditSaveBtn" onclick="submitCustUpdate()" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('custEditModal')">✕ İptal</button>
+      <button class="btn-kaydet" id="custEditSaveBtn" onclick="submitCustUpdate()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -3092,8 +3092,8 @@
       <div id="newContactTipleri" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('newContactModal')">İptal</button>
-      <button class="btn" onclick="saveNewContact()" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('newContactModal')">✕ İptal</button>
+      <button class="btn-kaydet" onclick="saveNewContact()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -3109,8 +3109,8 @@
     <div id="editVisitForm"></div>
     <div id="editVisitLogSection" style="margin-top:12px;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
-      <button class="btn btn-ghost" onclick="closeModal('editVisitModal')">İptal</button>
-      <button class="btn" onclick="updateVisit()" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('editVisitModal')">✕ İptal</button>
+      <button class="btn-kaydet" onclick="updateVisit()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -3143,7 +3143,7 @@
     <!-- Evrak Onay Bölümü -->
     <div id="oppEvrakOnayDiv" style="display:none;margin-bottom:12px;padding:12px;background:rgba(0,214,143,0.08);border:1px solid var(--green);border-radius:10px;">
       <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px;">✅ Evrak Onayı</div>
-      <button id="oppEvrakOnayBtn" class="btn" style="width:100%;background:var(--green);">Onayla → Gerçekleşen</button>
+      <button id="oppEvrakOnayBtn" class="btn" style="width:100%;background:var(--green);color:#04301f;">Onayla → Gerçekleşen</button>
     </div>
 
     <!-- Müdür Onay Bölümü -->
@@ -3152,7 +3152,7 @@
       <div id="oppMudurOnayInfo" style="font-size:11px;color:var(--text2);margin-bottom:8px;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <button id="oppMudurOnayGiren" class="btn" style="font-size:12px;background:var(--blue);"></button>
-        <button id="oppMudurOnaySahip" class="btn" style="font-size:12px;background:var(--purple);"></button>
+        <button id="oppMudurOnaySahip" class="btn" style="font-size:12px;background:var(--amber);color:#3d2900;"></button>
       </div>
     </div>
 
@@ -3160,8 +3160,8 @@
     <div id="oppIptalOnayDiv" style="display:none;margin-bottom:12px;padding:12px;background:rgba(224,4,42,0.08);border:1px solid var(--red);border-radius:10px;">
       <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px;">🚫 İptal Talebi Onayı</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button id="oppIptalOnayBtn" class="btn" style="background:var(--red);font-size:12px;">✓ Onayla</button>
-        <button id="oppIptalRedBtn" class="btn btn-ghost" style="font-size:12px;">✕ Reddet</button>
+        <button id="oppIptalOnayBtn" class="btn" style="background:var(--green);color:#04301f;font-size:12px;">✓ Onayla</button>
+        <button id="oppIptalRedBtn" class="btn" style="background:#000;border:2px solid var(--red);color:var(--red);font-size:12px;">✕ Reddet</button>
       </div>
     </div>
 
@@ -3243,7 +3243,7 @@
     <!-- Alt butonlar -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
       <button class="btn btn-ghost" onclick="closeModal('oppModal')">Kapat</button>
-      <button class="btn" id="oppSaveBtn" onclick="saveOpp()" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-kaydet" id="oppSaveBtn" onclick="saveOpp()">💾 Kaydet</button>
     </div>
 
     <!-- İptal başlat butonu -->
@@ -3285,8 +3285,8 @@
       </select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="closeModal('yeniMusteriModal')">İptal</button>
-      <button class="btn" onclick="saveYeniMusteri()" style="background:var(--green);">Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('yeniMusteriModal')">✕ İptal</button>
+      <button class="btn-kaydet" onclick="saveYeniMusteri()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -3332,9 +3332,9 @@
     <!-- Kullanıcı onay paneli -->
     <div id="tdmOnayPanel" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:rgba(0,214,143,.06);">
       <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px;">✅ Tamamlandı — Onaylıyor musunuz?</div>
-      <button onclick="tdmKullaniciOnayla()" class="btn" style="width:100%;background:var(--green);font-size:12px;margin-bottom:6px;">✔ Evet, Kapansın</button>
+      <button onclick="tdmKullaniciOnayla()" class="btn" style="width:100%;background:var(--green);color:#04301f;font-size:12px;margin-bottom:6px;">✔ Evet, Kapansın</button>
       <textarea id="tdmRedNot" placeholder="Yapılmayan kısımları açıklayın..." rows="2" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:12px;resize:none;box-sizing:border-box;margin-bottom:6px;"></textarea>
-      <button onclick="tdmKullaniciReddet()" class="btn btn-ghost" style="width:100%;color:var(--red);border-color:var(--red);font-size:12px;">✕ Hayır, Tamamlanmadı</button>
+      <button onclick="tdmKullaniciReddet()" class="btn" style="width:100%;background:#000;border:2px solid var(--red);color:var(--red);font-size:12px;">✕ Hayır, Tamamlanmadı</button>
     </div>
     <!-- Mesajlar -->
     <div id="tdmMesajlar" style="flex:1;overflow-y:auto;padding:10px 16px;min-height:80px;"></div>
@@ -3342,7 +3342,7 @@
     <div style="padding:10px 16px 24px;border-top:1px solid var(--border);flex-shrink:0;">
       <textarea id="tdmMesajInp" placeholder="Mesaj yaz..." rows="2"
         style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;resize:none;box-sizing:border-box;margin-bottom:6px;"></textarea>
-      <button onclick="tdmMesajGonder()" class="btn" style="width:100%;font-size:13px;">📤 Gönder</button>
+      <button onclick="tdmMesajGonder()" class="btn" style="width:100%;font-size:13px;background:var(--blue);">📤 Gönder</button>
     </div>
   </div>
 </div>
@@ -3460,8 +3460,8 @@
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;">
-      <button class="btn btn-ghost" onclick="closeModal('hmZpotModal')">İptal</button>
-      <button class="btn" id="hmZpotSaveBtn" onclick="hmZpotKaydet()" style="background:var(--blue);">💾 Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('hmZpotModal')">✕ İptal</button>
+      <button class="btn-kaydet" id="hmZpotSaveBtn" onclick="hmZpotKaydet()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -3486,8 +3486,8 @@
     <div class="modal-title">Görev Oluştur</div>
     <div id="gorevFormIcerik" class="scroll" style="max-height:65vh;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0 0;">
-      <button class="btn btn-ghost" onclick="closeModal('gorevFormModal')">İptal</button>
-      <button class="btn btn-green" onclick="saveGorev()">Kaydet</button>
+      <button class="btn-iptal" onclick="closeModal('gorevFormModal')">✕ İptal</button>
+      <button class="btn-kaydet" onclick="saveGorev()">💾 Kaydet</button>
     </div>
   </div>
 </div>
@@ -3518,22 +3518,22 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.144"></script>
-<script src="js/yetki.js?v=v31.135"></script>
+<script src="js/config.js?v=v31.150"></script>
+<script src="js/yetki.js?v=v31.150"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
-<script src="js/donanim.js?v=v31.136"></script>
+<script src="js/donanim.js?v=v31.150"></script>
 <script src="js/utils.js?v=v31.101"></script>
 <script src="js/auth.js?v=v31.112"></script>
-<script src="js/gorev.js?v=v31.104"></script>
+<script src="js/gorev.js?v=v31.150"></script>
 <script src="js/talep.js?v=v31.34"></script>
-<script src="js/temas.js?v=v31.104"></script>
-<script src="js/arama.js?v=v31.106"></script>
+<script src="js/temas.js?v=v31.148"></script>
+<script src="js/arama.js?v=v31.150"></script>
 <script src="js/firsat.js?v=v31.34"></script>
 <script src="js/duyuru.js?v=v31.102"></script>
 <script src="js/musteri.js?v=v31.103"></script>
-<script src="js/hedef.js?v=v31.96"></script>
-<script src="js/admin.js?v=v31.113"></script>
+<script src="js/hedef.js?v=v31.150"></script>
+<script src="js/admin.js?v=v31.150"></script>
 <script src="js/veriyonetimi.js?v=v31.69"></script>
 <script src="js/rapor.js?v=v31.105"></script>
 

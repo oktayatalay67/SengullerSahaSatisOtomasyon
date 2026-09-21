@@ -1764,10 +1764,10 @@ async function loadDonanimTransferListesi(){
     const canOnay2  = t.durum==='Aşama 2 Bekliyor' && hasPerm('donanim_transfer_onay2');
     const canIptal  = ['Aşama 1 Bekliyor','Aşama 2 Bekliyor'].includes(t.durum) && t.talep_eden_id===currentUser.my_id;
     let butonlar='';
-    if(canOnay1) butonlar += `<button class="btn btn-sm" style="flex:1;background:#27ae60;" onclick="donanimTransferOnay1(${t.id})">1. Onay</button>`;
-    if(canOnay2) butonlar += `<button class="btn btn-sm" style="flex:1;background:#27ae60;" onclick="donanimTransferOnay2(${t.id})">2. Onay (Taşı)</button>`;
-    if(canOnay1||canOnay2) butonlar += `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="donanimTransferReddet(${t.id})">Reddet</button>`;
-    if(canIptal) butonlar += `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="donanimTransferIptal(${t.id})">İptal</button>`;
+    if(canOnay1) butonlar += `<button class="btn btn-sm" style="flex:1;background:var(--green);color:#04301f;" onclick="donanimTransferOnay1(${t.id})">✓ 1. Onay</button>`;
+    if(canOnay2) butonlar += `<button class="btn btn-sm" style="flex:1;background:var(--green);color:#04301f;" onclick="donanimTransferOnay2(${t.id})">✓ 2. Onay (Taşı)</button>`;
+    if(canOnay1||canOnay2) butonlar += `<button class="btn btn-sm" style="flex:1;background:#000;border:2px solid var(--red);color:var(--red);" onclick="donanimTransferReddet(${t.id})">✕ Reddet</button>`;
+    if(canIptal) butonlar += `<button class="btn btn-sm" style="flex:1;background:#350f18;border:1.5px solid #ed2345;color:#fff;" onclick="donanimTransferIptal(${t.id})">✕ İptal</button>`;
     const butonSatiri = butonlar ? `<div style="display:flex;gap:6px;margin-top:8px;">${butonlar}</div>` : '';
     return `<div class="visit-card" style="margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
@@ -2241,12 +2241,12 @@ async function loadDonanimRezervasyonlar(){
         ${surecBar}
       </div>
       ${(buOnaylayabilir||buMukerrerOnay||buIptalEdebilir||buDuzenleyebilir||buEmeiGiris||buEmeiDevam||buFinansOnay||buFaturaKes||buGonder||buUzat||buOnRezUzat) ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-        ${buOnaylayabilir ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimRezervasyonOnayla('${r.sepet_id}')">✅ Onayla</button><button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">Reddet</button>` : ''}
-        ${buMukerrerOnay ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimMukerrerOnayla('${r.sepet_id}')">✅ Mükerrer Talebi Onayla</button><button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">Reddet</button>` : ''}
+        ${buOnaylayabilir ? `<button class="btn btn-sm" style="flex:1;background:var(--green);color:#04301f;" onclick="event.stopPropagation();donanimRezervasyonOnayla('${r.sepet_id}')">✅ Onayla</button><button class="btn btn-sm" style="flex:1;background:#000;border:2px solid var(--red);color:var(--red);" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">✕ Reddet</button>` : ''}
+        ${buMukerrerOnay ? `<button class="btn btn-sm" style="flex:1;background:var(--green);color:#04301f;" onclick="event.stopPropagation();donanimMukerrerOnayla('${r.sepet_id}')">✅ Mükerrer Talebi Onayla</button><button class="btn btn-sm" style="flex:1;background:#000;border:2px solid var(--red);color:var(--red);" onclick="event.stopPropagation();donanimRezervasyonRed('${r.sepet_id}')">✕ Reddet</button>` : ''}
         ${buDuzenleyebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezDuzenleAc('${r.sepet_id}')">Düzenle</button>` : ''}
         ${buIptalEdebilir ? `<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="event.stopPropagation();donanimRezervasyonIptal('${r.sepet_id}')">İptal Et</button>` : ''}
         ${buEmeiGiris ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimImeiEslestirAc('${r.sepet_id}')">Stok Onay / Emei Giriş</button>` : ''}
-        ${buEmeiDevam ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimImeiEslestirAc('${r.sepet_id}')">Emei Girişine Devam Et</button>` : ''}
+        ${buEmeiDevam ? `<button class="btn btn-sm" style="flex:1;background:var(--green);color:#04301f;" onclick="event.stopPropagation();donanimImeiEslestirAc('${r.sepet_id}')">✓ Emei Girişine Devam Et</button>` : ''}
         ${buFinansOnay ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Finans Onaylandı')">Turkcell Finans Onayı</button>` : ''}
         ${buFaturaKes ? `<button class="btn btn-sm" style="flex:1;background:var(--blue);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Fatura Kesildi')">Fatura Kesildi</button>` : ''}
         ${buGonder ? `<button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="event.stopPropagation();donanimSurecIlerlet('${r.sepet_id}','Tamamlandı')">Cihaz Gönderildi</button>` : ''}
@@ -4399,7 +4399,7 @@ async function loadDonanimTalepListesi(){
         ${(yonet && acik)?`
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-sm" style="flex:1;background:var(--green);" onclick="donanimTalepDurum(${t.talep_id},'Karşılandı')">✓ Karşılandı</button>
-          <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="donanimTalepDurum(${t.talep_id},'Reddedildi')">✕ Reddet</button>
+          <button class="btn btn-sm" style="flex:1;background:#000;border:2px solid var(--red);color:var(--red);" onclick="donanimTalepDurum(${t.talep_id},'Reddedildi')">✕ Reddet</button>
         </div>`:''}
       </div>`;
     }).join('');

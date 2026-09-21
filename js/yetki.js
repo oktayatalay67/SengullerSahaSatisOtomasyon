@@ -304,7 +304,7 @@ function _yEylemKartlari(){
 function _yRollerListesi(){
   let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
     + '<div style="font-size:11px;color:var(--text3);">Pasif roller kullanıcı formunda görünmez.</div>'
-    + '<button class="btn btn-green btn-sm" onclick="yetkiRolEkleModal()" style="width:auto;padding:8px 14px;">+ Yeni Rol</button></div>';
+    + '<button class="btn btn-sm" style="background:var(--blue);width:auto;padding:8px 14px;" onclick="yetkiRolEkleModal()">+ Yeni Rol</button></div>';
   _yRoller.forEach(r=>{
     h+='<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;">'
       + '<div style="flex:1;min-width:0;">'
