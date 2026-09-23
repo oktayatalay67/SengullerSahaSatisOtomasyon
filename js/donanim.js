@@ -972,7 +972,9 @@ async function openDonanimRezTimeline(sepetId){
 
 async function openDonanimExcelYukle(){
   // V31.54: KÇM/depo seçimi yok — hedef her zaman ana depo (katalog, kcm_id IS NULL)
+  window._donanimExcelMap = null;
   document.getElementById('donanimExcelAdim1').classList.remove('hide');
+  document.getElementById('donanimExcelAdim1b').classList.add('hide');
   document.getElementById('donanimExcelAdim2').classList.add('hide');
   document.getElementById('donanimExcelSonuc').classList.add('hide');
   document.getElementById('donanimExcelDosya').value='';
@@ -983,7 +985,9 @@ async function openDonanimExcelYukle(){
 /* V31.151: "Excel ile Stok Yükle" modali "Stok Yükle/Stoktan Çıkart" olarak
    iki moda ayrıldı. Bu, dışarıdan çağrılan ana giriş noktası. */
 async function openDonanimStokModal(){
+  window._donanimExcelMap = null;
   document.getElementById('donanimExcelDosya').value='';
+  document.getElementById('donanimExcelAdim1b').classList.add('hide');
   document.getElementById('donanimExcelSonuc').classList.add('hide');
   const cikartDosya = document.getElementById('donanimCikartDosya');
   const cikartMetin = document.getElementById('donanimCikartImeiMetin');
@@ -1005,12 +1009,13 @@ function donanimStokModAc(mod){
   const yukleBtn = document.getElementById('donanimStokModYukleBtn');
   const cikartBtn = document.getElementById('donanimStokModCikartBtn');
   const yukleBlok = document.getElementById('donanimExcelAdim1');
+  const yukleBlok1b = document.getElementById('donanimExcelAdim1b');
   const cikartBlok = document.getElementById('donanimCikartForm');
   const yukleAdim2 = document.getElementById('donanimExcelAdim2');
   const cikartAdim2 = document.getElementById('donanimCikartAdim2');
   const baslik = document.getElementById('donanimStokModalBaslik');
   if(mod==='cikart'){
-    yukleBlok.classList.add('hide'); yukleAdim2.classList.add('hide');
+    yukleBlok.classList.add('hide'); if(yukleBlok1b) yukleBlok1b.classList.add('hide'); yukleAdim2.classList.add('hide');
     cikartBlok.classList.remove('hide');
     yukleBtn.classList.add('btn-ghost'); yukleBtn.style.background='';
     cikartBtn.classList.remove('btn-ghost'); cikartBtn.style.background='var(--red)';
@@ -1059,20 +1064,32 @@ function _donanimImeiMi(s){
 // (ux_stok_urunleri_katalog ... WHERE kcm_id IS NULL) ve PostgREST'in on_conflict
 // parametresi kısmi indeksi hedefleyemez (indeksin WHERE yüklemini üretemez).
 // Bu yüzden SELECT -> yoksa INSERT deseni kullanılır.
-async function _donanimKatalogSatiriBul(malzemeKodu, aciklama){
+// V31.152 BUG FİX: yeni satır depo_id/depo_adi SET ETMİYORDU (NULL kalıyordu) ->
+// "Yeni Ürün Ekle" (donanimYeniUrunKaydet) ile davranış farklıydı ve Excel ile
+// ilk kez yüklenen bir malzeme kodu Depolar ızgarasında hiç görünmüyordu
+// (ızgara stok_urunleri'ni depo_id IS NOT NULL filtresiyle okuyor). Artık
+// merkez zorunlu parametre — Yeni Ürün Ekle ile birebir aynı satır üretilir.
+async function _donanimKatalogSatiriBul(malzemeKodu, aciklama, merkez){
   const {data:mevcut, error:selErr} = await sb.from('stok_urunleri')
-    .select('urun_id,aciklama').eq('malzeme_kodu', malzemeKodu).is('kcm_id', null).limit(1);
+    .select('urun_id,aciklama,depo_id').eq('malzeme_kodu', malzemeKodu).is('kcm_id', null).limit(1);
   if(selErr) return {hata:'Katalog sorgusu: '+selErr.message};
   if(mevcut && mevcut.length){
-    if(!mevcut[0].aciklama && aciklama){
-      await sb.from('stok_urunleri')
-        .update({aciklama:aciklama, updated_at:new Date().toISOString()})
-        .eq('urun_id', mevcut[0].urun_id);
+    // V31.153 BUG FİX: bu dal (satır zaten vardı) depo_id'yi hiç kontrol
+    // etmiyordu. Önceki hatalı yükleme depo_id'yi NULL bırakmış olabilir ->
+    // ürün "zaten var" dendiği için bir daha asla düzeltilmiyordu.
+    const guncelle = {};
+    if(!mevcut[0].aciklama && aciklama) guncelle.aciklama = aciklama;
+    if(!mevcut[0].depo_id && merkez){ guncelle.depo_id = merkez.depo_id; guncelle.depo_adi = merkez.depo_adi; }
+    if(Object.keys(guncelle).length){
+      guncelle.updated_at = new Date().toISOString();
+      const {error:updErr} = await sb.from('stok_urunleri').update(guncelle).eq('urun_id', mevcut[0].urun_id);
+      if(updErr) return {hata:'Katalog satırı güncellenemedi (depo_id): '+updErr.message};
     }
     return {urun_id: mevcut[0].urun_id, yeni:false};
   }
+  if(!merkez) return {hata:'Merkez Depo tanımlı değil.'};
   const {data:yeni, error:insErr} = await sb.from('stok_urunleri')
-    .insert({kcm_id:null, depo_adi:null, malzeme_kodu:malzemeKodu,
+    .insert({kcm_id:null, depo_id:merkez.depo_id, depo_adi:merkez.depo_adi, malzeme_kodu:malzemeKodu,
              aciklama:aciklama||malzemeKodu, toplam_adet:0, rezerve_adet:0,
              on_rezerve_adet:0, aktif:true, tum_kcm:false})
     .select('urun_id').single();
@@ -1099,11 +1116,132 @@ async function _donanimKatalogAdetYenile(urunIdler){
   }
 }
 
-async function donanimExcelIsle(){
+/* ============================================================
+   V31.152 — EXCEL KOLON EŞLEME ADIMI
+   ------------------------------------------------------------
+   "Stok Yükle" aynı ERP raporu her defasında kullanılacağı için,
+   kolonlar otomatik tespit edilip kullanıcıya ONAY için gösterilir
+   (Veri Düzenleme modülündeki kolon eşleme ekranıyla aynı desen).
+   Önceden sessizce boş geçen kOf() aday listesi burada da auto-eşleme
+   için kullanılıyor; farkı, artık sonucun ekranda gösterilip
+   Seri No / Malzeme Kodu eşlenmeden "Onayla ve Yükle" AKTİF OLMAMASI.
+   ============================================================ */
+window._donanimExcelMap = null; // {headers, rows, mapping:{[header]: 'seri_no'|'malzeme_kodu'|'aciklama'|''}}
+
+const _DONANIM_ALAN_ADAY = {
+  seri_no: ['Seri No','SERİ NO','Seri no','SERI NO'],
+  malzeme_kodu: ['Malzeme Kodu','MALZEME KODU','Malzeme kodu'],
+  aciklama: ['Malzeme Acıklaması','Malzeme Açıklaması','MALZEME ACIKLAMASI','MALZEME AÇIKLAMASI','Malzeme Aciklamasi']
+};
+const _DONANIM_ALAN_ETIKET = {'':'— Yok sayılsın —', seri_no:'Seri No', malzeme_kodu:'Malzeme Kodu', aciklama:'Açıklama'};
+
+function _donanimAlanAutoTespit(header){
+  const h = String(header||'').trim();
+  for(const alan of Object.keys(_DONANIM_ALAN_ADAY)){
+    if(_DONANIM_ALAN_ADAY[alan].some(a=>a===h)) return alan;
+  }
+  return '';
+}
+
+// Adım 1: dosya seçildi -> oku, başlıkları çıkar, eşlemeyi göster (henüz DB'ye yazılmaz)
+async function donanimExcelDosyaOku(){
   const dosya = document.getElementById('donanimExcelDosya').files[0];
   if(!dosya){ toast('Excel dosyası seçin','error'); return; }
 
-  document.getElementById('donanimExcelAdim1').classList.add('hide');
+  try{
+    const rows = await _donanimExcelOku(dosya);
+    if(!rows.length){ toast('Excel boş görünüyor','error'); return; }
+    const headers = Object.keys(rows[0]||{});
+    if(!headers.length){ toast('Excel başlık satırı bulunamadı','error'); return; }
+
+    const mapping = {};
+    headers.forEach(h=>{ mapping[h] = _donanimAlanAutoTespit(h); });
+    // Aynı alan iki başlığa birden otomatik atanmışsa, sadece ilkinde kalsın
+    Object.keys(_DONANIM_ALAN_ADAY).forEach(alan=>{
+      let bulundu = false;
+      headers.forEach(h=>{
+        if(mapping[h]===alan){ if(bulundu) mapping[h]=''; else bulundu = true; }
+      });
+    });
+
+    window._donanimExcelMap = {fileName:dosya.name, headers, rows, mapping};
+    document.getElementById('donanimExcelAdim1').classList.add('hide');
+    document.getElementById('donanimExcelAdim1b').classList.remove('hide');
+    _donanimExcelEslemeCiz();
+  }catch(err){
+    console.error(err);
+    toast('Dosya okunamadı: '+(err.message||err),'error');
+  }
+}
+
+function donanimExcelEslemeGeri(){
+  window._donanimExcelMap = null;
+  document.getElementById('donanimExcelAdim1b').classList.add('hide');
+  document.getElementById('donanimExcelAdim1').classList.remove('hide');
+}
+
+function donanimExcelEslemeDegisti(header, deger){
+  const M = window._donanimExcelMap; if(!M) return;
+  if(deger){
+    // Aynı alan başka bir başlığa atanmışsa oradan kaldır (bir alan = tek kolon)
+    Object.keys(M.mapping).forEach(h=>{ if(h!==header && M.mapping[h]===deger) M.mapping[h]=''; });
+  }
+  M.mapping[header] = deger;
+  _donanimExcelEslemeCiz();
+}
+
+function _donanimExcelEslemeCiz(){
+  const M = window._donanimExcelMap; if(!M) return;
+  const mapBox = document.getElementById('donanimExcelMapping');
+  const onayBtn = document.getElementById('donanimExcelOnayBtn');
+  const uyariEl = document.getElementById('donanimExcelMapUyari');
+
+  if(mapBox){
+    mapBox.innerHTML = M.headers.map(h=>{
+      const secili = M.mapping[h] || '';
+      const opts = Object.keys(_DONANIM_ALAN_ETIKET).map(alan=>
+        `<option value="${alan}" ${alan===secili?'selected':''}>${escapeHTML(_DONANIM_ALAN_ETIKET[alan])}</option>`
+      ).join('');
+      return `<div style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">${escapeHTML(h)||'(başlıksız)'}</div>
+        <div style="color:var(--text2);">&rarr;</div>
+        <select onchange="donanimExcelEslemeDegisti(${JSON.stringify(h)}, this.value)" style="padding:5px 8px;border-radius:8px;background:var(--navy3);color:var(--text);border:1px solid var(--border);font-size:12px;">${opts}</select>`;
+    }).join('');
+  }
+
+  const seriVar = Object.values(M.mapping).includes('seri_no');
+  const kodVar = Object.values(M.mapping).includes('malzeme_kodu');
+  const hazir = seriVar && kodVar;
+  if(onayBtn) onayBtn.disabled = !hazir;
+  if(uyariEl) uyariEl.innerHTML = hazir ? '' :
+    `⚠️ <span style="color:var(--red);">Devam etmek için <b>Seri No</b> ve <b>Malzeme Kodu</b> kolonları eşlenmeli.</span>`;
+
+  const onizEl = document.getElementById('donanimExcelOnizleme');
+  if(onizEl){
+    const N = Math.min(M.rows.length, 10);
+    let h = '<table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:var(--navy2);">';
+    M.headers.forEach(hd=> h += `<th style="padding:5px 6px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;">${escapeHTML(hd)||'—'}</th>`);
+    h += '</tr></thead><tbody>';
+    for(let r=0;r<N;r++){
+      h += '<tr>';
+      M.headers.forEach(hd=> h += `<td style="padding:4px 6px;border-bottom:1px solid var(--border);white-space:nowrap;">${escapeHTML(String(M.rows[r][hd]==null?'':M.rows[r][hd]))}</td>`);
+      h += '</tr>';
+    }
+    h += '</tbody></table>';
+    if(M.rows.length>N) h += `<div style="padding:6px 2px;color:var(--text2);font-size:11px;">... ve ${M.rows.length-N} satır daha.</div>`;
+    onizEl.innerHTML = h;
+  }
+}
+
+// Adım 2: kullanıcı eşlemeyi onayladı -> asıl işleme (DB yazımı) burada başlar
+async function donanimExcelIsle(){
+  const M = window._donanimExcelMap;
+  if(!M){ toast('Önce Excel dosyası seçin','error'); return; }
+  const seriKolon = Object.keys(M.mapping).find(h=>M.mapping[h]==='seri_no');
+  const koduKolon = Object.keys(M.mapping).find(h=>M.mapping[h]==='malzeme_kodu');
+  const aciklamaKolon = Object.keys(M.mapping).find(h=>M.mapping[h]==='aciklama');
+  if(!seriKolon || !koduKolon){ toast('Seri No ve Malzeme Kodu kolonları eşlenmeli','error'); return; }
+
+  document.getElementById('donanimExcelAdim1b').classList.add('hide');
   document.getElementById('donanimExcelAdim2').classList.remove('hide');
   document.getElementById('donanimExcelIlerleme').classList.remove('hide');
   document.getElementById('donanimExcelSonuc').classList.add('hide');
@@ -1111,15 +1249,12 @@ async function donanimExcelIsle(){
   const CHUNK = 500;
 
   try{
-    ilerlemeEl.textContent = 'Excel okunuyor...';
-    const rows = await _donanimExcelOku(dosya);
-    if(!rows.length){ toast('Excel boş görünüyor','error'); openDonanimExcelYukle(); return; }
+    const rows = M.rows;
 
-    const kOf = (row, ...adaylar)=>{ for(const a of adaylar){ if(row[a]!==undefined) return row[a]; } return ''; };
     const ham = rows.map(r=>({
-      seri_no: _donanimSeriTemizle(kOf(r,'Seri No','SERİ NO','Seri no')),
-      malzeme_kodu: String(kOf(r,'Malzeme Kodu','MALZEME KODU')).trim(),
-      aciklama: String(kOf(r,'Malzeme Acıklaması','Malzeme Açıklaması','MALZEME ACIKLAMASI','MALZEME AÇIKLAMASI','Malzeme Aciklamasi')).trim()
+      seri_no: _donanimSeriTemizle(r[seriKolon]),
+      malzeme_kodu: String(r[koduKolon]==null?'':r[koduKolon]).trim(),
+      aciklama: String(aciklamaKolon ? (r[aciklamaKolon]==null?'':r[aciklamaKolon]) : '').trim()
     })).filter(r=>r.seri_no);
 
     // 1) IMEI FİLTRESİ — sadece 15 haneli tam sayısal seriler havuza girer
@@ -1181,13 +1316,16 @@ async function donanimExcelIsle(){
     });
 
     // 4) Katalog satırları (ANA DEPO — kcm_id NULL)
+    await _donanimDepolarYukle(true);
+    const merkez = _depoMerkez();
+    if(!merkez) throw new Error('Merkez Depo tanımlı değil.');
     const kodlar = [...new Set(yeniSeriler.map(s=>s.malzeme_kodu))];
     const katalogMap = {}, katalogHata = {};
     let yeniKatalogSayisi = 0;
     for(let i=0;i<kodlar.length;i++){
       const kod = kodlar[i];
       const ornek = yeniSeriler.find(s=>s.malzeme_kodu===kod);
-      const sonuc = await _donanimKatalogSatiriBul(kod, ornek?ornek.aciklama:'');
+      const sonuc = await _donanimKatalogSatiriBul(kod, ornek?ornek.aciklama:'', merkez);
       if(sonuc.hata) katalogHata[kod] = sonuc.hata;
       else { katalogMap[kod] = sonuc.urun_id; if(sonuc.yeni) yeniKatalogSayisi++; }
       ilerlemeEl.textContent = `Katalog satırları hazırlanıyor... (${i+1}/${kodlar.length})`;
@@ -1271,6 +1409,7 @@ async function donanimExcelIsle(){
     if(hataSayisi>0) toast(`Yükleme tamamlandı ama ${hataSayisi} HATA var — raporu kontrol edin`,'error');
     else toast(`Yükleme tamamlandı: ${basarili.length} IMEI ana depoya eklendi`,'success');
     loadDonanimListesi();
+    window._donanimExcelMap = null;
   }catch(err){
     console.error(err);
     document.getElementById('donanimExcelIlerleme').classList.add('hide');
@@ -4362,6 +4501,77 @@ function donanimRaporExcelIndir(){
    IMEI bu akışın hiçbir yerinde görünmez.
    ============================================================ */
 
+/* ============================================================
+   V31.155 — TEDARİK TALEBİ EMAIL BİLDİRİMİ (Resend, _worker.js üzerinden)
+   ------------------------------------------------------------
+   Şengüller-360'daki leave-mail.js ile aynı desen: gerçek gönderim
+   sunucu tarafında (_worker.js -> /api/send-mail -> Resend). Buradaki
+   fonksiyonlar sadece alıcıyı bulur + şablonu hazırlar + isteği atar.
+   Email gönderimi BEST-EFFORT'tur: başarısız olursa konsola loglanır,
+   ana akışı (talep kaydı/durum güncelleme) ASLA durdurmaz.
+   ============================================================ */
+async function _sssoEmailGonder(to, subject, text, html){
+  try{
+    const resp = await fetch('/api/send-mail', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({to, subject, text, html})
+    });
+    if(!resp.ok){
+      const raw = await resp.text().catch(()=>String(resp.status));
+      console.error('[donanim] email gönderilemedi:', raw);
+      return false;
+    }
+    return true;
+  }catch(err){
+    console.error('[donanim] email gönderim hatası:', err.message||err);
+    return false;
+  }
+}
+
+// Bir KÇM'de (veya kcm_id null ise tüm) donanim_yonet yetkisi olan,
+// email'i dolu kullanıcıları döndürür.
+async function _donanimTalepOnayciEmailleriGetir(kcmId){
+  const roller = (window.PERM && window.PERM.donanim_yonet) || [];
+  if(!roller.length) return [];
+  let q = sb.from('users').select('email,yetki_seviyesi,kcm_id').not('email','is',null);
+  const {data, error} = await q;
+  if(error){ console.error('[donanim] onaycı email sorgu hatası:', error.message); return []; }
+  return (data||[])
+    .filter(u => roller.includes(String(u.yetki_seviyesi||'').toUpperCase()))
+    .filter(u => u.kcm_id===null || u.kcm_id===kcmId)
+    .map(u=>u.email);
+}
+
+async function _donanimTalepEmailGonderYeni(talep, urunAd){
+  try{
+    const aliciler = await _donanimTalepOnayciEmailleriGetir(talep.kcm_id);
+    if(!aliciler.length) return;
+    const subject = `SSSO - Yeni Donanım Talebi: ${urunAd}`;
+    const text = `Yeni bir tedarik talebi oluşturuldu.\n\nÜrün: ${urunAd}\nAdet: ${talep.adet}\nMüşteri: ${talep.musteri_unvani||talep.ncst}\nTalep eden: ${currentUser.ad_soyad||currentUser.my_id}\n\nLütfen SSSO > Donanım > Talepler ekranından değerlendirin.`;
+    const html = `<p>Yeni bir tedarik talebi oluşturuldu.</p><table cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px">`+
+      `<tr><td><strong>Ürün</strong></td><td>${escapeHTML(urunAd)}</td></tr>`+
+      `<tr><td><strong>Adet</strong></td><td>${escapeHTML(String(talep.adet))}</td></tr>`+
+      `<tr><td><strong>Müşteri</strong></td><td>${escapeHTML(talep.musteri_unvani||talep.ncst||'')}</td></tr>`+
+      `<tr><td><strong>Talep eden</strong></td><td>${escapeHTML(currentUser.ad_soyad||String(currentUser.my_id))}</td></tr>`+
+      `</table><p>Lütfen SSSO &gt; Donanım &gt; Talepler ekranından değerlendirin.</p>`;
+    await _sssoEmailGonder(aliciler, subject, text, html);
+  }catch(err){ console.error('[donanim] yeni talep email hatası:', err.message||err); }
+}
+
+async function _donanimTalepEmailGonderSonuc(talep, urunAd, yeniDurum){
+  try{
+    const {data:sahip} = await sb.from('users').select('email,ad_soyad').eq('my_id', talep.talep_eden_id).maybeSingle();
+    if(!sahip || !sahip.email) return;
+    const subject = `SSSO - Donanım Talebiniz: ${yeniDurum}`;
+    const text = `Merhaba ${sahip.ad_soyad||''},\n\n"${urunAd}" (${talep.adet} adet) tedarik talebiniz ${yeniDurum}.\n\nSSSO > Donanım > Talepler ekranından detayları görebilirsiniz.`;
+    const html = `<p>Merhaba ${escapeHTML(sahip.ad_soyad||'')},</p>`+
+      `<p><strong>${escapeHTML(urunAd)}</strong> (${escapeHTML(String(talep.adet))} adet) tedarik talebiniz <strong>${escapeHTML(yeniDurum)}</strong>.</p>`+
+      `<p>SSSO &gt; Donanım &gt; Talepler ekranından detayları görebilirsiniz.</p>`;
+    await _sssoEmailGonder([sahip.email], subject, text, html);
+  }catch(err){ console.error('[donanim] talep sonuç email hatası:', err.message||err); }
+}
+
 window._donanimDepoCache = window._donanimDepoCache || null;
 window._donanimTalepSepet = window._donanimTalepSepet || {items:[], musteri:null};
 
@@ -4607,6 +4817,14 @@ async function donanimTalepGonder(){
       user_ad: currentUser.ad_soyad || String(currentUser.my_id)
     });
     if(logErr) console.error('[donanim] talep log hatası:', logErr.message);
+
+    // V31.155: onaycılara email — best-effort, hata olsa da akışı durdurmaz.
+    _donanimTalepEmailGonderYeni({
+      kcm_id: currentUser.kcm_id || null,
+      adet: it.adet,
+      ncst: S.musteri.ncst,
+      musteri_unvani: S.musteri.unvan
+    }, it.ad);
   }
 
   if(btn){ btn.disabled = false; btn.textContent = 'Talebi Gönder'; }
@@ -4706,12 +4924,17 @@ async function loadDonanimTalepListesi(){
 async function donanimTalepDurum(talepId, yeniDurum){
   if(!hasPerm('donanim_yonet')){ toast('Yetkiniz yok','error'); return; }
 
+  // V31.155: sonuç emaili için talep + ürün adı — Karşılandı dalı zaten
+  // çekiyor, Reddedildi için ayrıca burada saklanır.
+  let _emailTalep = null, _emailUrunAd = null;
+
   if(yeniDurum === 'Karşılandı'){
     const {data:talep, error:tErr} = await sb.from('stok_tedarik_talepleri').select('*').eq('talep_id', talepId).single();
     if(tErr || !talep){ toast('Talep bulunamadı','error'); return; }
     const {data:urun} = await sb.from('stok_urunleri').select('malzeme_kodu,aciklama').eq('urun_id', talep.urun_id).maybeSingle();
     const malzemeKodu = urun?.malzeme_kodu;
     const urunAd = urun?.aciklama || ('Ürün #'+talep.urun_id);
+    _emailTalep = talep; _emailUrunAd = urunAd;
 
     // Şart 1: talep eden KÇM'nin ANA deposunda gerçekten yeterli müsait adet var mı?
     const depoId = await _donanimAnaDepoId(talep.kcm_id);
@@ -4746,6 +4969,19 @@ async function donanimTalepDurum(talepId, yeniDurum){
   toast('Talep durumu: '+yeniDurum,'success');
   loadDonanimTalepListesi();
   _donanimTalepBadge();
+
+  // V31.155: talep sahibine sonuç emaili — best-effort, hata olsa da akışı etkilemez.
+  if(yeniDurum === 'Karşılandı' || yeniDurum === 'Reddedildi'){
+    if(!_emailTalep){
+      const {data:talep} = await sb.from('stok_tedarik_talepleri').select('*').eq('talep_id', talepId).maybeSingle();
+      if(talep){
+        _emailTalep = talep;
+        const {data:urun} = await sb.from('stok_urunleri').select('aciklama').eq('urun_id', talep.urun_id).maybeSingle();
+        _emailUrunAd = urun?.aciklama || ('Ürün #'+talep.urun_id);
+      }
+    }
+    if(_emailTalep) _donanimTalepEmailGonderSonuc(_emailTalep, _emailUrunAd, yeniDurum);
+  }
 }
 
 // V31.132: Mutabakat Raporu — sistemdeki toplam adet (SUM(toplam_adet), tüm

@@ -1001,7 +1001,23 @@
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <button class="btn-iptal" onclick="closeModal('donanimExcelModal')">✕ İptal</button>
-        <button class="btn" style="background:var(--blue);" onclick="donanimExcelIsle()">İşle</button>
+        <button class="btn" style="background:var(--blue);" onclick="donanimExcelDosyaOku()">Devam</button>
+      </div>
+    </div>
+    <div id="donanimExcelAdim1b" class="hide">
+      <div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;line-height:1.5;color:var(--text2);">
+        Excel başlıkları aşağıda otomatik tespit edildi. Yanlışsa dropdown'dan düzeltin — <b>Seri No</b> ve <b>Malzeme Kodu</b> eşlenmeden devam edilemez.
+      </div>
+      <div style="background:var(--navy3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="font-weight:700;margin-bottom:10px;font-size:13px;">Kolon Eşleme</div>
+        <div id="donanimExcelMapping" style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px 12px;align-items:center;"></div>
+      </div>
+      <div id="donanimExcelMapUyari" style="font-size:12px;margin-bottom:10px;"></div>
+      <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--text2);">Önizleme (ilk 10 satır)</div>
+      <div id="donanimExcelOnizleme" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn-iptal" onclick="donanimExcelEslemeGeri()">← Geri</button>
+        <button class="btn" id="donanimExcelOnayBtn" style="background:var(--blue);" onclick="donanimExcelIsle()" disabled>Onayla ve Yükle</button>
       </div>
     </div>
     <div id="donanimExcelAdim2" class="hide">
@@ -3598,11 +3614,11 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.151"></script>
+<script src="js/config.js?v=v31.155"></script>
 <script src="js/yetki.js?v=v31.150"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
-<script src="js/donanim.js?v=v31.151"></script>
+<script src="js/donanim.js?v=v31.155"></script>
 <script src="js/utils.js?v=v31.101"></script>
 <script src="js/auth.js?v=v31.112"></script>
 <script src="js/gorev.js?v=v31.150"></script>

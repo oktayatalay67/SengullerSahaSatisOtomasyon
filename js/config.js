@@ -1,7 +1,43 @@
 // ============================================================
-// config.js — v1.3.93
-// Son güncelleme: 2026-09-21
+// config.js — v1.3.97
+// Son güncelleme: 2026-09-23
 // Değişiklikler:
+//   v1.3.97 — APP_VERSION → V31.155. YENİ: Donanım Tedarik Talebi email
+//     bildirimi (Resend, Şengüller-360/leave-mail.js ile aynı desen).
+//     _worker.js'e POST /api/send-mail eklendi (sunucu tarafında Resend'e
+//     istek atıyor — RESEND_API_KEY ve MAIL_FROM Worker secret olarak
+//     tanımlı olmalı: `wrangler secret put RESEND_API_KEY` /
+//     `wrangler secret put MAIL_FROM`; SSSO'nun kendi "crm" worker'ı
+//     Şengüller-360'ın "360" worker'ından AYRI, bu secret'lar SSSO'ya
+//     henüz TANIMLANMADI — Oktay tanımlayana kadar email gönderimi hata
+//     verir ama talep akışını DURDURMAZ (best-effort). donanim.js: yeni
+//     talep oluşunca donanim_yonet yetkili + aynı KÇM'deki kullanıcılara,
+//     talep Karşılandı/Reddedildi olunca talep sahibine email gider.
+//   v1.3.96 — APP_VERSION → V31.154. TANI: _donanimKatalogSatiriBul'daki
+//     depo_id UPDATE'i şimdiye kadar hatasını hiç kontrol etmiyordu (sessiz
+//     başarısızlık olasılığı — RLS/yetki vb.). Artık updErr kontrol edilip
+//     hata varsa "Katalog satırı hazırlanamadı" olarak rapora düşüyor; ilk
+//     kez gerçek hata mesajı görülebilecek.
+//   v1.3.95 — APP_VERSION → V31.153. BUG FİX (V31.152'nin eksiği):
+//     _donanimKatalogSatiriBul "satır zaten var" dalı depo_id'yi hiç
+//     kontrol etmiyordu — V31.152 öncesi hatalı oluşturulmuş (depo_id NULL)
+//     katalog satırları bu yüzden "zaten var" denip bir daha asla
+//     düzeltilmiyordu, Depolar ızgarasında görünmeye devam ediyordu. Artık
+//     mevcut satırın depo_id'si NULL ise merkez.depo_id/depo_adi ile
+//     dolduruluyor.
+//   v1.3.94 — APP_VERSION → V31.152. FIX: Donanım "Stok Yükle" — Excel'den
+//     ilk kez görülen bir malzeme kodu için oluşturulan katalog satırı
+//     depo_id/depo_adi SET ETMİYORDU (NULL kalıyordu) -> "Yeni Ürün Ekle"
+//     ile davranış tutarsızdı ve ürün "Depolar" ızgarasında hiç görünmüyordu
+//     (ızgara stok_urunleri'ni depo_id IS NOT NULL filtresiyle okuyor).
+//     _donanimKatalogSatiriBul artık merkez parametresi alıyor ve INSERT'e
+//     depo_id/depo_adi ekliyor (donanimYeniUrunKaydet ile birebir aynı satır).
+//     YENİ: Excel ile Stok Yükle akışına KOLON EŞLEME adımı eklendi (Veri
+//     Düzenleme modülündeki desenle aynı) — dosya seçilince başlıklar
+//     otomatik Seri No/Malzeme Kodu/Açıklama alanlarına eşlenir, önizleme +
+//     düzeltilebilir dropdown ile ekranda gösterilir; Seri No ve Malzeme
+//     Kodu eşlenmeden "Onayla ve Yükle" aktif olmaz (önceden bulunamayan
+//     kolon sessizce boş geçilip satır arka planda eleniyordu).
 //   v1.3.93 — APP_VERSION → V31.151. YENİ: Donanım — "Excel ile Stok Yükle"
 //     butonu "Stok Yükle/Stoktan Çıkart" oldu (Stok sekmesi). Modal iki
 //     moda ayrıldı: Yükle (davranış değişmedi) ve yeni Çıkart. Çıkart:
@@ -841,7 +877,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.151';
+const APP_VERSION = 'V31.155';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
