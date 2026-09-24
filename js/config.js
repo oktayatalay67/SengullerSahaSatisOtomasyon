@@ -1,7 +1,57 @@
 // ============================================================
-// config.js — v1.3.97
-// Son güncelleme: 2026-09-23
+// config.js — v1.4.02
+// Son güncelleme: 2026-09-24
 // Değişiklikler:
+//   v1.4.02 — APP_VERSION → V31.160. YENİ: arama.js — şikayet değerlendirme
+//     ve görev kuralları. Kaynak 'Ziyarete gelen MY/FMY' puana girer, görev
+//     otomatik açılır (takım lideri → KÇM müdürü → operasyon müdürü zinciri)
+//     ve atanana bilgilendirme emaili gider. Kaynak 'Turkcell (genel)' veya
+//     'Fiyat/hizmet politikası' ise puan MY ortalamasından dışlanır; kayıt
+//     öncesi zorunlu "Görev oluşturulsun mu?" sorusu (Evet/Hayır) — Evet
+//     aynı zincirde görev+email açar, Hayır görevsiz/emailsiz kapanır. Talep
+//     akışı değişmedi. Operasyon müdürü email almaz, görevleri
+//     gorev_tumunu_gor yetkisiyle görür. Gönderen adresi mevcut
+//     noreply@360.org.tr / fromKey:'sifre' (yeni secret/SQL yok). "Düşük
+//     Puan" listesinde dışlanan kayıtlar "MY dışı şikayet, puana dahil
+//     değil" etiketiyle kalır. arama.js v1.1.14 → v1.1.15.
+//   v1.4.01 — APP_VERSION → V31.159. YENİ: Modül başına farklı gönderen
+//     ("from") email adresi. _worker.js'teki /api/send-mail artık body.fromKey
+//     ('donanim'/'sifre') parametresini whitelist'li bir map (_fromAdresiCoz)
+//     üzerinden çözüyor — client rastgele "from" giremez. Yeni Worker secret:
+//     MAIL_FROM_SIFRE = noreply@360.org.tr (şifre sıfırlama emailleri artık
+//     bu adresten gidiyor). MAIL_FROM_DONANIM tanımlanmazsa donanım modülü
+//     mevcut MAIL_FROM (donanimSatis@360.org.tr) ile devam eder — geriye
+//     dönük uyumlu. donanim.js:_sssoEmailGonder() 5. parametre (fromKey)
+//     aldı; auth.js:sifreSifirlamaTalebiGonder() çağrısına 'sifre' eklendi.
+//   v1.4.00 — APP_VERSION → V31.158. YENİ: Şifremi Unuttum — email ile tek
+//     kullanımlık şifre sıfırlama linki (auth.js). users tablosuna
+//     sifre_sifirlama_token/sifre_sifirlama_son kolonları eklendi (1 saat
+//     geçerli). "Şifrenizi mi unuttunuz?" artık boş bir toast değil, email
+//     giriş modalı açıyor; link tıklanınca "Yeni Şifre Belirle" ekranı
+//     açılıyor (login gerektirmez). Hızlı/geçici çözüm — kalıcısı 360 ile
+//     user/şifre modülü birleşiminde gelecek; şifreler mevcut mimariyle
+//     tutarlı biçimde düz metin (sifre_hash) yazılmaya devam ediyor.
+//     admin.js'teki eski (işlevsiz) showSifreUnuttum() kaldırıldı — auth.js
+//     script sırasında sonra yüklendiği için onu eziyordu.
+//   v1.3.99 — APP_VERSION → V31.157. BUG FİX (V31.156'da): onaycı email
+//     listesi hep boş dönüyordu — _donanimSurecOnayciEmailleriGetir() scope'u
+//     yanlış yerden okuyordu (window.PERM.scope[permKey]). Scope permKey'e
+//     değil, TÜM donanim_takip yetkilerinin ortak 'donanim_takip' modülüne
+//     bağlı (bkz. _donanimSurecYetki/getScope('donanim_takip')). Düzeltme:
+//     window.PERM.scope['donanim_takip'] okunuyor artık. Bu yüzden onaya
+//     düşen kişilere (Takım Lideri/Müdür/Depo&Muhasebe vb.) email hiç
+//     gitmiyordu, yalnız rezervasyon sahibi MY/FMY'ye gidiyordu.
+//   v1.3.98 — APP_VERSION → V31.156. YENİ: Donanım Rezervasyon SÜREÇ email
+//     bildirimleri (donanim.js). Rezervasyon oluşturulduğunda ve her durum
+//     geçişinde (Ön Rezervasyon/Yönetici Onayı Bekliyor/Onaylandı/Turkcell
+//     Finans Onay/Finans Onaylandı/Fatura Kesildi/Tamamlandı) rezervasyon
+//     sahibi MY/FMY'ye VE o adımın onayını verecek yetkiye sahip kişilere
+//     (role_permissions scope'una göre TÜM/KÇM/BAĞLI çözülerek) email gider.
+//     BAĞLI kapsamı için _donanimUstleriGetir() eklendi — loadBagliMyIds()'in
+//     tersi (bir MY/FMY'nin bağlı olduğu TL/ÇST/ÇSU'yu bulur). Hızlı Sevkiyat
+//     Konsolu tüm süreci tek oturumda yürüttüğü için ara adım emaili atmıyor,
+//     yalnız tamamlandığında sahibe tek özet email gönderiyor. Best-effort —
+//     email hatası işlemi durdurmaz.
 //   v1.3.97 — APP_VERSION → V31.155. YENİ: Donanım Tedarik Talebi email
 //     bildirimi (Resend, Şengüller-360/leave-mail.js ile aynı desen).
 //     _worker.js'e POST /api/send-mail eklendi (sunucu tarafında Resend'e
@@ -877,7 +927,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.155';
+const APP_VERSION = 'V31.160';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

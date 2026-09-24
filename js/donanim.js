@@ -1899,6 +1899,9 @@ async function donanimSepetGonder(){
   const {error} = await sb.from('stok_rezervasyonlari').insert(kayitlar);
   if(error){ toast('Hata: '+error.message,'error'); return; }
 
+  // V31.156: rezervasyon sahibine + o adımın onayını verecek yetkililere bildirim (best-effort)
+  _donanimSurecEmailGonder(sepetId, durum);
+
   // V31.113: rezerve_adet DOĞRUDAN artırılır (stok görünürlüğü/musait_adet hemen düşer)
   for(const uid of sepetKeys){
     const item = window._donanimSepet[uid];
@@ -2709,6 +2712,7 @@ async function donanimRezervasyonOnayla(sepetId){
   await sb.from('stok_rezervasyonlari').update({durum:'Onaylandı', rezervasyon_bitis:_bitis, updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
 
   await _donanimRezHareketLog('Rezervasyon Onaylandı', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
+  _donanimSurecEmailGonder(sepetId, 'Onaylandı');   // V31.156
 
   toast('Rezervasyon onaylandı, Emei süresi başladı','success');
   loadDonanimRezervasyonlar();
@@ -2728,6 +2732,7 @@ async function donanimMukerrerOnayla(sepetId){
   const bitis = await _donanimSureBitisHesapla(new Date().toISOString(), window._donanimAyar.onrez_sure_saat);
   await sb.from('stok_rezervasyonlari').update({durum:'Ön Rezervasyon', rezervasyon_bitis:bitis, updated_at:new Date().toISOString()}).eq('sepet_id', sepetId);
   await _donanimRezHareketLog('Mükerrer Talep Onaylandı', kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id});
+  _donanimSurecEmailGonder(sepetId, 'Ön Rezervasyon');   // V31.156
   toast('Mükerrer talep onaylandı, Ön Rezervasyon süreci başladı','success');
   loadDonanimRezervasyonlar();
 }
@@ -2926,6 +2931,7 @@ async function donanimSurecIlerlet(sepetId, yeniDurum){
   if(yeniDurum === 'Tamamlandı') await _donanimSevkStokDus(sepetId, kalemler);
 
   await _donanimRezHareketLog('Süreç: '+yeniDurum, kalemler, {ncst:ilkK.ncst, satan_my_id:ilkK.satan_my_id, faturaNo});
+  _donanimSurecEmailGonder(sepetId, yeniDurum);   // V31.156
   toast(`Durum güncellendi: ${yeniDurum}`,'success');
   loadDonanimRezervasyonlar();
 }
@@ -3167,6 +3173,7 @@ async function donanimImeiKaydet(){
   // "Emei Girişine Devam Et" ile aynı ekranı tekrar açıp tamamlayabilir.
   const yeniDurum = toplamDolu>=toplamSlot ? 'Turkcell Finans Onay' : 'Stok Onay Emei Giriş';
   await sb.from('stok_rezervasyonlari').update({durum:yeniDurum, updated_at:new Date().toISOString()}).eq('sepet_id',sepetId);
+  if(yeniDurum==='Turkcell Finans Onay') _donanimSurecEmailGonder(sepetId, yeniDurum);   // V31.156
 
   const {data:kalemler}=await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id',sepetId);
   const ilk=kalemler?.[0]||{};
@@ -4510,12 +4517,15 @@ function donanimRaporExcelIndir(){
    Email gönderimi BEST-EFFORT'tur: başarısız olursa konsola loglanır,
    ana akışı (talep kaydı/durum güncelleme) ASLA durdurmaz.
    ============================================================ */
-async function _sssoEmailGonder(to, subject, text, html){
+// V31.159: fromKey — opsiyonel, worker tarafındaki whitelist'e göre gönderen
+// adresini seçer ('donanim'/'sifre'). Belirtilmezse worker MAIL_FROM kullanır
+// (mevcut çağrılar değişmeden çalışmaya devam eder).
+async function _sssoEmailGonder(to, subject, text, html, fromKey){
   try{
     const resp = await fetch('/api/send-mail', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({to, subject, text, html})
+      body: JSON.stringify({to, subject, text, html, fromKey})
     });
     if(!resp.ok){
       const raw = await resp.text().catch(()=>String(resp.status));
@@ -4570,6 +4580,136 @@ async function _donanimTalepEmailGonderSonuc(talep, urunAd, yeniDurum){
       `<p>SSSO &gt; Donanım &gt; Talepler ekranından detayları görebilirsiniz.</p>`;
     await _sssoEmailGonder([sahip.email], subject, text, html);
   }catch(err){ console.error('[donanim] talep sonuç email hatası:', err.message||err); }
+}
+
+// ============================================================
+// V31.156: Donanım SÜREÇ (rezervasyon) e-posta bildirimleri.
+// Her durum geçişinde: (1) rezervasyon sahibi MY/FMY'ye, (2) o adımın onayını
+// verecek yetkiye sahip kişilere (role_permissions'daki scope'a göre) email.
+// ============================================================
+
+// Durum -> bu durumdaki kaydı bir SONRAKİ adıma taşıyacak yetki anahtarı.
+const DONANIM_SUREC_ONAY_PERM = {
+  'Ön Rezervasyon':          'donanim_rezerve_et',
+  'Yönetici Onayı Bekliyor': 'donanim_mukerrer_onay',
+  'Onaylandı':               'donanim_emei_giris',
+  'Turkcell Finans Onay':    'donanim_finans_onay',
+  'Finans Onaylandı':        'donanim_sevk',
+  'Fatura Kesildi':          'donanim_sevk'
+};
+
+// Bir MY/FMY'nin BAĞLI kapsamındaki üstlerini (Takım Lideri, ÇST, ÇSU) döndürür.
+// loadBagliMyIds()'in (config.js) tersi — orada üstten alta iniliyor, burada
+// alttan üste çıkılıyor.
+async function _donanimUstleriGetir(satanMyId){
+  const {data:kendi} = await sb.from('users').select('my_id,takim_lideri_id,cst_id').eq('my_id', satanMyId).maybeSingle();
+  if(!kendi) return [];
+  const ustIds = new Set();
+  if(kendi.takim_lideri_id) ustIds.add(kendi.takim_lideri_id);
+  if(kendi.cst_id){
+    ustIds.add(kendi.cst_id);
+    const {data:cst} = await sb.from('users').select('ust_id').eq('my_id', kendi.cst_id).maybeSingle();
+    if(cst && cst.ust_id) ustIds.add(cst.ust_id);
+  }
+  return [...ustIds];
+}
+
+// Verilen yetki anahtarı + kayıt (satan_my_id, kcm_id) için, role_permissions'daki
+// scope eşleşmesine (TÜM/KÇM/BAĞLI) giren kullanıcıların email listesini döndürür.
+// PRT/PRT+ kapsamı ayrı bildirim gerektirmez (zaten sahibe her durumda email gidiyor).
+async function _donanimSurecOnayciEmailleriGetir(permKey, satanMyId, kcmId){
+  // NOT: scope permKey'e değil 'donanim_takip' modülüne bağlı — bkz. _donanimSurecYetki().
+  const scopeMap = (window.PERM && window.PERM.scope && window.PERM.scope['donanim_takip']) || {};
+  const roller = (window.PERM && window.PERM[permKey]) || [];
+  if(!roller.length) return [];
+
+  let tumVeyaKcm = false, bagli = false;
+  for(const rol of roller){
+    const s = scopeMap[rol] || 'PRT';
+    if(s==='TÜM' || s==='KÇM') tumVeyaKcm = true;
+    else if(s==='BAĞLI') bagli = true;
+  }
+
+  const emailSet = new Set();
+
+  if(tumVeyaKcm){
+    const {data, error} = await sb.from('users').select('email,yetki_seviyesi,kcm_id').not('email','is',null).eq('aktif',true);
+    if(!error){
+      (data||[]).forEach(u=>{
+        const rol = String(u.yetki_seviyesi||'').toUpperCase();
+        if(!roller.includes(rol)) return;
+        const s = scopeMap[rol] || 'PRT';
+        if(s==='TÜM') emailSet.add(u.email);
+        else if(s==='KÇM' && u.kcm_id===kcmId) emailSet.add(u.email);
+      });
+    }
+  }
+
+  if(bagli){
+    const ustIds = await _donanimUstleriGetir(satanMyId);
+    if(ustIds.length){
+      const {data, error} = await sb.from('users').select('email,yetki_seviyesi').in('my_id', ustIds).not('email','is',null).eq('aktif',true);
+      if(!error){
+        (data||[]).forEach(u=>{
+          const rol = String(u.yetki_seviyesi||'').toUpperCase();
+          if(roller.includes(rol)) emailSet.add(u.email);
+        });
+      }
+    }
+  }
+
+  return [...emailSet];
+}
+
+// Bir sepet_id'ye ait kalemlerden özet bilgi (müşteri, ürün listesi, sahip) çıkarır.
+async function _donanimSurecOzetGetir(sepetId){
+  const {data:kalemler} = await sb.from('stok_rezervasyonlari').select('*').eq('sepet_id', sepetId);
+  if(!kalemler || !kalemler.length) return null;
+  const ilk = kalemler[0];
+  const urunIds = [...new Set(kalemler.map(k=>k.urun_id).filter(Boolean))];
+  const [{data:urunler}, {data:musteri}, {data:sahip}] = await Promise.all([
+    urunIds.length ? sb.from('stok_urunleri').select('urun_id,aciklama,malzeme_kodu').in('urun_id', urunIds) : Promise.resolve({data:[]}),
+    sb.from('customers').select('unvan').eq('ncst', ilk.ncst).maybeSingle(),
+    sb.from('users').select('my_id,email,ad_soyad').eq('my_id', ilk.satan_my_id).maybeSingle()
+  ]);
+  const urunMap = Object.fromEntries((urunler||[]).map(u=>[u.urun_id, u.aciklama||u.malzeme_kodu]));
+  const urunSatiri = kalemler.map(k=>`${k.adet} adet — ${urunMap[k.urun_id]||('Ürün #'+k.urun_id)}`).join(', ');
+  return {kalemler, ilk, urunSatiri, musteriAdi: (musteri&&musteri.unvan) || ilk.ncst, sahip};
+}
+
+// Merkezi süreç email fonksiyonu — her durum geçişinden sonra best-effort çağrılır.
+// Alıcılar: rezervasyon sahibi MY/FMY + o adımın onayını verecek yetkililer.
+async function _donanimSurecEmailGonder(sepetId, yeniDurum){
+  try{
+    const ozet = await _donanimSurecOzetGetir(sepetId);
+    if(!ozet) return;
+    const { ilk, urunSatiri, musteriAdi, sahip } = ozet;
+    const bekleyen = DONANIM_BEKLEYEN[yeniDurum] || yeniDurum;
+
+    const aliciSet = new Set();
+    if(sahip && sahip.email) aliciSet.add(sahip.email);
+
+    const permKey = DONANIM_SUREC_ONAY_PERM[yeniDurum];
+    if(permKey){
+      const onayciEmailler = await _donanimSurecOnayciEmailleriGetir(permKey, ilk.satan_my_id, ilk.kcm_id);
+      onayciEmailler.forEach(e=>aliciSet.add(e));
+    }
+
+    const aliciler = [...aliciSet];
+    if(!aliciler.length) return;
+
+    const subject = `SSSO - Donanım Rezervasyonu: ${yeniDurum}`;
+    const text = `Rezervasyon durumu güncellendi.\n\nMüşteri: ${musteriAdi}\nÜrün: ${urunSatiri}\nRezervasyon sahibi: ${sahip?.ad_soyad||ilk.satan_my_id}\nDurum: ${yeniDurum}\nSırada: ${bekleyen}\n\nSSSO > Donanım > Rezervasyonlar ekranından detayları görebilirsiniz.`;
+    const html = `<p>Rezervasyon durumu güncellendi.</p><table cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px">`+
+      `<tr><td><strong>Müşteri</strong></td><td>${escapeHTML(musteriAdi)}</td></tr>`+
+      `<tr><td><strong>Ürün</strong></td><td>${escapeHTML(urunSatiri)}</td></tr>`+
+      `<tr><td><strong>Rezervasyon sahibi</strong></td><td>${escapeHTML(sahip?.ad_soyad||String(ilk.satan_my_id))}</td></tr>`+
+      `<tr><td><strong>Durum</strong></td><td>${escapeHTML(yeniDurum)}</td></tr>`+
+      `<tr><td><strong>Sırada</strong></td><td>${escapeHTML(bekleyen)}</td></tr>`+
+      `</table><p>SSSO &gt; Donanım &gt; Rezervasyonlar ekranından detayları görebilirsiniz.</p>`;
+
+    await _sssoEmailGonder(aliciler, subject, text, html);
+  }catch(err){ console.error('[donanim] süreç email hatası:', err.message||err); }
 }
 
 window._donanimDepoCache = window._donanimDepoCache || null;
@@ -5888,6 +6028,10 @@ async function donanimSvkTamamla(){
     if(!gonderildi || !gonderildi.length) throw new Error('Kayıt bu sırada başkası tarafından değiştirilmiş');
     await _donanimSevkStokDus(sepetId, sonKalemler||kayitlar);
     await _donanimRezHareketLog('Süreç: Tamamlandı (Cihaz Gönderildi)', kayitlar, {ncst:S.musteri.ncst, satan_my_id:S.my.my_id});
+    // V31.156: Hızlı Sevkiyat Konsolu tüm adımları tek oturumda yürütüyor — ara
+    // adımlarda onay bekleyen kimse olmadığı için yalnız tamamlandığında, rezervasyon
+    // sahibine TEK bir özet email gönderilir (onaycılara ayrı bildirim gerekmez).
+    _donanimSurecEmailGonder(sepetId, 'Tamamlandı');
 
     S.bitti = {sepetId, zaman:new Date().toLocaleString('tr-TR')};
     S.calisiyor = false;

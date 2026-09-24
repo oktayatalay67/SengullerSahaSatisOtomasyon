@@ -1,5 +1,17 @@
 // ============================================================
-// arama.js — v1.1.14
+// arama.js — v1.1.15
+//   v1.1.15 (24.09.2026, V31.160): Sikayet degerlendirme ve gorev kurallari.
+//     (1) MY dışı şikayet (Turkcell (genel) / Fiyat-hizmet politikasi):
+//         kaydin memnuniyet puani MY ortalamasina (_aramaKirilimAgg) girmez.
+//         Sikayet yok, kaynak bos veya 'Ziyarete gelen MY/FMY' ise puan girer.
+//         "Düşük Puan" listesi degismedi; dislanan kayitlara etiket eklendi.
+//     (2) Turkcell/Fiyat sikayetinde kayit oncesi "Bu şikayet için görev
+//         oluşturulsun mu?" (Evet/Hayir, zorunlu, DB'ye yazilmaz). Hayir ise
+//         gorev ve e-posta olmadan kapanir. MY/FMY sikayeti eskisi gibi
+//         otomatik gorev acar.
+//     (3) Sikayet gorevi acilinca atanan kisiye (takim lideri zinciri)
+//         bilgilendirme e-postasi (/api/send-mail, fromKey 'sifre'). Talep
+//         akisi degismedi (agent tek tikla, e-posta yok).
 //   v1.1.14 (16.09.2026, V31.106): Görev tipi adlari "Şikayet Kaydı"/
 //     "Talep Kaydı" idi; mevcut "Müşteri Şikayeti" tipiyle çakışıp
 //     duplicate type_id olusturuyordu. task_types tarafinda "Şikayet
@@ -1760,6 +1772,13 @@ function _anketRender(){
 // Evet/Hayir onay kutusuydu). Sikayet secilirse kimi sikayet ettigi ve
 // (MY/FMY ise) alt neden sorulur. Talep secilirse metin yazildiktan sonra
 // agent tek tikla task acabilir (otomatik degil, manuel — bkz. _anketTalepTaskAc).
+// V31.160: MY/FMY'yi ilgilendirmeyen sikayet kaynaklari. Bu kaynaklarda
+// (a) memnuniyet puani MY degerlendirmesine (ortalama) GIRMEZ,
+// (b) gorev acilip acilmayacagina agent karar verir (c.sikayet_gorev: Evet/Hayır,
+//     sadece ekranda tutulur, DB'ye yazilmaz).
+// 'Ziyarete gelen MY/FMY' ve kaynak bos (V31.76 oncesi) kayitlar puana girer.
+const SIKAYET_MY_DISI=['Turkcell (genel)','Fiyat/hizmet politikası'];
+function _sikayetMyDisiMi(kimi){ return SIKAYET_MY_DISI.indexOf(kimi)>-1; }
 const SIKAYET_MY_NEDEN=['Ziyarete gelmiyor','Ürün ve hizmetlere hakim değil, bilgisi yetersiz','Kılık kıyafeti uygun değil','Kurumsal kimliğe uygun davranmıyor','Verdiği sözleri tutmuyor'];
 function _anketSikayetTalepBlok(c){
   let h=_chips('kayit_turu','Şikayet / talep var mı?',['Yok','Şikayet','Talep']);
@@ -1770,6 +1789,10 @@ function _anketSikayetTalepBlok(c){
     }
     if(c.sikayet_kimi){
       h+=`<div class="field" style="margin-bottom:10px;"><label>Şikayet detayı</label><textarea id="anketSikayet" oninput="_anketText('sikayet_metni',this.value)" style="width:100%;">${escapeHTML(c.sikayet_metni||'')}</textarea></div>`;
+      // V31.160: MY dışı şikayette görev kararı agentın
+      if(_sikayetMyDisiMi(c.sikayet_kimi)){
+        h+=_chips('sikayet_gorev','Bu şikayet için görev oluşturulsun mu?',['Evet','Hayır']);
+      }
     }
   } else if(c.kayit_turu==='Talep'){
     // V31.77 FIX: oninput bilerek tam yeniden cizim yapmiyordu (imlec/focus
@@ -1911,6 +1934,10 @@ function _isGunuEkle(gunSayisi){
 async function araAnketKaydet(){
   const st=window._anket, c=st.c;
   if(!c.ulasildi){ toast('Ulaşıldı mı? seçin','error'); return; }
+  // V31.160: Turkcell/Fiyat şikayetinde görev sorusu cevaplanmadan kayıt yapılmaz.
+  if(c.kayit_turu==='Şikayet' && _sikayetMyDisiMi(c.sikayet_kimi) && !c.sikayet_gorev){
+    toast('Bu şikayet için görev oluşturulsun mu? seçin','error'); return;
+  }
 
   // ---- V31.49 BİRLEŞİK KAYIT ----
   // KAYITLAR BİRLEŞMEZ: her ziyaret kendi arama_sonuclari satırını alır.
@@ -2129,14 +2156,62 @@ async function _sikayetTalepGoreviAc(ctx, tipAdi, baslikMetni, aciklamaMetni, ma
   return gorev.task_id;
 }
 
+// V31.160: Sikayet gorevi acildiktan sonra atanan kisiye (takim lideri zinciri)
+// bilgilendirme e-postasi. Best-effort. Donus: 'ok' | 'adres_yok' | 'hata'.
+// Gonderen: fromKey 'sifre' (noreply@360.org.tr — Worker'da MAIL_FROM_SIFRE).
+// Operasyon muduru ayrica e-posta ALMAZ (karar: yalniz gorevi gorur).
+async function _aramaSikayetBildirimEmail(tid,ctx,c){
+  try{
+    const {data:g}=await sb.from('tasks').select('atanan_id').eq('task_id',tid).maybeSingle();
+    if(!g||!g.atanan_id) return 'hata';
+    const {data:u}=await sb.from('users').select('email,ad_soyad').eq('my_id',g.atanan_id).maybeSingle();
+    if(!u||!u.email) return 'adres_yok';
+    const unvan=ctx.unvan||ctx.ncst||'-';
+    const kimi=c.sikayet_kimi||'-';
+    const neden=(kimi==='Ziyarete gelen MY/FMY'&&c.sikayet_my_neden)?c.sikayet_my_neden:'';
+    const detay=(c.sikayet_metni||'').trim()||'-';
+    const subject='Müşteri Şikayeti — '+unvan;
+    const text='Yeni bir müşteri şikayeti kaydedildi ve size görev olarak atandı.\n\n'+
+      'Müşteri: '+unvan+'\n'+
+      'Şikayet kaynağı: '+kimi+(neden?(' / '+neden):'')+'\n'+
+      'Şikayet detayı: '+detay+'\n'+
+      'Görev No: #'+tid+'\n\n'+
+      'Bu e-posta Şengüller Saha Satış Uygulaması tarafından otomatik gönderilmiştir.';
+    const html='<p>Yeni bir müşteri şikayeti kaydedildi ve size görev olarak atandı.</p>'+
+      '<p><b>Müşteri:</b> '+escapeHTML(unvan)+'<br>'+
+      '<b>Şikayet kaynağı:</b> '+escapeHTML(kimi+(neden?(' / '+neden):''))+'<br>'+
+      '<b>Şikayet detayı:</b> '+escapeHTML(detay).replace(/\n/g,'<br>')+'<br>'+
+      '<b>Görev No:</b> #'+escapeHTML(String(tid))+'</p>'+
+      '<p style="color:#888;font-size:12px;">Bu e-posta Şengüller Saha Satış Uygulaması tarafından otomatik gönderilmiştir.</p>';
+    const resp=await fetch('/api/send-mail',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({to:[u.email],subject,text,html,fromKey:'sifre'})
+    });
+    if(!resp.ok){
+      const raw=await resp.text().catch(()=>String(resp.status));
+      console.error('[arama] sikayet e-postasi gonderilemedi:',raw);
+      return 'hata';
+    }
+    return 'ok';
+  }catch(e){ console.error('[arama] sikayet e-postasi hatasi:',e.message||e); return 'hata'; }
+}
+
 // Sikayet: kaydet aninda OTOMATIK acilir (best-effort — basarisiz olsa da arama kapanir).
+// V31.160: Turkcell/Fiyat sikayetinde gorevi agent belirler (c.sikayet_gorev).
+// 'Hayır' ise gorev ve e-posta olmadan doner; kayit zaten kapanir.
 async function _aramaSikayetGoreviOtomatikAc(ctx,c){
   try{
     const kimi=c.sikayet_kimi||'';
+    if(_sikayetMyDisiMi(kimi) && c.sikayet_gorev!=='Evet') return;
     const nedenEk=(kimi==='Ziyarete gelen MY/FMY'&&c.sikayet_my_neden)?(' / '+c.sikayet_my_neden):'';
     const aciklama='Şikayet kategorisi: '+kimi+nedenEk+'\nDetay: '+(c.sikayet_metni||'-');
     const tid=await _sikayetTalepGoreviAc(ctx,'Müşteri Şikayeti','Müşteri Şikayeti',aciklama);
-    if(tid) toast('Şikayet kaydedildi, takım liderine/müdüre task açıldı','success');
+    if(tid){
+      const mail=await _aramaSikayetBildirimEmail(tid,ctx,c);
+      if(mail==='ok') toast('Şikayet kaydedildi, task açıldı ve bilgilendirme e-postası gönderildi','success');
+      else if(mail==='adres_yok') toast('Şikayet task\'ı açıldı, ancak alıcının e-posta adresi tanımlı değil; bilgilendirme e-postası gitmedi','error');
+      else toast('Şikayet task\'ı açıldı, ancak bilgilendirme e-postası gönderilemedi','error');
+    }
   }catch(e){ console.error('[arama] sikayet gorevi:',e); toast('Şikayet task\'ı açılamadı, manuel yönlendirin','error'); }
 }
 
@@ -2204,7 +2279,7 @@ function _analizOzet(k,r){
   if(k==='ulasilamayan') return 'Ulaşılamadı'+(r.ulasilamama_neden?(' ('+r.ulasilamama_neden+')'):'');
   if(k==='sahte')        return 'Sahte ziyaret şüphesi';
   if(k==='supheli')      return 'Ziyaret: Emin değil';
-  if(k==='memnuniyetsiz')return (r.memnuniyet!=null?('Memnuniyet '+r.memnuniyet+'/10'):(r.memnuniyet_ret?'Değerlendirmek istemedi':'Memnuniyet -'))+(r.guven==='Hayır'?' · güven yok':'');
+  if(k==='memnuniyetsiz')return (r.memnuniyet!=null?('Memnuniyet '+r.memnuniyet+'/10'):(r.memnuniyet_ret?'Değerlendirmek istemedi':'Memnuniyet -'))+(r.guven==='Hayır'?' · güven yok':'')+(_sikayetMyDisiMi(r.sikayet_kimi)?' · MY dışı şikayet, puana dahil değil':'');
   if(k==='sikayet')      return 'Şikayet'+(r.sikayet_kimi?(' — '+r.sikayet_kimi+(r.sikayet_my_neden?(' / '+r.sikayet_my_neden):'')):'');
   if(k==='talep')        return 'Talep';
   if(k==='yuzyuze')      return 'Yüz yüze uyuşmazlık';
@@ -2421,7 +2496,7 @@ function _aramaKirilimToggle(){
 async function _aramaKirilimVeriCek(){
   const bas=ARAMA.analiz?.bas, bit=ARAMA.analiz?.bit;
   const izinMy=await _analizIzinMyList(); // null=TÜM, aksi halde kendi KÇM'sindeki my_id listesi
-  let q=sb.from('arama_sonuclari').select('my_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,created_at').not('my_id','is',null).limit(5000);
+  let q=sb.from('arama_sonuclari').select('my_id,ulasildi,ulasilamama_neden,ziyaret_dogrulandi,memnuniyet,sikayet_kimi,created_at').not('my_id','is',null).limit(5000);
   if(bas) q=q.gte('created_at',bas+'T00:00:00+03:00');
   if(bit) q=q.lte('created_at',bit+'T23:59:59+03:00');
   if(!bas && !bit) q=q.gte('created_at', _istanbulTarihEkle(-90)+'T00:00:00+03:00');
@@ -2438,7 +2513,8 @@ function _aramaKirilimAgg(rows){
     m.toplam++;
     if(r.ulasilamama_neden==='Yanlış numara') m.yanlisNo++;
     if(r.ulasildi===false || r.ziyaret_dogrulandi==='Hayır' || r.ziyaret_dogrulandi==='Emin değil') m.sorunlu++;
-    if(r.memnuniyet!=null){ m.memnSum+=r.memnuniyet; m.memnCount++; }
+    // V31.160: MY dışı şikayet (Turkcell genel / Fiyat) puanı MY ortalamasına girmez.
+    if(r.memnuniyet!=null && !_sikayetMyDisiMi(r.sikayet_kimi)){ m.memnSum+=r.memnuniyet; m.memnCount++; }
   });
   return map;
 }

@@ -1583,9 +1583,7 @@ async function saveSifreSifirla(){
   }catch(e){toast('Hata: '+e.message,'error');}
 }
 
-function showSifreUnuttum(){
-  toast('Yöneticinizle iletişime geçin — Admin panelinden şifreniz sıfırlanabilir.','info');
-}
+// V31.157: showSifreUnuttum() artık auth.js'te (email ile self-servis sıfırlama linki).
 
 
 // ============================================================

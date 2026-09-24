@@ -14,6 +14,17 @@ function jsonYanit(obj, status){
   });
 }
 
+// V31.159: Modül başına farklı gönderen adresi — client sadece önceden
+// tanımlı bir anahtar (fromKey) gönderebilir, serbest "from" giremez.
+// Tanımsız/eşleşmeyen fromKey veya ilgili secret boşsa MAIL_FROM'a düşer.
+function _fromAdresiCoz(fromKey, env){
+  const map = {
+    donanim: env.MAIL_FROM_DONANIM,
+    sifre:   env.MAIL_FROM_SIFRE
+  };
+  return (fromKey && map[fromKey]) || env.MAIL_FROM;
+}
+
 async function handleSendMail(request, env){
   if(!env.RESEND_API_KEY || !env.MAIL_FROM){
     return jsonYanit({error:'RESEND_API_KEY veya MAIL_FROM tanımlı değil (wrangler secret put)'}, 500);
@@ -42,7 +53,7 @@ async function handleSendMail(request, env){
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: env.MAIL_FROM,
+        from: _fromAdresiCoz(body.fromKey, env),
         to,
         subject: body.subject,
         text: body.text || '',

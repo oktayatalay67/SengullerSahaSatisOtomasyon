@@ -80,6 +80,11 @@ window.onload=async()=>{
   if(!url||!key){ showPage('pageSetup'); return; }
   sb = supabase.createClient(url, key);
   document.getElementById('dbLedSpan')?.classList.remove('hide');
+
+  // V31.157: ?reset=<token> ile açıldıysa, normal login/oturum akışını atlayıp
+  // doğrudan "Yeni Şifre Belirle" ekranını göster.
+  if(await _sifreSifirlamaLinkKontrol()) return;
+
   const saved = JSON.parse(localStorage.getItem('cu')||'null');
   if(saved){
     // B6 fix: localStorage'daki kullanıcıyı DB'den doğrula (pasif/rol değişikliği kontrolü)
@@ -107,6 +112,84 @@ window.onload=async()=>{
     }
   } else showPage('pageLogin');
 };
+
+// ============================================================
+// V31.157: Şifremi Unuttum — email ile tek kullanımlık sıfırlama linki.
+// Hızlı/geçici çözüm: token users.sifre_sifirlama_token'da tutulur, 1 saat
+// geçerlidir. Şifreler mevcut mimariyle tutarlı biçimde düz metin (sifre_hash)
+// olarak yazılır — kalıcı çözüm 360 ile user/şifre modülü birleşimiyle gelecek.
+// ============================================================
+function showSifreUnuttum(){
+  document.getElementById('sifreUnuttumEmail').value = document.getElementById('loginEmail')?.value || '';
+  openModal('sifreUnuttumModal');
+}
+
+async function sifreSifirlamaTalebiGonder(){
+  const email = (document.getElementById('sifreUnuttumEmail').value||'').toLowerCase().trim();
+  if(!email){ toast('Email girin','error'); return; }
+  // Kullanıcı sistemde kayıtlı olsun ya da olmasın AYNI genel mesaj gösterilir
+  // (email numaralandırma/keşfini önlemek için).
+  const genelMesaj = 'Bu email sistemde kayıtlıysa, şifre sıfırlama linki gönderildi. Gelen kutunuzu kontrol edin.';
+  try{
+    const {data} = await sb.from('users').select('my_id,ad_soyad,email').eq('email', email).eq('aktif', true).maybeSingle();
+    if(data && data.email){
+      const token = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random())).replace(/-/g,'');
+      const son = new Date(Date.now() + 60*60*1000).toISOString(); // 1 saat geçerli
+      const {error:updErr} = await sb.from('users')
+        .update({sifre_sifirlama_token:token, sifre_sifirlama_son:son}).eq('my_id', data.my_id);
+      if(!updErr && typeof _sssoEmailGonder==='function'){
+        const link = location.origin + location.pathname + '?reset=' + token;
+        const subject = 'SSSO - Şifre Sıfırlama';
+        const text = `Merhaba ${data.ad_soyad||''},\n\nŞifrenizi sıfırlamak için aşağıdaki linke tıklayın (1 saat geçerlidir):\n${link}\n\nBu talebi siz yapmadıysanız bu emaili görmezden gelebilirsiniz.`;
+        const html = `<p>Merhaba ${escapeHTML(data.ad_soyad||'')},</p><p>Şifrenizi sıfırlamak için aşağıdaki linke tıklayın (1 saat geçerlidir):</p><p><a href="${link}">${escapeHTML(link)}</a></p><p>Bu talebi siz yapmadıysanız bu emaili görmezden gelebilirsiniz.</p>`;
+        await _sssoEmailGonder([data.email], subject, text, html, 'sifre');
+      }
+    }
+  }catch(err){ console.error('[auth] şifre sıfırlama talebi hatası:', err.message||err); }
+  toast(genelMesaj, 'info');
+  closeModal('sifreUnuttumModal');
+}
+
+// Sayfa açılırken ?reset=<token> varsa doğrular ve "Yeni Şifre Belirle" ekranını
+// açar. true dönerse çağıran (window.onload) normal login/oturum akışını atlar.
+async function _sifreSifirlamaLinkKontrol(){
+  const params = new URLSearchParams(location.search);
+  const token = params.get('reset');
+  if(!token) return false;
+  showPage('pageLogin');
+  const {data, error} = await sb.from('users')
+    .select('my_id,ad_soyad,sifre_sifirlama_son').eq('sifre_sifirlama_token', token).maybeSingle();
+  if(error || !data || !data.sifre_sifirlama_son || new Date(data.sifre_sifirlama_son) < new Date()){
+    toast('Şifre sıfırlama linki geçersiz veya süresi dolmuş — lütfen tekrar talep edin','error');
+    history.replaceState(null,'',location.pathname);
+    return true;
+  }
+  window._sifreSifirlamaUserId = data.my_id;
+  window._sifreSifirlamaToken = token;
+  document.getElementById('sifreYeniBelirleAd').textContent = data.ad_soyad||'';
+  openModal('sifreYeniBelirleModal');
+  return true;
+}
+
+async function sifreYeniBelirleKaydet(){
+  const yeni = document.getElementById('sifreYeniBelirle1').value;
+  const tekrar = document.getElementById('sifreYeniBelirle2').value;
+  if(!yeni || yeni.length<4){ toast('En az 4 karakter','error'); return; }
+  if(yeni!==tekrar){ toast('Şifreler eşleşmiyor','error'); return; }
+  const userId = window._sifreSifirlamaUserId, token = window._sifreSifirlamaToken;
+  if(!userId || !token){ toast('Geçersiz oturum — sayfayı yenileyin','error'); return; }
+  // Token aynı UPDATE'te tekrar doğrulanır ve temizlenir (yarış durumuna/linkin
+  // iki kez kullanılmasına karşı tek nokta).
+  const {data, error} = await sb.from('users')
+    .update({sifre_hash:yeni, sifre_sifirlama_token:null, sifre_sifirlama_son:null})
+    .eq('my_id', userId).eq('sifre_sifirlama_token', token).select('my_id');
+  if(error){ toast('Hata: '+error.message,'error'); return; }
+  if(!data || !data.length){ toast('Link zaten kullanılmış veya süresi dolmuş','error'); return; }
+  toast('Şifreniz güncellendi, şimdi giriş yapabilirsiniz','success');
+  closeModal('sifreYeniBelirleModal');
+  history.replaceState(null,'',location.pathname);
+}
+
 function setAppVersion(){const now=new Date();document.getElementById('appVersionInfo').innerText=`${APP_VERSION} | ${now.toLocaleDateString('tr-TR')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;}
 // v1.2.9: Sayfa yüklenir yüklenmez tüm .app-ver etiketlerini ve title'ı tek kaynaktan doldur
 if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', applyAppVersion); }

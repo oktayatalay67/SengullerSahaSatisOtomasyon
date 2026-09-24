@@ -710,7 +710,7 @@
     <button class="btn" style="background:var(--green);color:#04301f;" onclick="doLogin()">Giriş Yap</button>
     <div style="text-align:center;margin-top:14px;">
       <span style="font-size:13px;color:var(--text3);">Şifrenizi mi unuttunuz? </span>
-      <span style="font-size:13px;color:var(--blue);cursor:pointer;font-weight:600;" onclick="showSifreUnuttum()">Yöneticinize başvurun →</span>
+      <span style="font-size:13px;color:var(--blue);cursor:pointer;font-weight:600;" onclick="showSifreUnuttum()">Şifremi unuttum →</span>
     </div>
   </div>
 </div>
@@ -2758,6 +2758,40 @@
   </div>
 </div>
 
+<!-- ===== ŞİFREMİ UNUTTUM MODAL (V31.157) ===== -->
+<div class="modal-overlay" id="sifreUnuttumModal" onclick="if(event.target===this)closeModal('sifreUnuttumModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🔑 Şifremi Unuttum</div>
+    <div class="field" style="margin-bottom:16px;">
+      <label>E-Posta</label>
+      <input type="email" id="sifreUnuttumEmail" placeholder="kayıtlı email adresiniz..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;" onkeydown="if(event.key==='Enter')sifreSifirlamaTalebiGonder()">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn-iptal" onclick="closeModal('sifreUnuttumModal')">✕ İptal</button>
+      <button class="btn" onclick="sifreSifirlamaTalebiGonder()" style="background:var(--blue);">📧 Link Gönder</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ŞİFRE SIFIRLAMA — YENİ ŞİFRE BELİRLE MODAL (V31.157) ===== -->
+<div class="modal-overlay" id="sifreYeniBelirleModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🔐 Yeni Şifre Belirle</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Merhaba <span id="sifreYeniBelirleAd"></span>, yeni şifrenizi belirleyin.</div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Yeni Şifre</label>
+      <input type="password" id="sifreYeniBelirle1" placeholder="Yeni şifre (min. 4 karakter)..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;">
+    </div>
+    <div class="field" style="margin-bottom:16px;">
+      <label>Yeni Şifre Tekrar</label>
+      <input type="password" id="sifreYeniBelirle2" placeholder="Yeni şifre tekrar..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:14px;" onkeydown="if(event.key==='Enter')sifreYeniBelirleKaydet()">
+    </div>
+    <button class="btn" onclick="sifreYeniBelirleKaydet()" style="background:var(--blue);width:100%;">🔑 Şifreyi Kaydet</button>
+  </div>
+</div>
+
 <!-- ===== PLAN DÜZENLE MODAL (editPlanModal) ===== -->
 <div class="modal-overlay" id="editPlanModal" onclick="if(event.target===this)closeModal('editPlanModal')">
   <div class="modal">
@@ -3614,22 +3648,22 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.155"></script>
+<script src="js/config.js?v=v31.160"></script>
 <script src="js/yetki.js?v=v31.150"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
-<script src="js/donanim.js?v=v31.155"></script>
+<script src="js/donanim.js?v=v31.159"></script>
 <script src="js/utils.js?v=v31.101"></script>
-<script src="js/auth.js?v=v31.112"></script>
+<script src="js/auth.js?v=v31.159"></script>
 <script src="js/gorev.js?v=v31.150"></script>
 <script src="js/talep.js?v=v31.34"></script>
 <script src="js/temas.js?v=v31.148"></script>
-<script src="js/arama.js?v=v31.150"></script>
+<script src="js/arama.js?v=v31.160"></script>
 <script src="js/firsat.js?v=v31.34"></script>
 <script src="js/duyuru.js?v=v31.102"></script>
 <script src="js/musteri.js?v=v31.103"></script>
 <script src="js/hedef.js?v=v31.150"></script>
-<script src="js/admin.js?v=v31.150"></script>
+<script src="js/admin.js?v=v31.158"></script>
 <script src="js/veriyonetimi.js?v=v31.69"></script>
 <script src="js/rapor.js?v=v31.105"></script>
 

@@ -1,2 +1,18 @@
 _worker.js
 wrangler.toml
+.assetsignore
+.git
+.git/**
+.gitignore
+.wrangler
+.wrangler/**
+Claude outputs
+Claude outputs/**
+rol_tarama.txt
+rol_tarama2.txt
+savecontact.txt
+denetim3.txt
+generate_permissions_seed.js
+README.md
+DEPLOY.md
+UYGULAMA_ADIMLARI.md
