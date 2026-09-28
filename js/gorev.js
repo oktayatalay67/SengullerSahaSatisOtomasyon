@@ -1,7 +1,43 @@
 // ============================================================
-// gorev.js — v1.2.17
-// Son güncelleme: 2026-09-16
+// gorev.js — v1.2.22
+// Son güncelleme: 2026-09-28
 // Değişiklikler:
+//   v1.2.22 — (V31.166) Görev kartındaki durum/tip rozetleri okunamayacak kadar
+//     küçüktü (font-size:10px) — 12px'e büyütüldü. Aynı satırdaki "✓ Onaylandı"
+//     ve "⚠ Gecikmiş" etiketleri de görsel tutarlılık için 11px'e büyütüldü.
+//   v1.2.21 — (V31.165) "📍 Ziyaret" butonu (visit_id doluyken, mevcut temas
+//     kaydını düzenlemeye açan) "📍 Temas Düzenle" olarak yeniden adlandırıldı
+//     — terminoloji artık tamamen "Temas" üzerinden ("Ziyaret" kelimesi kart
+//     üzerinde kalmadı). Aynı buton, aynı yetki kuralıyla (temasPlanlaYetkisi)
+//     görev detay modaline de eklendi — kartta vardı, modalde eksikti.
+//   v1.2.20 — (V31.164) Görev kartı/detayında aynı anda hem "📝 Temas Oluştur"
+//   v1.2.20 — (V31.164) Görev kartı/detayında aynı anda hem "📝 Temas Oluştur"
+//     hem "📅 Ziyaret Planla" gösteriliyordu — ikisi de aynı işi yapıyordu,
+//     kafa karıştırıyordu. Tek buton kaldı: "📍 Temas Planla" (gorevTemasPlanla,
+//     eski gorevZiyaretPlanla'nın yeniden adlandırılmış hali) — eski "📍
+//     Ziyaret" butonuyla aynı pin ikonunu kullanıyor. Portföy içi/dışı ayrımı
+//     kaldırıldı: artık her iki durumda da temas kaydı oluşturup formu açıyor.
+//     "📝 Temas Oluştur" butonu kaldırıldı (gorevTemasOlustur fonksiyonu
+//     dokunulmadan kod tabanında kaldı, başka çağıran yok).
+//   v1.2.19 — (V31.163) V31.162'de bildirilen 2 hata düzeltildi: (1) "🔎 Kaynağı
+//     Gör" tıklanınca açılan aramaSonucDetayModal, açık olan gorevDetayModal'ın
+//     arkasında kalıp görünmüyordu — artık kaynak açılmadan önce gorevDetayModal
+//     kapatılıyor. (2) Görev detayındaki "📅 Ziyaret Planla" butonu sadece
+//     benimGorevim kontrolü yapıyordu, yönetici rollerinde (kart listesindeki
+//     davranışın aksine) hiç görünmüyordu — kart ile aynı kural (benimGorevim
+//     VEYA ystRoller) uygulandı.
+//   v1.2.18 — (V31.162) "Başla" davranışı değişti: artık TÜM görev tiplerinde
+//     durum='Başladı' yazılır ve otomatik ziyaret oluşturup temas formuna
+//     atlamak yerine görev detayı (openGorevDetay) açılır — kullanıcı önce
+//     görevi okur. Eski otomatik akış yeni gorevZiyaretPlanla(taskId)
+//     fonksiyonuna taşındı; kart ve detay modaline "📅 Ziyaret Planla" butonu
+//     eklendi (ziyaret/temas gerektiren, henüz visit_id'si olmayan görevlerde).
+//     Ayrıca: görev detayında parent_task_id doluysa (şikayet/talep görevleri
+//     bir arama/teyit görevinden doğar) "🔎 Kaynağı Gör" butonu (arama.js:
+//     araSonucDetayAc'i açar) ve "İlgili MY (ziyareti yapan)" bilgisi gösterilir
+//     — zincir parent_task_id -> visits.my_id -> myIdToName, yeni SQL/kolon yok.
+//     SELECT_KOLONLAR ve openGorevDetay'ın DB fallback sorgusuna parent_task_id
+//     eklendi.
 //   v1.2.17 — (V31.104) "Hangi Müşteriye Gidelim" (eski adı "Hangi Müşteri?"):
 //            "Devam"ın üstüne "⚠ Müşteri Potansiyeli İşaretle" butonu eklendi
 //            — tam profile gitmeden, küçük bir modalda (hmZpotModal) Satış
@@ -324,7 +360,7 @@ async function loadGorevler(silent) {
 
   const SELECT_KOLONLAR =
     'task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,' +
-    'onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,olusturma_tarihi,guncelleme_tarihi';
+    'onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,parent_task_id,olusturma_tarihi,guncelleme_tarihi';
 
   // v1.2.11 (V31.48): Sorguyu her sayfa icin yeniden kurar.
   // ÖNEMLİ — eski hali `.order('deadline',{ascending:true}).limit(200)` idi ve iki
@@ -855,20 +891,23 @@ function renderGorevKarti(t) {
     aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openGorevEdit(' + t.task_id + ')">✏️</button> ';
   }
   // Bağlı ziyaret/fırsat butonu
-  if (t.visit_id) aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevZiyaretAc(' + t.task_id + ')">📍 Ziyaret</button> ';
+  if (t.visit_id) aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevZiyaretAc(' + t.task_id + ')">📍 Temas Düzenle</button> ';
   if (t.opp_id)   aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openEditOppModal(' + t.opp_id + ')">💼 Fırsat</button> ';
-  // v1.2.2: Ziyaret oluşmadıysa manuel temas butonu
+  // V31.164: Ziyaret/temas oluşmadıysa TEK buton — "📝 Temas Oluştur" ve
+  // "📅 Ziyaret Planla" birlikte gösterilip kafa karıştırıyordu (ikisi de aynı
+  // işi yapıyordu). Artık tek "📍 Temas Planla" butonu var, eski "📍 Ziyaret"
+  // butonuyla aynı ikonu kullanıyor.
   if (!t.visit_id && t.ncst && !['Atandı','Tamamlandı','Reddedildi','İptal'].includes(t.durum) && (benimGorevim || ystRoller.includes(r2))) {
-    aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;color:var(--blue);" onclick="gorevTemasOlustur(' + t.task_id + ')">📝 Temas Oluştur</button> ';
+    aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;color:var(--green);" onclick="gorevTemasPlanla(' + t.task_id + ')">📍 Temas Planla</button> ';
   }
 
   return '<div class="visit-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid ' + renk + ';' + (gecikti ? 'background:rgba(248,113,113,.05);' : '') + '">' +
     '<div onclick="openGorevDetay(' + t.task_id + ')" style="flex:1;">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
-        '<span style="font-size:10px;padding:2px 8px;border-radius:12px;background:' + renk + '22;color:' + renk + ';font-weight:600;">' + escapeHTML(t.durum) + '</span>' +
-        '<span style="font-size:10px;color:var(--text3);">' + escapeHTML(tip) + '</span>' +
-        (t.onay_tarihi ? '<span style="font-size:10px;color:var(--green);">✓ Onaylandı</span>' : '') +
-        (gecikti ? '<span style="font-size:10px;color:var(--red);font-weight:700;">⚠ Gecikmiş</span>' : '') +
+        '<span style="font-size:12px;padding:3px 9px;border-radius:12px;background:' + renk + '22;color:' + renk + ';font-weight:600;">' + escapeHTML(t.durum) + '</span>' +
+        '<span style="font-size:12px;color:var(--text3);">' + escapeHTML(tip) + '</span>' +
+        (t.onay_tarihi ? '<span style="font-size:11px;color:var(--green);">✓ Onaylandı</span>' : '') +
+        (gecikti ? '<span style="font-size:11px;color:var(--red);font-weight:700;">⚠ Gecikmiş</span>' : '') +
       '</div>' +
       '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">' + escapeHTML(t.baslik) + '</div>' +
       (musteri ? '<div style="font-size:12px;color:var(--text2);margin-bottom:3px;">🏢 ' + escapeHTML(musteri) + '</div>' : '') +
@@ -892,7 +931,7 @@ async function openGorevDetay(taskId) {
   // sağlamlaştırmasıyla aynı yöntem.
   if (!t) {
     const { data: raw, error } = await sb.from('tasks')
-      .select('task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,olusturma_tarihi,guncelleme_tarihi')
+      .select('task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,parent_task_id,olusturma_tarihi,guncelleme_tarihi')
       .eq('task_id', taskId).maybeSingle();
     if (error || !raw) { toast('Görev bulunamadı', 'error'); return; }
     const [{ data: tt }, { data: users }, { data: cust }] = await Promise.all([
@@ -938,8 +977,43 @@ async function openGorevDetay(taskId) {
   const benimGorevim  = t.atanan_id === mid;
   const benimatadim   = t.atayan_id === mid;
   const kapali = ['Tamamlandı','Reddedildi','İptal'].includes(t.durum);
+  // V31.162 düzeltme: kart listesindeki "Ziyaret Planla"/"Temas Oluştur" ile aynı
+  // yetki kuralı (benimGorevim VEYA yönetici rolü) — detay modalinde eskiden
+  // sadece benimGorevim kontrol ediliyordu, yöneticiler butonu göremiyordu.
+  const r2b = (currentUser.yetki_seviyesi||'').toUpperCase();
+  const ystRollerB = ['KÇM MÜDÜRÜ','TAKIM LİDERİ','ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','OPERASYON MÜDÜRÜ'];
+  const temasPlanlaYetkisi = benimGorevim || ystRollerB.includes(r2b);
+
+  // V31.162: Bu görev bir üst görevden (parent_task_id) doğduysa — şikayet/talep
+  // görevleri Arama modülündeki bir teyit/anket görevinden açılır — kaynağa
+  // (arama_sonuclari kaydı) tek tuşla erişim + şikayet edilen/ziyareti yapan
+  // MY'nin bilgisi gösterilir. Zincir: bu görev.parent_task_id -> o görevin
+  // visit_id'si -> visits.my_id -> myIdToName (yeni SQL/kolon gerekmez).
+  let kaynakHTML = '';
+  if (t.parent_task_id) {
+    const { data: parentTask } = await sb.from('tasks').select('visit_id').eq('task_id', t.parent_task_id).maybeSingle();
+    let sikayetMyAd = null;
+    if (parentTask && parentTask.visit_id) {
+      const { data: v } = await sb.from('visits').select('my_id').eq('visit_id', parentTask.visit_id).maybeSingle();
+      if (v && v.my_id) sikayetMyAd = myIdToName[v.my_id] || ('MY#' + v.my_id);
+    }
+    kaynakHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(77,159,255,.08);border:1px solid rgba(77,159,255,.25);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;">' +
+      '<span style="color:var(--text2);">' + (sikayetMyAd ? 'İlgili MY (ziyareti yapan): <b style="color:var(--text);">' + escapeHTML(sikayetMyAd) + '</b>' : 'Kaynak arama kaydına bağlı') + '</span>' +
+      '<button class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:11px;white-space:nowrap;" onclick="closeModal(\'gorevDetayModal\');araSonucDetayAc(' + t.parent_task_id + ')">🔎 Kaynağı Gör</button>' +
+    '</div>';
+  }
 
   let aksiyonHTML = '';
+  // V31.162: Görev bir ziyaret/temas gerektiriyor ve henüz bağlı ziyaret yoksa,
+  // detaydan da doğrudan randevu planlanabilsin.
+  if (temasPlanlaYetkisi && !kapali && !t.visit_id && t.ncst) {
+    aksiyonHTML += '<button class="btn btn-sm" style="padding:6px 12px;background:var(--green);color:#04301f;" onclick="gorevTemasPlanla(' + taskId + ')">📍 Temas Planla</button>';
+  }
+  // V31.165: Kartta zaten vardı (t.visit_id doluyken "📍 Temas Düzenle"),
+  // detay modalinde karşılığı eksikti — aynı parite kuralı burada da uygulandı.
+  if (temasPlanlaYetkisi && t.visit_id) {
+    aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;" onclick="gorevZiyaretAc(' + taskId + ')">📍 Temas Düzenle</button>';
+  }
   if (benimGorevim && !kapali) {
     GOREV_DURUMLAR.filter(function(d) { return d !== t.durum && !['Reddedildi'].includes(d); })
     .forEach(function(d) {
@@ -977,6 +1051,7 @@ async function openGorevDetay(taskId) {
     '</div>' +
     '<div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">' + escapeHTML(t.baslik) + '</div>' +
     (musteri ? '<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">🏢 ' + escapeHTML(musteri) + '</div>' : '') +
+    kaynakHTML +
     (t.aciklama ? '<div style="font-size:13px;color:var(--text2);background:var(--navy2);border-radius:8px;padding:10px;margin-bottom:10px;">' + escapeHTML(t.aciklama) + '</div>' : '') +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:12px;">' +
       '<div style="color:var(--text3);">Atayan: <span style="color:var(--text);">' + escapeHTML(atayan) + '</span></div>' +
@@ -1308,40 +1383,57 @@ async function gorevDurumGuncelle(taskId, yeniDurum) {
     detay:   'Durum güncellendi: ' + yeniDurum,
   });
 
-  // v1.2.2: Başladı'ya çekilince otomatik ziyaret oluştur
-  // Cache yerine DB'den çek — race condition önlenir
+  // V31.162: "Başladı"ya çekilince ARTIK otomatik ziyaret oluşturulmuyor ve
+  // temas formuna atlanmıyor. Bunun yerine görevin kendisi (açıklama, kaynak,
+  // timeline) ekrana getiriliyor — ziyaret/temas randevusu ayrı bir eylem
+  // ("📅 Ziyaret Planla" butonu, bkz. gorevZiyaretPlanla). Eski otomatik akış
+  // (durum='Başladı' olur olmaz form açılması) kullanıcıyı görevi okumadan
+  // temas ekranına fırlatıyordu — kaldırıldı.
   if (yeniDurum === 'Başladı') {
-    const { data: task } = await sb.from('tasks')
-      .select('task_id,type_id,ncst,visit_id')
-      .eq('task_id', taskId).single();
-    if (task && task.ncst && !task.visit_id) {
-      const tip = (GOREV.taskTypes || []).find(function(t) { return t.type_id === task.type_id; });
-      const form = tip ? tip.bagli_form : 'genel';
-      const ziyaretGerektiren = ['ziyaret','ziyaret_firsat','sikayet','firsat','potansiyel'];
-      if (ziyaretGerektiren.includes(form)) {
-        const { data: cust } = await sb.from('customers').select('my_id').eq('ncst', task.ncst).single();
-        const portfoyDisi = !cust || !cust.my_id || (sanalMyIds && sanalMyIds.includes(cust.my_id));
-        if (!portfoyDisi) {
-          const yeniVisitId = await gorevZiyaretOlustur(taskId, task.ncst, tip, form === 'ziyaret_firsat' || form === 'firsat');
-          // v1.2.4: Ziyaret oluşturuldu — temas formunu ekranda aç
-          if(yeniVisitId && typeof showEditVisitModalById === 'function'){
-            window._gorevId = taskId;
-            await loadGorevler();
-            await showEditVisitModalById(yeniVisitId);
-            return; // loadGorevler zaten çağrıldı
-          }
-        } else {
-          toast('Portföy dışı müşteri — Temas Oluştur butonu ile manuel temas ekleyin','info');
-        }
-      }
-    }
+    await loadGorevler();
+    await openGorevDetay(taskId);
+    return;
   }
 
   toast('Durum güncellendi','success');
   await loadGorevler();
 }
 
-// v1.2.2: Manuel temas oluşturma (portföy dışı müşteriler için)
+// ============================================================
+// V31.162: ZİYARET PLANLA — "Başladı" ile ayrıştırıldı
+// ============================================================
+// Görev tipi ziyaret/şikayet/fırsat/potansiyel gerektiriyorsa ve müşteri
+// portföy içindeyse: otomatik "Planlandı" ziyaret kaydı oluşturur ve temas
+// formunu ekranda açar. Eskiden bu akış "Başla" butonuna basılır basılmaz
+// otomatik tetikleniyordu (bkz. eski gorevDurumGuncelle); artık kullanıcı
+// görev kartını/detayını okuduktan sonra kendi isteğiyle tetikliyor.
+// V31.164: Tek buton — portföy içi/dışı ayrımı kaldırıldı, her durumda temas
+// kaydı oluşturup formu açar (eskiden portföy dışında "Temas Oluştur" butonuna
+// yönlendiriyordu; artık o buton kaldırıldığı için bu fonksiyon her iki durumu
+// da kendisi karşılıyor).
+async function gorevTemasPlanla(taskId) {
+  let task = GOREV.tasks.find(function(t) { return t.task_id === taskId; });
+  if (!task) {
+    const { data } = await sb.from('tasks').select('task_id,type_id,ncst,visit_id').eq('task_id', taskId).maybeSingle();
+    task = data;
+  }
+  if (!task || !task.ncst) { toast('Müşteri bilgisi eksik — temas planlanamıyor','error'); return; }
+  if (task.visit_id) { await gorevZiyaretAc(taskId); return; } // zaten var — düzenlemeye aç
+
+  const tip = task.task_types || (GOREV.taskTypes || []).find(function(t) { return t.type_id === task.type_id; });
+  const form = tip ? tip.bagli_form : 'genel';
+  window._gorevId = taskId;
+  const yeniVisitId = await gorevZiyaretOlustur(taskId, task.ncst, tip, form === 'ziyaret_firsat' || form === 'firsat');
+  if (yeniVisitId && typeof showEditVisitModalById === 'function') {
+    await loadGorevler();
+    closeModal('gorevDetayModal');
+    await showEditVisitModalById(yeniVisitId);
+  }
+}
+
+// v1.2.2: Manuel temas oluşturma (portföy dışı müşteriler için) — V31.164:
+// artık kart üzerinde buton olarak kullanılmıyor (bkz. gorevTemasPlanla),
+// fonksiyon geriye dönük uyumluluk için bırakıldı, başka çağıran yok.
 async function gorevTemasOlustur(taskId) {
   const task = GOREV.tasks.find(function(t) { return t.task_id === taskId; });
   if (!task || !task.ncst) { toast('Müşteri bilgisi eksik','error'); return; }

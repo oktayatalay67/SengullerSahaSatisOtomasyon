@@ -1,5 +1,14 @@
 // ============================================================
-// donanim.js — v1.0.54 (V31.136)
+// donanim.js — v1.0.55 (V31.167)
+//   v1.0.55 (V31.167): Güvenlik açığı düzeltmesi — depo ızgarasında bir
+//     hücre 0'a çekilip rezerve yoksa (adet=0 && alt=0), stok_urunleri
+//     satırı artık FİZİKSEL SİLİNMİYOR (DELETE kaldırıldı). Bunun yerine
+//     soft-delete: toplam_adet=0, aktif=false yazılıyor — satır DB'de
+//     kalıyor, yanlışlıkla sıfırlanan bir tahsisat geri döndürülebiliyor.
+//     Ekranda görünüm değişmedi (hücre zaten 0 gösteriyordu). İki call
+//     site: donanimDagitimKaydet (toplu "Kaydet") ve _izgKuyrukYaz
+//     (ızgara hücreden çıkınca 200ms debounce ile otomatik yazma —
+//     asıl risk buradaydı, kullanıcı onay vermeden kalıcı silme oluyordu).
 //   v1.0.54 (V31.136): Stok Hareket Raporu Excel'e Aktar artık TEK dosyada
 //     7 sayfa üretiyor: Stok Hareketleri (aynen), Cihaz Giriş - Detay/Özet
 //     (stok_seri_no + stok_urunleri, tarih aralığı created_at bazlı),
@@ -3800,7 +3809,10 @@ async function donanimDagitimKaydet(){
     try{
       if(r.urun_id){
         if(adet === 0 && r.alt === 0){
-          const {error} = await sb.from('stok_urunleri').delete().eq('urun_id', r.urun_id);
+          // V31.167: fiziksel DELETE yerine soft-delete — satır DB'de kalır
+          // (geri döndürülebilir), sadece pasif + adet 0 işaretlenir.
+          const {error} = await sb.from('stok_urunleri')
+            .update({toplam_adet:0, aktif:false, updated_at:new Date().toISOString()}).eq('urun_id', r.urun_id);
           if(error) throw new Error(error.message);
         } else if(adet !== r.mevcut){
           const {error} = await sb.from('stok_urunleri')
@@ -4187,9 +4199,13 @@ async function _izgKuyrukYaz(kod){
     try{
       if(satir){
         if(adet === 0 && alt === 0){
-          const {error} = await sb.from('stok_urunleri').delete().eq('urun_id', satir.urun_id);
+          // V31.167: fiziksel DELETE yerine soft-delete — satır DB'de kalır
+          // (geri döndürülebilir), sadece pasif + adet 0 işaretlenir.
+          const {error} = await sb.from('stok_urunleri')
+            .update({toplam_adet:0, aktif:false, updated_at:new Date().toISOString()})
+            .eq('urun_id', satir.urun_id);
           if(error) throw new Error(error.message);
-          delete g.satirlar[depoId];
+          satir.toplam_adet = 0; satir.aktif = false;
         }else{
           const {error} = await sb.from('stok_urunleri')
             .update({toplam_adet:adet, updated_at:new Date().toISOString()})

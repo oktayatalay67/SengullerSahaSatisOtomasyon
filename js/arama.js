@@ -1,5 +1,9 @@
 // ============================================================
-// arama.js — v1.1.15
+// arama.js — v1.1.16
+//   v1.1.16 (27.09.2026, V31.161): Arama Detay ekrani (araSonucDetayAc) kunye
+//     satirina Kontak (visits.contact_id -> contacts.ad_soyad, yoksa
+//     visits.gorusulen_yetkili) ve Portfoy sahibi (customers.my_id ->
+//     myIdToName) bilgisi eklendi.
 //   v1.1.15 (24.09.2026, V31.160): Sikayet degerlendirme ve gorev kurallari.
 //     (1) MY dışı şikayet (Turkcell (genel) / Fiyat-hizmet politikasi):
 //         kaydin memnuniyet puani MY ortalamasina (_aramaKirilimAgg) girmez.
@@ -1176,17 +1180,27 @@ async function araSonucDetayAc(taskId){
   if(kunyeEl) kunyeEl.innerHTML='';
   openModal('aramaSonucDetayModal');
 
-  let unvan=t.ncst, myAd='—', zt='—';
+  let unvan=t.ncst, myAd='—', zt='—', portfoySahibiAd='—', kontakAd='—';
   const [{data:c}, vRes] = await Promise.all([
-    sb.from('customers').select('unvan').eq('ncst',t.ncst).maybeSingle(),
-    t.visit_id ? sb.from('visits').select('my_id,tarih_saat').eq('visit_id',t.visit_id).maybeSingle() : Promise.resolve({data:null})
+    sb.from('customers').select('unvan,my_id').eq('ncst',t.ncst).maybeSingle(),
+    t.visit_id ? sb.from('visits').select('my_id,tarih_saat,contact_id,gorusulen_yetkili').eq('visit_id',t.visit_id).maybeSingle() : Promise.resolve({data:null})
   ]);
   if(c?.unvan) unvan=c.unvan;
+  // V31.161: portföy sahibi — customers.my_id (ziyareti yapan MY'den bağımsız,
+  // ziyaret vekaleten/portföy dışı yapılmış olsa bile gerçek sahip budur).
+  if(c?.my_id) portfoySahibiAd = myIdToName[c.my_id]||('MY#'+c.my_id);
   if(vRes?.data){
     myAd = vRes.data.my_id?(myIdToName[vRes.data.my_id]||('MY#'+vRes.data.my_id)):'—';
     zt = vRes.data.tarih_saat?fmtDate(vRes.data.tarih_saat):'—';
+    // V31.161: görüşülen kontak kişi — önce visits.contact_id -> contacts.ad_soyad,
+    // yoksa ziyaret formundaki serbest metin gorusulen_yetkili'ye düşülür.
+    if(vRes.data.contact_id){
+      const {data:ct}=await sb.from('contacts').select('ad_soyad').eq('contact_id',vRes.data.contact_id).maybeSingle();
+      if(ct?.ad_soyad) kontakAd=ct.ad_soyad;
+    }
+    if(kontakAd==='—' && vRes.data.gorusulen_yetkili) kontakAd=vRes.data.gorusulen_yetkili;
   }
-  if(kunyeEl) kunyeEl.innerHTML=`<b>${escapeHTML(unvan)}</b><br>Ziyaret: ${escapeHTML(myAd)} · ${zt} · Görev durumu: ${escapeHTML(t.durum)}`;
+  if(kunyeEl) kunyeEl.innerHTML=`<b>${escapeHTML(unvan)}</b><br>Ziyaret: ${escapeHTML(myAd)} · ${zt} · Görev durumu: ${escapeHTML(t.durum)}<br>Kontak: ${escapeHTML(kontakAd)} · Portföy sahibi: ${escapeHTML(portfoySahibiAd)}`;
 
   // v31.24: select('*') kullanılır — sabit kolon listesi, canlı şemada tek bir
   // kolon adı bile uyuşmazsa PostgREST TÜM select'i reddediyor ve hata sessizce

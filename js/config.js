@@ -1,7 +1,38 @@
 // ============================================================
-// config.js — v1.4.02
-// Son güncelleme: 2026-09-24
+// config.js — v1.4.09
+// Son güncelleme: 2026-09-28
 // Değişiklikler:
+//   v1.4.09 — APP_VERSION → V31.167. donanim.js: depo ızgarasında hücre
+//     0'a çekilince stok_urunleri satırının FİZİKSEL SİLİNMESİ kaldırıldı
+//     (güvenlik/veri kaybı düzeltmesi) — artık soft-delete (toplam_adet=0,
+//     aktif=false), satır DB'de kalıp geri döndürülebiliyor. donanim.js
+//     v1.0.54 → v1.0.55.
+//   v1.4.08 — APP_VERSION → V31.166. gorev.js: görev kartındaki durum/tip
+//     rozetleri (font-size:10px, okunamıyordu) 12px'e, "✓ Onaylandı"/
+//     "⚠ Gecikmiş" etiketleri 11px'e büyütüldü. gorev.js v1.2.21 → v1.2.22.
+//   v1.4.07 — APP_VERSION → V31.165. gorev.js: "Ziyaret" butonu "Temas
+//     Düzenle" olarak yeniden adlandırıldı, aynı buton görev detay modaline
+//     de eklendi (kartta vardı, modalde eksikti). gorev.js v1.2.20 → v1.2.21.
+//   v1.4.06 — APP_VERSION → V31.164. gorev.js: görev kartı/detayındaki
+//     çakışan "Temas Oluştur" + "Ziyaret Planla" butonları tek "📍 Temas
+//     Planla" butonuna indirildi (eski Ziyaret butonuyla aynı pin ikonu).
+//     gorev.js v1.2.19 → v1.2.20.
+//   v1.4.05 — APP_VERSION → V31.163. gorev.js hata düzeltmesi: "Kaynağı Gör"
+//     modali görev detayının arkasında açılıp görünmüyordu (artık önce görev
+//     detayı kapatılıyor); "Ziyaret Planla" butonu yönetici rollerinde
+//     görünmüyordu (kart ile aynı yetki kuralına çekildi). gorev.js
+//     v1.2.18 → v1.2.19.
+//   v1.4.04 — APP_VERSION → V31.162. gorev.js: "Başla" tüm görev tiplerinde
+//     artık görev detayını açıyor (otomatik ziyaret/temas formuna atlamıyor);
+//     yeni "📅 Ziyaret Planla" butonu (gorevZiyaretPlanla) eski otomatik akışı
+//     ayrı bir eylem yaptı. Şikayet/talep görevlerinde parent_task_id
+//     zincirinden "🔎 Kaynağı Gör" + ziyareti yapan MY bilgisi eklendi. SQL yok.
+//     gorev.js v1.2.17 → v1.2.18.
+//   v1.4.03 — APP_VERSION → V31.161. arama.js: araSonucDetayAc (Arama Detay
+//     ekranı) künye satırına "Kontak" (visits.contact_id → contacts.ad_soyad,
+//     yoksa visits.gorusulen_yetkili) ve "Portföy sahibi" (customers.my_id →
+//     myIdToName) bilgisi eklendi. SQL yok, sadece mevcut kolonlardan okuma.
+//     arama.js v1.1.15 → v1.1.16.
 //   v1.4.02 — APP_VERSION → V31.160. YENİ: arama.js — şikayet değerlendirme
 //     ve görev kuralları. Kaynak 'Ziyarete gelen MY/FMY' puana girer, görev
 //     otomatik açılır (takım lideri → KÇM müdürü → operasyon müdürü zinciri)
@@ -927,7 +958,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.160';
+const APP_VERSION = 'V31.167';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
