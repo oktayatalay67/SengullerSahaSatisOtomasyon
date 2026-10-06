@@ -1,7 +1,11 @@
 // ============================================================
-// config.js — v1.4.09
+// config.js — v1.4.10
 // Son güncelleme: 2026-09-28
 // Değişiklikler:
+//   v1.4.10 — APP_VERSION → V31.168. Bildirim modulu ayrildi:
+//     js/bildirim.js olusturuldu (tek bildirim gonderme noktasi),
+//     donanim.js icindeki _sssoEmailGonder kaldirildi, auth.js ve
+//     arama.js bu tek fonksiyonu cagiriyor. Uc kopya -> bir.
 //   v1.4.09 — APP_VERSION → V31.167. donanim.js: depo ızgarasında hücre
 //     0'a çekilince stok_urunleri satırının FİZİKSEL SİLİNMESİ kaldırıldı
 //     (güvenlik/veri kaybı düzeltmesi) — artık soft-delete (toplam_adet=0,
@@ -53,6 +57,8 @@
 //     bu adresten gidiyor). MAIL_FROM_DONANIM tanımlanmazsa donanım modülü
 //     mevcut MAIL_FROM (donanimSatis@360.org.tr) ile devam eder — geriye
 //     dönük uyumlu. donanim.js:_sssoEmailGonder() 5. parametre (fromKey)
+//     [V31.168 NOTU: bu fonksiyon artik js/bildirim.js icinde ve adi
+//      bildirimGonder(); 5. parametre gonderenAnahtari olarak duruyor.]
 //     aldı; auth.js:sifreSifirlamaTalebiGonder() çağrısına 'sifre' eklendi.
 //   v1.4.00 — APP_VERSION → V31.158. YENİ: Şifremi Unuttum — email ile tek
 //     kullanımlık şifre sıfırlama linki (auth.js). users tablosuna
@@ -958,7 +964,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.167';
+const APP_VERSION = 'V31.168';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

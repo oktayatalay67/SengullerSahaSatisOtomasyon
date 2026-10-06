@@ -1,7 +1,12 @@
 // ============================================================
-// auth.js — v1.2.25
+// auth.js — v1.2.26
 // Son güncelleme: 2026-09-17
 // Değişiklikler:
+//   v1.2.26 — (V31.168) Parola sifirlama e-postasi artik js/bildirim.js
+//     icindeki bildirimGonder() ile gonderiliyor (eskiden donanim.js
+//     icindeki _sssoEmailGonder). `typeof ... === 'function'` korumasi
+//     KALDIRILDI: fonksiyon yoksa kod patlamali, sessizce gecmemeli —
+//     bu koruma eksikligi gizledigi icin hatali teshise yol acmisti.
 //   v1.2.25 — (V31.112) Marka adı: uygulama genelinde "Şengüller Saha Satış"
 //     ifadesi "Saha Satış Otomasyonu" olarak değiştirildi (index.html — title,
 //     giriş ekranı, tüm app-footer'lar). Bu dosyada değişen kod yok, sadece
@@ -137,12 +142,12 @@ async function sifreSifirlamaTalebiGonder(){
       const son = new Date(Date.now() + 60*60*1000).toISOString(); // 1 saat geçerli
       const {error:updErr} = await sb.from('users')
         .update({sifre_sifirlama_token:token, sifre_sifirlama_son:son}).eq('my_id', data.my_id);
-      if(!updErr && typeof _sssoEmailGonder==='function'){
+      if(!updErr){
         const link = location.origin + location.pathname + '?reset=' + token;
         const subject = 'SSSO - Şifre Sıfırlama';
         const text = `Merhaba ${data.ad_soyad||''},\n\nŞifrenizi sıfırlamak için aşağıdaki linke tıklayın (1 saat geçerlidir):\n${link}\n\nBu talebi siz yapmadıysanız bu emaili görmezden gelebilirsiniz.`;
         const html = `<p>Merhaba ${escapeHTML(data.ad_soyad||'')},</p><p>Şifrenizi sıfırlamak için aşağıdaki linke tıklayın (1 saat geçerlidir):</p><p><a href="${link}">${escapeHTML(link)}</a></p><p>Bu talebi siz yapmadıysanız bu emaili görmezden gelebilirsiniz.</p>`;
-        await _sssoEmailGonder([data.email], subject, text, html, 'sifre');
+        await bildirimGonder([data.email], subject, text, html, 'sifre');
       }
     }
   }catch(err){ console.error('[auth] şifre sıfırlama talebi hatası:', err.message||err); }

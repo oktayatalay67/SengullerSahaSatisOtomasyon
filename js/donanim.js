@@ -1,5 +1,8 @@
 // ============================================================
-// donanim.js — v1.0.55 (V31.167)
+// donanim.js — v1.0.56 (V31.168)
+//   v1.0.56 (V31.168): E-posta gonderme fonksiyonu _sssoEmailGonder bu
+//     dosyadan KALDIRILDI -> js/bildirim.js. Uc cagri bildirimGonder()
+//     olarak guncellendi. Davranis degismedi, gonderim yine Resend.
 //   v1.0.55 (V31.167): Güvenlik açığı düzeltmesi — depo ızgarasında bir
 //     hücre 0'a çekilip rezerve yoksa (adet=0 && alt=0), stok_urunleri
 //     satırı artık FİZİKSEL SİLİNMİYOR (DELETE kaldırıldı). Bunun yerine
@@ -4533,27 +4536,9 @@ function donanimRaporExcelIndir(){
    Email gönderimi BEST-EFFORT'tur: başarısız olursa konsola loglanır,
    ana akışı (talep kaydı/durum güncelleme) ASLA durdurmaz.
    ============================================================ */
-// V31.159: fromKey — opsiyonel, worker tarafındaki whitelist'e göre gönderen
-// adresini seçer ('donanim'/'sifre'). Belirtilmezse worker MAIL_FROM kullanır
-// (mevcut çağrılar değişmeden çalışmaya devam eder).
-async function _sssoEmailGonder(to, subject, text, html, fromKey){
-  try{
-    const resp = await fetch('/api/send-mail', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({to, subject, text, html, fromKey})
-    });
-    if(!resp.ok){
-      const raw = await resp.text().catch(()=>String(resp.status));
-      console.error('[donanim] email gönderilemedi:', raw);
-      return false;
-    }
-    return true;
-  }catch(err){
-    console.error('[donanim] email gönderim hatası:', err.message||err);
-    return false;
-  }
-}
+// V31.168: E-posta gonderme fonksiyonu (_sssoEmailGonder) BU DOSYADAN
+// KALDIRILDI. Altyapi isi oldugu icin js/bildirim.js'e tasindi; asagidaki
+// cagrilar artik bildirimGonder() kullaniyor. Bkz. CALISMA-KURALLARI Bolum 12.
 
 // Bir KÇM'de (veya kcm_id null ise tüm) donanim_yonet yetkisi olan,
 // email'i dolu kullanıcıları döndürür.
@@ -4581,7 +4566,7 @@ async function _donanimTalepEmailGonderYeni(talep, urunAd){
       `<tr><td><strong>Müşteri</strong></td><td>${escapeHTML(talep.musteri_unvani||talep.ncst||'')}</td></tr>`+
       `<tr><td><strong>Talep eden</strong></td><td>${escapeHTML(currentUser.ad_soyad||String(currentUser.my_id))}</td></tr>`+
       `</table><p>Lütfen SSSO &gt; Donanım &gt; Talepler ekranından değerlendirin.</p>`;
-    await _sssoEmailGonder(aliciler, subject, text, html);
+    await bildirimGonder(aliciler, subject, text, html);
   }catch(err){ console.error('[donanim] yeni talep email hatası:', err.message||err); }
 }
 
@@ -4594,7 +4579,7 @@ async function _donanimTalepEmailGonderSonuc(talep, urunAd, yeniDurum){
     const html = `<p>Merhaba ${escapeHTML(sahip.ad_soyad||'')},</p>`+
       `<p><strong>${escapeHTML(urunAd)}</strong> (${escapeHTML(String(talep.adet))} adet) tedarik talebiniz <strong>${escapeHTML(yeniDurum)}</strong>.</p>`+
       `<p>SSSO &gt; Donanım &gt; Talepler ekranından detayları görebilirsiniz.</p>`;
-    await _sssoEmailGonder([sahip.email], subject, text, html);
+    await bildirimGonder([sahip.email], subject, text, html);
   }catch(err){ console.error('[donanim] talep sonuç email hatası:', err.message||err); }
 }
 
@@ -4724,7 +4709,7 @@ async function _donanimSurecEmailGonder(sepetId, yeniDurum){
       `<tr><td><strong>Sırada</strong></td><td>${escapeHTML(bekleyen)}</td></tr>`+
       `</table><p>SSSO &gt; Donanım &gt; Rezervasyonlar ekranından detayları görebilirsiniz.</p>`;
 
-    await _sssoEmailGonder(aliciler, subject, text, html);
+    await bildirimGonder(aliciler, subject, text, html);
   }catch(err){ console.error('[donanim] süreç email hatası:', err.message||err); }
 }
 

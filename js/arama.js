@@ -1,5 +1,8 @@
 // ============================================================
-// arama.js — v1.1.16
+// arama.js — v1.1.17
+//   v1.1.17 (05.10.2026, V31.168): Sikayet bildirim e-postasi kendi
+//     fetch i yerine js/bildirim.js icindeki bildirimGonder() ile
+//     gonderiliyor. Donus sozlesmesi ayni ('ok'|'adres_yok'|'hata').
 //   v1.1.16 (27.09.2026, V31.161): Arama Detay ekrani (araSonucDetayAc) kunye
 //     satirina Kontak (visits.contact_id -> contacts.ad_soyad, yoksa
 //     visits.gorusulen_yetkili) ve Portfoy sahibi (customers.my_id ->
@@ -2197,16 +2200,10 @@ async function _aramaSikayetBildirimEmail(tid,ctx,c){
       '<b>Şikayet detayı:</b> '+escapeHTML(detay).replace(/\n/g,'<br>')+'<br>'+
       '<b>Görev No:</b> #'+escapeHTML(String(tid))+'</p>'+
       '<p style="color:#888;font-size:12px;">Bu e-posta Şengüller Saha Satış Uygulaması tarafından otomatik gönderilmiştir.</p>';
-    const resp=await fetch('/api/send-mail',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({to:[u.email],subject,text,html,fromKey:'sifre'})
-    });
-    if(!resp.ok){
-      const raw=await resp.text().catch(()=>String(resp.status));
-      console.error('[arama] sikayet e-postasi gonderilemedi:',raw);
-      return 'hata';
-    }
-    return 'ok';
+    // V31.168: Kendi fetch'i yerine tek bildirim noktasi kullaniliyor.
+    // Hata gunlugu bildirimGonder icinde yazilir.
+    const gonderildi = await bildirimGonder([u.email], subject, text, html, 'sifre');
+    return gonderildi ? 'ok' : 'hata';
   }catch(e){ console.error('[arama] sikayet e-postasi hatasi:',e.message||e); return 'hata'; }
 }
 
