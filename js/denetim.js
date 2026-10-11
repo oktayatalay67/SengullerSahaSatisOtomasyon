@@ -1,5 +1,8 @@
 // ============================================================
-// denetim.js — v1.1.0
+// denetim.js — v1.2.0
+//   v1.2.0 (V31.173): haftalık şüpheli hareket özeti — ADMIN girişinde
+//   kontrol edilir, bulgu varsa bildirim.js ile ADMIN e-postalarına gider.
+//   Zamanlayıcı YOK; son gönderim veri_cikis_log içinde tutulur.
 // Son güncelleme: 2026-10-09
 //
 // NE İŞE YARAR
@@ -252,6 +255,9 @@ function initVeriGuvenlik(){
         (g==='365'?'1 yıl':g+' gün')+'</button>').join('')+
       '<button class="btn btn-sm" style="background:var(--green);color:#04301f;margin-left:auto;" '+
         'onclick="vgYukle()">🔍 Yenile</button>'+
+      '<button class="btn btn-sm" style="background:var(--blue);" '+
+        'onclick="denetimOzetSimdiGonder()" title="7 gunu beklemeden haftalik ozeti ADMIN e-postalarina gonderir">'+
+        '✉️ Özeti şimdi gönder</button>'+
     '</div>'+
     '<div id="vgSayaclar"></div>'+
     '<div id="vgSekmeler" style="display:flex;gap:7px;flex-wrap:wrap;margin:14px 0 10px;"></div>'+
@@ -396,9 +402,11 @@ function vgRaporSec(ad){
 }
 
 /* ------------------------------------------------------------ kural: seri indirme */
-function _vgSeriIndirmeler(){
+function _vgSeriIndirmeler(kaynak){
   // Aynı kişinin 10 dakika içinde 3 veya daha fazla dışa aktarımı.
-  const d=_vgSatirlar.filter(r=>r.tur==='disa_aktarim');
+  // kaynak verilmezse ekrandaki veri kümesi kullanılır (V31.173: e-posta
+  // özeti aynı kuralı kendi veri kümesiyle çağırır).
+  const d=(kaynak||_vgSatirlar).filter(r=>r.tur==='disa_aktarim');
   const gruplar={};
   d.forEach(r=>{ const k=_vgKisiAdi(r); (gruplar[k]=gruplar[k]||[]).push(r); });
   const sonuc=[];
@@ -418,8 +426,8 @@ function _vgSeriIndirmeler(){
 }
 
 /* ------------------------------------------------------------ kural: ortalamanın katı */
-function _vgOrtalamaAsanlar(){
-  const d=_vgSatirlar.filter(r=>r.tur==='disa_aktarim' && r.satir_sayisi!=null);
+function _vgOrtalamaAsanlar(kaynak){
+  const d=(kaynak||_vgSatirlar).filter(r=>r.tur==='disa_aktarim' && r.satir_sayisi!=null);
   const grup={};
   d.forEach(r=>{ const k=_vgKisiAdi(r); (grup[k]=grup[k]||[]).push(r); });
   const sonuc=[];
@@ -529,25 +537,13 @@ function _vgTabloRapor(){
 }
 
 function _vgTabloSupheli(){
-  const bulgular=[];
-  _vgSeriIndirmeler().forEach(r=>bulgular.push({r, seviye:'yuksek',
-    kural:'Seri indirme', detay:'10 dakikada '+r._pencere+' dışa aktarım'}));
-  _vgOrtalamaAsanlar().forEach(r=>bulgular.push({r, seviye:'yuksek',
-    kural:'Kendi ortalamasının '+r._kat+' katı', detay:'kişi ortalaması '+_vgSayi(r._ort)+' satır'}));
-  _vgSatirlar.filter(r=>r.tur==='disa_aktarim' && (r.satir_sayisi||0)>=500 && _vgFiltresiz(r))
-    .forEach(r=>bulgular.push({r, seviye:'yuksek',
-      kural:'Filtresiz geniş çekim', detay:'KÇM/MY/takım filtresi yok, '+_vgSayi(r.satir_sayisi)+' satır'}));
-  _vgSatirlar.filter(r=>r.tur==='disa_aktarim' && _vgMesaiDisi(r))
-    .forEach(r=>bulgular.push({r, seviye:'orta', kural:'Mesai dışı', detay:_vgMesaiNeden(r)}));
-  _vgSatirlar.filter(r=>r.tur==='disa_aktarim' && r.vekaleten)
-    .forEach(r=>bulgular.push({r, seviye:'orta', kural:'Vekaleten indirme',
-      detay:escapeHTML(r.ad_soyad||'')+' profilinden'}));
+  // V31.173: kurallar _denetimBulgular() icinde tek yerde durur; ekran ve
+  // haftalik e-posta ozeti AYNI motoru kullanir, ayrisamazlar.
+  const bulgular=_denetimBulgular(_vgSatirlar, false);
 
   if(!bulgular.length)
     return '<div class="empty" style="color:var(--green);">✓ Bu dönemde kurallara takılan hareket yok.</div>';
 
-  bulgular.sort((a,b)=> (a.seviye===b.seviye ? (new Date(b.r.olusturma)-new Date(a.r.olusturma))
-                                             : (a.seviye==='yuksek'?-1:1)));
   const satirlar=bulgular.map(b=>{
     const renk = b.seviye==='yuksek' ? 'var(--red)' : 'var(--amber)';
     return '<tr>'+
@@ -612,4 +608,195 @@ function _vgKapsamYazi(k){
   }).join(' · ');
 }
 
-// v1.1.0 denetim loaded (veri cikis izi + Veri Guvenligi ekrani)
+
+/* ============================================================
+   HAFTALIK ŞÜPHELİ HAREKET ÖZETİ (V31.173)
+
+   AMAÇ: Veri Güvenliği ekranı ancak açılırsa işe yarar. Bu bölüm bakmayı
+   gerektirmez — şüpheli hareket varsa ADMIN'lere mesaj gider, yoksa gitmez.
+
+   ZAMANLAYICI YOKTUR (çalışma kuralları Bölüm 9 — platform bağımsızlığı).
+   pg_cron, Cloudflare Cron Trigger, hiçbir dış zamanlayıcı kullanılmıyor.
+   Mekanizma: bir ADMIN uygulamaya girdiğinde kontrol edilir — son özet
+   7 günden eskiyse (veya hiç yoksa) hesaplanır ve gönderilir.
+   Bu "fırsat buldukça süpürme" kalıbıdır; uygulama kodunun içinde yaşar,
+   kendi sunucuna taşındığında da aynen çalışır.
+
+   SON GÖNDERİM NEREDE TUTULUYOR: veri_cikis_log'un kendisinde.
+   fonksiyon='ozetGonderildi' satırı hem durum kaydı hem denetim olayıdır.
+   Yeni tablo, yeni ayar satırı, yeni SQL YOKTUR.
+
+   KANAL: bildirim.js (tek gönderme noktası). E-posta kapanıp WhatsApp'a
+   geçildiğinde burada tek satır bile değişmez.
+
+   ADMIN olmayan kullanıcıda ilk satırda çıkar — 115 kullanıcı için maliyeti
+   sıfırdır.
+   ============================================================ */
+
+const DENETIM_OZET_GUN = 7;          // kaç günde bir özet
+const DENETIM_OZET_PENCERE = 7;      // özetin kapsadığı gün sayısı
+
+async function denetimOzetKontrol(){
+  try{
+    if(typeof hasPerm!=='function' || !hasPerm('admin_panel')) return;
+
+    // 1) Son özet ne zaman gönderildi/kontrol edildi?
+    const {data:son, error:sonErr} = await sb.from(DENETIM_TABLO)
+      .select('olusturma')
+      .eq('modul','denetim').eq('fonksiyon','ozetGonderildi')
+      .order('olusturma',{ascending:false}).limit(1);
+    if(sonErr){ console.warn('[denetim] ozet kontrolu okunamadi:', sonErr.message); return; }
+    if(son && son.length){
+      const gecen = (Date.now() - new Date(son[0].olusturma).getTime()) / 86400000;
+      if(gecen < DENETIM_OZET_GUN) return;      // henüz zamanı değil
+    }
+
+    await denetimOzetGonder(false);
+  }catch(e){ console.warn('[denetim] ozet kontrolu basarisiz:', e); }
+}
+
+/* elle=true → ekrandaki tuştan çağrıldı: bulgu yoksa da kullanıcıya bilgi ver */
+async function denetimOzetGonder(elle){
+  const basISO = new Date(Date.now() - DENETIM_OZET_PENCERE*86400000).toISOString();
+  const {data:satirlar, error} = await sb.from(DENETIM_TABLO)
+    .select('olusturma,user_id,ad_soyad,yetki_seviyesi,vekaleten,gercek_ad_soyad,'+
+            'tur,modul,fonksiyon,rapor_adi,bicim,satir_sayisi,kapsam')
+    .gte('olusturma', basISO)
+    .order('olusturma',{ascending:false})
+    .limit(VG_LIMIT);
+  if(error){
+    if(elle) toast('Özet verisi okunamadı: '+error.message,'error');
+    console.warn('[denetim] ozet verisi okunamadi:', error.message);
+    return;
+  }
+
+  const bulgular = _denetimBulgular(satirlar||[], true);
+
+  // Bulgu yoksa: mesaj GÖNDERİLMEZ (Oktay'ın kuralı), ama kontrol kaydedilir —
+  // yoksa her girişte yeniden hesaplanır.
+  if(!bulgular.length){
+    await veriCikisiKaydet({
+      tur:'rapor_goruntuleme', modul:'denetim', fonksiyon:'ozetGonderildi',
+      rapor_adi:'Haftalık şüpheli hareket özeti', bicim:'ekran', satir_sayisi:0,
+      kapsam:{pencere_gun:DENETIM_OZET_PENCERE, bulgu:0, gonderildi:false,
+              sebep:'bulgu yok', elle:!!elle}
+    });
+    if(elle) toast(DENETIM_OZET_PENCERE+' günde şüpheli hareket yok — mesaj gönderilmedi','success');
+    return;
+  }
+
+  // Alıcılar: aktif ADMIN'ler
+  const {data:adminler} = await sb.from('users')
+    .select('email,ad_soyad').eq('aktif',true).eq('yetki_seviyesi','ADMIN');
+  const alicilar = (adminler||[]).map(u=>u.email).filter(Boolean);
+  if(!alicilar.length){
+    if(elle) toast('E-posta adresi olan aktif ADMIN bulunamadı','error');
+    console.warn('[denetim] ozet gonderilemedi: alici yok');
+    return;
+  }
+
+  const konu = 'SSSO Veri Güvenliği — '+bulgular.length+' şüpheli hareket ('+
+               DENETIM_OZET_PENCERE+' gün)';
+  const gonderildi = await bildirimGonder(
+    alicilar, konu, _denetimOzetMetin(bulgular), _denetimOzetHtml(bulgular), 'denetim');
+
+  // Gönderim denemesi SONRASI kaydedilir: gönderim başarısızsa bir sonraki
+  // ADMIN girişinde tekrar denenir, hafta boşa yanmaz.
+  await veriCikisiKaydet({
+    tur:'rapor_goruntuleme', modul:'denetim', fonksiyon:'ozetGonderildi',
+    rapor_adi:'Haftalık şüpheli hareket özeti', bicim:'ekran',
+    satir_sayisi:bulgular.length,
+    kapsam:{pencere_gun:DENETIM_OZET_PENCERE, bulgu:bulgular.length,
+            gonderildi:!!gonderildi, alici_sayisi:alicilar.length, elle:!!elle}
+  });
+
+  if(elle){
+    if(gonderildi) toast(bulgular.length+' bulgu, '+alicilar.length+' ADMIN\'e gönderildi','success');
+    else           toast('Gönderilemedi — konsolda [bildirim] satırına bakın','error');
+  }
+}
+
+/* Ekrandaki "Özeti şimdi gönder" tuşu — 7 günü beklemeden test etmek için. */
+async function denetimOzetSimdiGonder(){
+  toast('Özet hazırlanıyor...','info');
+  await denetimOzetGonder(true);
+}
+
+/* ------------------------------------------------------------ bulgu üretimi
+   Ekrandaki "Şüpheli hareketler" sekmesiyle AYNI kuralları kullanır —
+   kural mantığı tek yerde durur, ekran ile e-posta ayrışamaz. */
+function _denetimBulgular(satirlar, epostaIcin){
+  const b=[];
+  _vgSeriIndirmeler(satirlar).forEach(r=>b.push({r, seviye:'yuksek',
+    kural:'Seri indirme', detay:'10 dakikada '+r._pencere+' dışa aktarım'}));
+  _vgOrtalamaAsanlar(satirlar).forEach(r=>b.push({r, seviye:'yuksek',
+    kural:'Kendi ortalamasının '+r._kat+' katı', detay:'kişi ortalaması '+_vgSayi(r._ort)+' satır'}));
+  satirlar.filter(r=>r.tur==='disa_aktarim' && (r.satir_sayisi||0)>=500 && _vgFiltresiz(r))
+    .forEach(r=>b.push({r, seviye:'yuksek',
+      kural:'Filtresiz geniş çekim', detay:_vgSayi(r.satir_sayisi)+' satır, KÇM/MY filtresi yok'}));
+  satirlar.filter(r=>r.tur==='disa_aktarim' && _vgMesaiDisi(r))
+    .forEach(r=>b.push({r, seviye:'orta', kural:'Mesai dışı', detay:_vgMesaiNeden(r)}));
+  // Vekaleten yalnız EKRANDA gösterilir. E-postaya girmez: vekalet hareketlerinin
+  // neredeyse tamamı ADMIN'in kendi işidir, haftalık mesajı gereksiz şişirir.
+  if(!epostaIcin){
+    satirlar.filter(r=>r.tur==='disa_aktarim' && r.vekaleten)
+      .forEach(r=>b.push({r, seviye:'orta', kural:'Vekaleten indirme',
+        detay:(r.ad_soyad||'')+' profilinden'}));
+  }
+  b.sort((x,y)=> (x.seviye===y.seviye ? (new Date(y.r.olusturma)-new Date(x.r.olusturma))
+                                      : (x.seviye==='yuksek'?-1:1)));
+  return b;
+}
+
+function _denetimOzetMetin(b){
+  const satir = x => _vgZaman(x.r.olusturma)+'  '+_vgKisiAdi(x.r)+'  —  '+x.kural+
+                     ' ('+x.detay+')  ·  '+(x.r.rapor_adi||'')+'  ·  '+
+                     _vgSayi(x.r.satir_sayisi)+' satır';
+  const yuksek=b.filter(x=>x.seviye==='yuksek'), orta=b.filter(x=>x.seviye==='orta');
+  return 'SSSO Veri Guvenligi — son '+DENETIM_OZET_PENCERE+' gun\n\n'+
+    'Yuksek: '+yuksek.length+'   Orta: '+orta.length+'\n\n'+
+    (yuksek.length?'YUKSEK\n'+yuksek.map(satir).join('\n')+'\n\n':'')+
+    (orta.length?'ORTA\n'+orta.slice(0,20).map(satir).join('\n')+
+      (orta.length>20?'\n(+'+(orta.length-20)+' kayit daha)':'')+'\n\n':'')+
+    'Tamami: SSSO > Admin > Veri Guvenligi\n';
+}
+
+function _denetimOzetHtml(b){
+  const yuksek=b.filter(x=>x.seviye==='yuksek'), orta=b.filter(x=>x.seviye==='orta');
+  const th='padding:6px 8px;border:1px solid #ddd;background:#f3f4f6;text-align:left;font-size:12px;';
+  const td='padding:6px 8px;border:1px solid #ddd;font-size:12px;';
+  const tablo=(liste,renk)=> !liste.length ? '' :
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">'+
+    '<thead><tr><th style="'+th+'">Zaman</th><th style="'+th+'">Kişi</th>'+
+    '<th style="'+th+'">Kural</th><th style="'+th+'">Detay</th>'+
+    '<th style="'+th+'">Rapor</th><th style="'+th+'">Satır</th></tr></thead><tbody>'+
+    liste.map(x=>'<tr>'+
+      '<td style="'+td+'white-space:nowrap;">'+_vgZaman(x.r.olusturma)+'</td>'+
+      '<td style="'+td+'"><b>'+escapeHTML(_vgKisiAdi(x.r))+'</b>'+
+        (x.r.vekaleten?'<br><span style="font-size:11px;color:#92400e;">vekaleten: '+
+          escapeHTML(x.r.ad_soyad||'')+'</span>':'')+'</td>'+
+      '<td style="'+td+'color:'+renk+';font-weight:700;">'+escapeHTML(x.kural)+'</td>'+
+      '<td style="'+td+'">'+escapeHTML(x.detay)+'</td>'+
+      '<td style="'+td+'">'+escapeHTML(x.r.rapor_adi||'')+'</td>'+
+      '<td style="'+td+'text-align:right;font-weight:700;">'+_vgSayi(x.r.satir_sayisi)+'</td>'+
+      '</tr>').join('')+'</tbody></table>';
+
+  return '<div style="font-family:Segoe UI,Arial,sans-serif;color:#111;max-width:860px;">'+
+    '<h2 style="margin:0 0 4px;">SSSO Veri Güvenliği</h2>'+
+    '<div style="color:#555;font-size:13px;margin-bottom:14px;">Son '+
+      DENETIM_OZET_PENCERE+' günde <b>'+b.length+'</b> şüpheli hareket — '+
+      '<span style="color:#b91c1c;">yüksek: '+yuksek.length+'</span> · '+
+      '<span style="color:#b45309;">orta: '+orta.length+'</span></div>'+
+    (yuksek.length?'<h3 style="color:#b91c1c;margin:0 0 6px;font-size:14px;">Yüksek</h3>'+
+      tablo(yuksek,'#b91c1c'):'')+
+    (orta.length?'<h3 style="color:#b45309;margin:0 0 6px;font-size:14px;">Orta</h3>'+
+      tablo(orta.slice(0,20),'#b45309')+
+      (orta.length>20?'<div style="font-size:12px;color:#555;margin-bottom:12px;">+'+
+        (orta.length-20)+' kayıt daha — tamamı ekranda.</div>':''):'')+
+    '<div style="font-size:12px;color:#555;border-top:1px solid #ddd;padding-top:10px;">'+
+      'Tamamı için: <b>SSSO &gt; Admin &gt; Veri Güvenliği</b>.<br>'+
+      'Bu mesaj yalnız şüpheli hareket bulunduğunda gönderilir; '+
+      'temiz haftalarda mesaj gelmez.</div></div>';
+}
+
+// v1.2.0 denetim loaded (iz + Veri Guvenligi ekrani + haftalik ozet)

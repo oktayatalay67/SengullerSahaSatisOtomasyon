@@ -1,7 +1,15 @@
 // ============================================================
-// config.js — v1.4.14
+// config.js — v1.4.15
 // Son güncelleme: 2026-10-08
 // Değişiklikler:
+//   v1.4.15 — APP_VERSION → V31.173. HAFTALIK SUPHELI HAREKET OZETI:
+//     denetim.js v1.2.0 — bulgu varsa ADMIN e-postalarina ozet gider, yoksa
+//     mesaj gonderilmez. ZAMANLAYICI YOK: ADMIN girisinde kontrol edilir
+//     (Bolum 9 platform bagimsizligi). Son gonderim veri_cikis_log icinde
+//     (fonksiyon='ozetGonderildi') tutulur — yeni tablo/ayar/SQL YOKTUR.
+//     Kanal bildirim.js; e-posta kapanip WhatsApp'a gecilince burada
+//     degisiklik gerekmez. Kurallar artik _denetimBulgular() icinde tek
+//     yerde: ekran ve e-posta ayni motoru kullanir.
 //   v1.4.14 — APP_VERSION → V31.172. VERI GUVENLIGI EKRANI: ADMIN kutu
 //     menusune 'Veri Guvenligi' eklendi (denetim.js v1.1.0 icinde
 //     initVeriGuvenlik). veri_cikis_log'u tek sorguda okur, tum sayac ve
@@ -987,7 +995,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.172';
+const APP_VERSION = 'V31.173';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

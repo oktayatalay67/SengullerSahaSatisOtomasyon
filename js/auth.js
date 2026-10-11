@@ -1,5 +1,7 @@
 // ============================================================
-// auth.js — v1.2.28
+// auth.js — v1.2.29
+//   v1.2.29 (V31.173) — initApp sonunda denetimOzetKontrol() cagriliyor
+//     (haftalik supheli hareket ozeti; ADMIN olmayanda hemen cikar).
 //   v1.2.28 (V31.172) — FIX: startImpersonation izi, impersonating bayragi
 //     acilmadan once yazilir. Onceden ADMIN kendi hareketini vekaleten=true
 //     olarak kaydediyordu.
@@ -255,6 +257,10 @@ async function initApp(){
   if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
   // v31.33: Duyurular menü rozeti — girişte okunmamış duyuru sayısı görünsün.
   if(typeof _duyuruBadgeGuncelle==='function') _duyuruBadgeGuncelle();
+  // V31.173: Haftalık şüpheli hareket özeti. İlk satırında ADMIN değilse
+  // çıkar — diğer kullanıcılar için maliyeti sıfırdır. await EDİLMEZ:
+  // girişi hiçbir koşulda bekletmez (bkz. js/denetim.js).
+  denetimOzetKontrol();
 }
 
 let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)
