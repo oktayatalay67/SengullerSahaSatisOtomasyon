@@ -1,5 +1,9 @@
 // ============================================================
-// rapor.js — v1.2.9
+// rapor.js — v1.3.0
+//   v1.3.0 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
+//     (js/denetim.js, veri_cikis_log tablosu). Noktalar: downloadTemasExcel,
+//     ziyaretAnaliziExcelIndir, mrExcelIndir, portfoyExcelIndir (disa aktarim)
+//     ve ziyaretAnaliziGetir, fetchMusteriRapor (ekran goruntuleme).
 // Son güncelleme: 2026-09-16
 //   v1.2.9 — (V31.105) KRİTİK FIX: Temas Analizi'nde (ziyaretAnaliziGetir) MY/
 //            FMY/USER rolündeki kullanıcılar KÇM/Takım/MY filtrelerini hiç
@@ -220,6 +224,14 @@ async function downloadTemasExcel(){
   XLSX.utils.book_append_sheet(wb,ws2,'MY Özet');
 
   const d=new Date().toLocaleDateString('tr-TR').replace(/[/.]/g,'-');
+  // V31.171: denetim izi — dosya olusmadan ONCE yazilir (bkz. js/denetim.js)
+  await veriCikisiKaydet({tur:'disa_aktarim',modul:'rapor',fonksiyon:'downloadTemasExcel',
+    rapor_adi:'Temas Raporu',bicim:'xlsx',dosya_adi:'Temas_Raporu_'+d+'.xlsx',
+    satir_sayisi:data.length,
+    kapsam:Object.assign(denetimFiltre({baslangic:'repStartDate',bitis:'repEndDate',
+      kcm:'repKcmFilter',takim:'repTakimFilter',my:'repMyFilter'}),
+      {statu:(typeof repStatusArr!=='undefined')?repStatusArr:undefined,
+       temas_turu:(typeof repTypeArr!=='undefined')?repTypeArr:undefined,sekme_sayisi:2})});
   XLSX.writeFile(wb,'Temas_Raporu_'+d+'.xlsx');
   toast(data.length+' kayıt indirildi (2 sekme)','success');
 }
@@ -505,6 +517,11 @@ async function ziyaretAnaliziGetir(){
 
     if(excelBtn)excelBtn.classList.remove('hide');
     setProg('');
+    // V31.171: denetim izi — rapor ekranda goruntulendi
+    await veriCikisiKaydet({tur:'rapor_goruntuleme',modul:'rapor',fonksiyon:'ziyaretAnaliziGetir',
+      rapor_adi:'Ziyaret Analizi',bicim:'ekran',
+      satir_sayisi:_ziyaretIcRows.length+_ziyaretDisRows.length+_ziyaretEdilmeyenRows.length+_ziyaretPotansiyelYokRows.length,
+      kapsam:{baslangic:sd,bitis:ed,kcm:kcmVal,takim:tlVal,my:myVal}});
     ziyaretAnaliziSekmeDegistir(_ziyaretAktifSekme);
 
   }catch(e){
@@ -644,6 +661,17 @@ async function ziyaretAnaliziExcelIndir(){
   XLSX.utils.book_append_sheet(wb,w3,'MY Özet');
 
   const tarih=new Date().toLocaleDateString('tr-TR').replace(/[/.]/g,'-');
+  // V31.171: denetim izi
+  await veriCikisiKaydet({tur:'disa_aktarim',modul:'rapor',fonksiyon:'ziyaretAnaliziExcelIndir',
+    rapor_adi:'Ziyaret Analizi',bicim:'xlsx',dosya_adi:'Ziyaret_Analizi_'+tarih+'.xlsx',
+    satir_sayisi:_ziyaretIcRows.length+_ziyaretDisRows.length+_ziyaretEdilmeyenRows.length+_ziyaretPotansiyelYokRows.length,
+    kapsam:{baslangic:sd,bitis:ed,
+      kcm:document.getElementById('repKcmFilter')?.value||'',
+      takim:document.getElementById('repTakimFilter')?.value||'',
+      my:document.getElementById('repMyFilter')?.value||'',
+      portfoy_ici:_ziyaretIcRows.length,portfoy_disi:_ziyaretDisRows.length,
+      ziyaret_edilmeyen:_ziyaretEdilmeyenRows.length,potansiyel_degil:_ziyaretPotansiyelYokRows.length,
+      sekme_sayisi:5}});
   XLSX.writeFile(wb,'Ziyaret_Analizi_'+tarih+'.xlsx');
   toast((_ziyaretIcRows.length+_ziyaretDisRows.length+_ziyaretEdilmeyenRows.length+_ziyaretPotansiyelYokRows.length)+' kayıt, 5 sekme indirildi','success');
 }
@@ -882,6 +910,11 @@ async function fetchMusteriRapor(){
   document.getElementById('mrTemasEdildi').textContent=temasEdildi;
   document.getElementById('mrTemasEdilmedi').textContent=mrData.length-temasEdildi;
   document.getElementById('mrOzetDiv').style.display='';
+  // V31.171: denetim izi — rapor ekranda goruntulendi
+  await veriCikisiKaydet({tur:'rapor_goruntuleme',modul:'rapor',fonksiyon:'fetchMusteriRapor',
+    rapor_adi:'Musteri Raporu',bicim:'ekran',satir_sayisi:mrData.length,
+    kapsam:{kcm:kcmVal,takim:takimVal,my:myVal,sektor:sektorVal,il:ilVal,tip:tipVal,
+      aktif:aktifVal,temas:temasVal}});
 
   // Tablo render
   const thS='padding:7px 8px;border:1px solid var(--border);text-align:left;white-space:nowrap;font-size:11px;background:var(--navy3);';
@@ -938,6 +971,13 @@ function mrExcelIndir(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
   a.download='Musteri_Raporu_'+new Date().toLocaleDateString('tr-TR').replace(/[/.]/g,'-')+'.csv';
+  // V31.171: denetim izi. Bu fonksiyon senkron; imza degismesin diye await edilmez
+  // (istek gonderilir, indirme beklemez).
+  veriCikisiKaydet({tur:'disa_aktarim',modul:'rapor',fonksiyon:'mrExcelIndir',
+    rapor_adi:'Musteri Raporu',bicim:'csv',dosya_adi:a.download,satir_sayisi:mrData.length,
+    kapsam:denetimFiltre({kcm:'mrKcmFilter',takim:'mrTakimFilter',my:'mrMyFilter',
+      sektor:'mrSektorFilter',il:'mrIlFilter',tip:'mrTipFilter',aktif:'mrAktifFilter',
+      temas:'mrTemasFilter'})});
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('Excel indirildi','success');
@@ -1121,6 +1161,10 @@ function portfoyExcelIndir(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
   a.download='Portfoy_Degisikligi_'+new Date().toLocaleDateString('tr-TR').replace(/[/.]/g,'-')+'.csv';
+  // V31.171: denetim izi (senkron fonksiyon — await edilmez)
+  veriCikisiKaydet({tur:'disa_aktarim',modul:'rapor',fonksiyon:'portfoyExcelIndir',
+    rapor_adi:'Portfoy Degisikligi Sonucu',bicim:'csv',dosya_adi:a.download,
+    satir_sayisi:sonuclar.length});
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   toast('Excel indirildi','success');
 }

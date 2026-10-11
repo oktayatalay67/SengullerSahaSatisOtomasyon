@@ -1,5 +1,9 @@
 // ============================================================
-// donanim.js — v1.0.56 (V31.168)
+// donanim.js — v1.0.57 (V31.171)
+//   v1.0.57 (V31.171): V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
+//     (js/denetim.js, veri_cikis_log tablosu). 5 nokta: donanimCikartRaporIndir,
+//     donanimExcelRaporIndir, donanimRaporExcelIndir,
+//     donanimMutabakatExcelIndir, donanimHareketRaporuExcelIndir.
 //   v1.0.56 (V31.168): E-posta gonderme fonksiyonu _sssoEmailGonder bu
 //     dosyadan KALDIRILDI -> js/bildirim.js. Uc cagri bildirimGonder()
 //     olarak guncellendi. Davranis degismedi, gonderim yine Resend.
@@ -1667,6 +1671,10 @@ function donanimCikartRaporIndir(){
   XLSX.utils.book_append_sheet(wb, wsDetay, 'Detay (IMEI)');
   XLSX.utils.book_append_sheet(wb, wsOzet, 'Özet (Adet)');
   const tarih = new Date().toISOString().slice(0,10);
+  // V31.171: denetim izi (senkron fonksiyon — await edilmez)
+  veriCikisiKaydet({tur:'disa_aktarim',modul:'donanim',fonksiyon:'donanimCikartRaporIndir',
+    rapor_adi:'Stok Cikis Raporu',bicim:'xlsx',dosya_adi:`stok_cikis_raporu_${tarih}.xlsx`,
+    satir_sayisi:detay.length,kapsam:{ozet_satir:ozet.length}});
   XLSX.writeFile(wb, `stok_cikis_raporu_${tarih}.xlsx`);
 }
 
@@ -1681,6 +1689,10 @@ function donanimExcelRaporIndir(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Stok Yükleme Raporu');
   const tarih = new Date().toISOString().slice(0,10);
+  // V31.171: denetim izi (senkron fonksiyon — await edilmez)
+  veriCikisiKaydet({tur:'disa_aktarim',modul:'donanim',fonksiyon:'donanimExcelRaporIndir',
+    rapor_adi:'Stok Yukleme Raporu',bicim:'xlsx',dosya_adi:`stok_yukleme_raporu_${tarih}.xlsx`,
+    satir_sayisi:rapor.length});
   XLSX.writeFile(wb, `stok_yukleme_raporu_${tarih}.xlsx`);
 }
 
@@ -4510,6 +4522,11 @@ function donanimRaporExcelIndir(){
   XLSX.utils.book_append_sheet(wb, wsDepo,  'Depo Ozet');
 
   const tarih = new Date().toISOString().slice(0,10);
+  // V31.171: denetim izi (senkron fonksiyon — await edilmez)
+  veriCikisiKaydet({tur:'disa_aktarim',modul:'donanim',fonksiyon:'donanimRaporExcelIndir',
+    rapor_adi:'Depo Stok Raporu',bicim:'xlsx',dosya_adi:`depo_stok_raporu_${tarih}.xlsx`,
+    satir_sayisi:detay.length-1,
+    kapsam:{urun_satiri:liste.length,depo_sayisi:R.depolar.length,bos_dahil:bosGoster}});
   XLSX.writeFile(wb, `depo_stok_raporu_${tarih}.xlsx`);
   toast('Rapor indirildi','success');
 }
@@ -5174,6 +5191,10 @@ function donanimMutabakatExcelIndir(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Mutabakat');
   const tarih = new Date().toISOString().slice(0,10);
+  // V31.171: denetim izi (senkron fonksiyon — await edilmez)
+  veriCikisiKaydet({tur:'disa_aktarim',modul:'donanim',fonksiyon:'donanimMutabakatExcelIndir',
+    rapor_adi:'Stok Mutabakat Raporu',bicim:'xlsx',dosya_adi:`stok_mutabakat_raporu_${tarih}.xlsx`,
+    satir_sayisi:satirlar.length});
   XLSX.writeFile(wb, `stok_mutabakat_raporu_${tarih}.xlsx`);
 }
 
@@ -5411,6 +5432,13 @@ async function donanimHareketRaporuExcelIndir(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(_donanimOzetGrupla(rez)), 'Rezerve Cihazlar - Özet');
 
   const tarih = new Date().toISOString().slice(0,10);
+  // V31.171: denetim izi
+  await veriCikisiKaydet({tur:'disa_aktarim',modul:'donanim',fonksiyon:'donanimHareketRaporuExcelIndir',
+    rapor_adi:'Stok Hareket Raporu',bicim:'xlsx',dosya_adi:`stok_hareket_raporu_${tarih}.xlsx`,
+    satir_sayisi:hareketSatir.length+girisDetaySatir.length+cikisDetaySatir.length+rezDetaySatir.length,
+    kapsam:{baslangic:bas||'',bitis:bit||'',hareket:hareketSatir.length,
+      cihaz_giris:girisDetaySatir.length,cihaz_cikis:cikisDetaySatir.length,
+      rezerve:rezDetaySatir.length,sekme_sayisi:7}});
   XLSX.writeFile(wb, `stok_hareket_raporu_${tarih}.xlsx`);
   }catch(err){
     console.error('donanimHareketRaporuExcelIndir hata:', err);

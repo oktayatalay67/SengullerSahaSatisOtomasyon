@@ -1,5 +1,8 @@
 // ============================================================
-// firsat.js — v1.2.5
+// firsat.js — v1.2.6
+//   v1.2.6 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
+//     (js/denetim.js, veri_cikis_log tablosu). Nokta: fetchPipelineReport
+//     (ekran goruntuleme; Excel cikisi admin.js:downloadPipelineExcel).
 // Son güncelleme: 2026-08-20
 // Değişiklikler:
 //   v1.2.5 (V31.33) — YENİ: saveOpp içinde, adım Beyan/Evrak'a her geçişinde
@@ -787,6 +790,11 @@ async function fetchPipelineReport(){
         o.adim||'',o.beklenen_ciro||'',prods,o.aciklama||'',o.olusturma_tarihi?.slice(0,10)||''];
     });
     document.getElementById('prExcelBtn')?.classList.remove('hide');
+    // V31.171: denetim izi — rapor ekranda goruntulendi (bkz. js/denetim.js)
+    await veriCikisiKaydet({tur:'rapor_goruntuleme',modul:'firsat',fonksiyon:'fetchPipelineReport',
+      rapor_adi:'Pipeline Raporu',bicim:'ekran',satir_sayisi:opps.length,
+      kapsam:{baslangic:sd,bitis:ed,kcm:kcmFilter,takim:takimFilter,my:myFilter,
+        ncst:musteriNcst,adim:(typeof prAdimSec!=='undefined')?prAdimSec:''}});
 const getAdim=o=>o.adim||o.durum||'Fırsat';
     const cntAdim=a=>opps.filter(o=>getAdim(o)===a).length;
     const pipeline=opps.filter(o=>!['Gerçekleşen','İptal'].includes(getAdim(o))).reduce((s,o)=>s+(o.beklenen_ciro||0),0);

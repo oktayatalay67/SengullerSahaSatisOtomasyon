@@ -1,7 +1,30 @@
 // ============================================================
-// config.js — v1.4.10
-// Son güncelleme: 2026-09-28
+// config.js — v1.4.14
+// Son güncelleme: 2026-10-08
 // Değişiklikler:
+//   v1.4.14 — APP_VERSION → V31.172. VERI GUVENLIGI EKRANI: ADMIN kutu
+//     menusune 'Veri Guvenligi' eklendi (denetim.js v1.1.0 icinde
+//     initVeriGuvenlik). veri_cikis_log'u tek sorguda okur, tum sayac ve
+//     kurallari tarayicida hesaplar — veritabaninda fonksiyon/view YOK.
+//     Iki duzeltme: (1) startImpersonation izi artik bayrak acilmadan once
+//     yaziliyor (ADMIN kendi hareketini vekaleten gostermiyordu), (2) vekalet
+//     izi tur='vekaleten' oldu (once rapor_goruntuleme sayilip ekran
+//     sayacini sisiriyordu). SQL: DENETIM_02_Ekran_Erisimi_2026-10-11.sql
+//   v1.4.13 — APP_VERSION → V31.171. IZ SURME KATMANI: yeni altyapi modulu
+//     js/denetim.js — veri raporlayan ve disa aktaran her hareket
+//     veri_cikis_log tablosuna yazilir (16 nokta). Ayrica vekaleten
+//     (impersonation) giris/cikis ilk kez kaydediliyor (auth.js v1.2.27).
+//     Tablo: anon'a yalniz INSERT; uygulama bu tabloyu okumaz ve silmez.
+//     Dosya: DENETIM_01_veri_cikis_log_2026-10-09.sql
+//   v1.4.12 — APP_VERSION → V31.170. musteri.js v1.2.2: Müşteri ekranına ilk
+//     girişte seçili kartın altında varsayılan listenin geri belirmesi giderildi
+//     (loadMusteriDefault yarış durumu: sıra numarası + kart açıkken liste yok).
+//     index.html: config.js ve musteri.js ?v= v31.170.
+//   v1.4.11 — APP_VERSION → V31.169. utils.js v1.0.5: tarayıcı yakınlaştırması
+//     %100 değilken topbar/alt barın titremesi giderildi (visualViewport
+//     senkronu yalnızca gerçek pinch-zoom'da çalışır, değerler yuvarlanır,
+//     değişmeyen değer yazılmaz, olaylar kare başına birleştirilir).
+//     index.html: utils.js ?v= v31.169.
 //   v1.4.10 — APP_VERSION → V31.168. Bildirim modulu ayrildi:
 //     js/bildirim.js olusturuldu (tek bildirim gonderme noktasi),
 //     donanim.js icindeki _sssoEmailGonder kaldirildi, auth.js ve
@@ -964,7 +987,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.168';
+const APP_VERSION = 'V31.172';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

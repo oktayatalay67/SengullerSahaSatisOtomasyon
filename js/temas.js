@@ -1,5 +1,8 @@
 // ============================================================
-// temas.js — v2.10.50
+// temas.js — v2.10.51
+//   v2.10.51 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
+//     (js/denetim.js, veri_cikis_log tablosu). Nokta: fetchAdvancedReport
+//     (ekran goruntuleme; Excel cikisi rapor.js:downloadTemasExcel).
 //   v2.10.50 — (V31.104) "Satış Potansiyeli" (eski adı Ziyaret Potansiyeli):
 //     1) Ad değişti, Müşteri Düzenle modalında özel çerçeveli/renkli kutuya
 //        alınıp IT Ekibi'nin üstüne taşındı; IT/Sunucu/Şube/Firewall satırları
@@ -2716,6 +2719,12 @@ async function fetchAdvancedReport(){
     window._lastReportData=allData;
     window._lastReportCustMap=custMap;
     document.getElementById('repExcelBtn')?.classList.remove('hide');
+    // V31.171: denetim izi — rapor ekranda goruntulendi (bkz. js/denetim.js)
+    await veriCikisiKaydet({tur:'rapor_goruntuleme',modul:'temas',fonksiyon:'fetchAdvancedReport',
+      rapor_adi:'Temas Raporu',bicim:'ekran',satir_sayisi:allData.length,
+      kapsam:Object.assign(denetimFiltre({baslangic:'repStartDate',bitis:'repEndDate',
+        kcm:'repKcmFilter',takim:'repTakimFilter',my:'repMyFilter'}),
+        {statu:repStatusArr,temas_turu:repTypeArr})});
     // Ekranda 100'er "Daha Yükle"
     window._reportRenderCount=0;
     renderReportPage(true);

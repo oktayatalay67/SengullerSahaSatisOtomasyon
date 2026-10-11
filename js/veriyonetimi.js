@@ -1,5 +1,8 @@
 // ============================================================
-// veriyonetimi.js — v1.6.1  (4 sekme: Musteri + Kontak + Atama + Devir)
+// veriyonetimi.js — v1.6.2  (4 sekme: Musteri + Kontak + Atama + Devir)
+//   v1.6.2 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
+//     (js/denetim.js, veri_cikis_log tablosu). Nokta: vyRaporExcelDetayli
+//     (devir ve veri yonetimi raporlarinin ortak cikis fonksiyonu).
 // Son güncelleme: 2026-09-12
 // Değişiklikler:
 //   v1.6.1 (V31.69) — B+C: Cift tiklama korumasi + otomatik detayli Excel raporu.
@@ -203,6 +206,11 @@ function vyRaporExcelDetayli(filename, ozetSatirlari, detayRows){
   const det=[['NCST','Unvan','Yeni KCM ID','Yeni KCM Adi','Eski MY ID','Eski MY Adi','Yeni MY ID','Yeni MY Adi','Diger Degisiklikler','Sonuc']];
   detayRows.forEach(r=>{ det.push([r.ncst||'', r.unvan||'', r.yeni_kcm_id==null?'':r.yeni_kcm_id, r.yeni_kcm_adi||'', r.eski_my_id==null?'':r.eski_my_id, r.eski_my_adi||'', r.yeni_my_id==null?'':r.yeni_my_id, r.yeni_my_adi||'', r.diger||'', r.sonuc||'']); });
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ozet), 'Ozet'); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(det), 'Detay');
+  // V31.171: denetim izi (senkron fonksiyon — imza degismesin diye await edilmez)
+  veriCikisiKaydet({tur:'disa_aktarim',modul:'veriyonetimi',fonksiyon:'vyRaporExcelDetayli',
+    rapor_adi:(filename||'').indexOf('devir')===0?'Portfoy Devir Raporu':'Veri Yonetimi Raporu',
+    bicim:'xlsx',dosya_adi:filename,satir_sayisi:(detayRows||[]).length,
+    kapsam:{ozet:(ozetSatirlari||[]).map(r=>({ad:r[0],adet:r[1]}))}});
   XLSX.writeFile(wb, filename);
 }
 

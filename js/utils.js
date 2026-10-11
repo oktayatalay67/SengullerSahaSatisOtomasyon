@@ -1,7 +1,18 @@
 // ============================================================
-// utils.js — v1.0.4
-// Son güncelleme: 2026-09-16
+// utils.js — v1.0.5
+// Son güncelleme: 2026-10-08
 // Değişiklikler:
+//   v1.0.5 (V31.169) — FIX: Tarayıcı yakınlaştırması %100 değilken (Ctrl +/-)
+//            topbar ve alt versiyon barı titriyordu (Görev > Düzenle > Kapat
+//            ile başlıyor, Ctrl+0 ile kesiliyordu). Sebep: V31.30'daki
+//            visualViewport senkronu her resize/scroll olayında kesirli piksel
+//            değerini (örn. 0.4px) koşulsuz yazıyordu; bu değerler topbar ve
+//            footer'ın translateY'sine gidip her olayda yeniden boyama
+//            tetikliyordu. Artık: (1) kilitleme yalnızca gerçek pinch-zoom
+//            varken (vv.scale > 1.01) uygulanır, aksi halde değerler 0'dır;
+//            (2) değerler tam sayıya yuvarlanır; (3) değer değişmediyse CSS
+//            yazılmaz; (4) olaylar kare başına tek yazıma indirilir
+//            (requestAnimationFrame). Pinch-zoom davranışı (V31.30) korunur.
 //   v1.0.4 (V31.101) — navTo: pageHangiMusteri için initHangiMusteri() çağrısı
 //            eklendi (yeni "Hangi Müşteri?" modülü, js/gorev.js içinde).
 //   v1.0.3 (V31.33) — navTo: pageDuyuru için loadDuyurular() çağrısı eklendi
@@ -28,15 +39,31 @@
 (function(){
   if(!window.visualViewport) return;
   const vv = window.visualViewport;
-  function syncVisualViewport(){
-    const top = vv.offsetTop || 0;
-    const bottom = (vv.offsetTop||0) + (vv.height||window.innerHeight) - window.innerHeight;
+  // V31.169: son yazılan değerler ve bekleyen kare. Değer değişmediyse CSS'e
+  // yazılmaz; aynı karedeki birden fazla olay tek yazıma indirilir.
+  let lastTop = null, lastBottom = null, rafId = 0;
+  function applyVisualViewport(){
+    rafId = 0;
+    let top = 0, bottom = 0;
+    // Kilitleme yalnızca gerçek pinch-zoom varken gerekir (vv.scale > 1).
+    // Tarayıcı yakınlaştırması (Ctrl +/-) vv.scale'i değiştirmez; orada
+    // vv.height ile innerHeight arasındaki kesirli fark titremeye yol açıyordu.
+    if((vv.scale || 1) > 1.01){
+      top = Math.round(vv.offsetTop || 0);
+      bottom = Math.round((vv.offsetTop||0) + (vv.height||window.innerHeight) - window.innerHeight);
+    }
+    if(top === lastTop && bottom === lastBottom) return;
+    lastTop = top; lastBottom = bottom;
     document.documentElement.style.setProperty('--vvy-top', top+'px');
     document.documentElement.style.setProperty('--vvy-bottom', bottom+'px');
   }
+  function syncVisualViewport(){
+    if(rafId) return;
+    rafId = requestAnimationFrame(applyVisualViewport);
+  }
   vv.addEventListener('resize', syncVisualViewport);
   vv.addEventListener('scroll', syncVisualViewport);
-  syncVisualViewport();
+  applyVisualViewport();
 })();
 
 /* ===== YARDIMCILAR ===== */

@@ -1,5 +1,10 @@
 // ============================================================
-// admin.js — v1.1.5
+// admin.js — v1.1.7
+//   v1.1.7 (V31.172) — ADMIN kutu menusune "Veri Guvenligi" eklendi;
+//     ekranin kendisi js/denetim.js icinde (initVeriGuvenlik).
+//   v1.1.6 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
+//     (js/denetim.js, veri_cikis_log tablosu). Noktalar: downloadPipelineExcel,
+//     veriKaliteExcelIndir.
 //   v1.1.5 (17.09.2026, V31.113) — "Arama Ayarları" ekranı "Uygulama Ayarları"
 //     olarak yeniden adlandırıldı, 2 sekmeye çıkarıldı: Arama Ayarları (aynı)
 //     + Donanım Satış Süreç Ayarları (yeni — sistem_ayarlari'deki 5 yeni
@@ -665,6 +670,12 @@ async function downloadPipelineExcel(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;a.download='Pipeline_Raporu_'+new Date().toLocaleDateString('tr-TR').replace(/[/.]/g,'-')+'.csv';
+  // V31.171: denetim izi
+  await veriCikisiKaydet({tur:'disa_aktarim',modul:'admin',fonksiyon:'downloadPipelineExcel',
+    rapor_adi:'Pipeline Raporu',bicim:'csv',dosya_adi:a.download,satir_sayisi:rows.length,
+    kapsam:Object.assign(denetimFiltre({baslangic:'prStartDate',bitis:'prEndDate',
+      kcm:'prKcmFilter',takim:'prTakimFilter',my:'prMyFilter',ncst:'prMusteriNcst'}),
+      {adim:(typeof prAdimSec!=='undefined')?prAdimSec:undefined})});
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   toast(rows.length+' kayıt indirildi','success');
 }
@@ -855,9 +866,10 @@ var _adminTabAdlar = {
   'urunler':'Ürünler','kullanicilar':'Kullanıcılar','talepler':'Talepler',
   'ziyaretOpt':'Ziyaret Seçenekleri','gorevTipleri':'Görev Tipleri',
   'yetki':'Rol & Yetki Yönetimi','aramaAyarlari':'Uygulama Ayarları',
-  'veriKalite':'Veri Kalitesi Denetim'
+  'veriKalite':'Veri Kalitesi Denetim',
+  'veriGuvenlik':'Veri Güvenliği'
 };
-var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','gorevTipleri','yetki','aramaAyarlari','veriKalite'];
+var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','gorevTipleri','yetki','aramaAyarlari','veriKalite','veriGuvenlik'];
 
 function adminSayfaAc(tab){
   // Kutu menüyü gizle, nav bar'ı göster
@@ -882,6 +894,7 @@ function adminSayfaAc(tab){
   if(tab==='yetki')       initYetkiYonetim();
   if(tab==='aramaAyarlari')uygulamaAyarlariSekmeAc('arama');
   if(tab==='veriKalite')   initVeriKaliteDenetim();
+  if(tab==='veriGuvenlik') initVeriGuvenlik();   // V31.172 — js/denetim.js
 }
 
 function adminMenueGeri(){
@@ -1864,6 +1877,10 @@ async function veriKaliteExcelIndir(taramaId){
 
   const tarih = new Date().toISOString().slice(0,10);
   const dosyaAdi = `Veri_Kalitesi_Raporu_${tarih}_${taramaId.slice(0,8)}.xlsx`;
+  // V31.171: denetim izi
+  await veriCikisiKaydet({tur:'disa_aktarim',modul:'admin',fonksiyon:'veriKaliteExcelIndir',
+    rapor_adi:'Veri Kalitesi Raporu',bicim:'xlsx',dosya_adi:dosyaAdi,
+    satir_sayisi:tumSatirlar.length,kapsam:{tarama_id:taramaId}});
   XLSX.writeFile(wb, dosyaAdi);
   toast(`Excel raporu indirildi (${tumSatirlar.length} satır)`,'success');
 }

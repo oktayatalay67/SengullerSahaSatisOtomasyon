@@ -1,5 +1,13 @@
 // ============================================================
-// auth.js — v1.2.26
+// auth.js — v1.2.28
+//   v1.2.28 (V31.172) — FIX: startImpersonation izi, impersonating bayragi
+//     acilmadan once yazilir. Onceden ADMIN kendi hareketini vekaleten=true
+//     olarak kaydediyordu.
+// Değişiklikler:
+//   v1.2.27 (V31.171) — Vekaleten (impersonation) giris/cikis artik
+//     kaydediliyor: startImpersonation/stopImpersonation ->
+//     vekaletenIzKaydet() (js/denetim.js). Onceden hicbir iz kalmiyordu.
+//     stopImpersonation async oldu (iz reload oncesi yazilmali).
 // Son güncelleme: 2026-09-17
 // Değişiklikler:
 //   v1.2.26 — (V31.168) Parola sifirlama e-postasi artik js/bildirim.js
@@ -363,13 +371,22 @@ async function startImpersonation(targetUser){
   const safeTarget = Object.assign({}, targetUser);
   delete safeTarget.sifre_hash;
   localStorage.setItem('cu', JSON.stringify(safeTarget));
+  // V31.172 FIX: iz, impersonating bayragi acilmadan ONCE yazilir. Onceden
+  // bayrak once aciliyordu, bu yuzden ADMIN'in kendi hareketi vekaleten=true
+  // gorunuyordu (kendi kendine vekalet). reload ONCESI ve await ile yazilir;
+  // aksi halde istek iptal olur ve iz kaybolur (bkz. js/denetim.js).
+  await vekaletenIzKaydet('startImpersonation', targetUser);
   localStorage.setItem('impersonating', '1');
   location.reload();
 }
 
-function stopImpersonation(){
+// V31.171: async oldu — vekaleten cikis izi reload'dan ONCE yazilmali.
+// index.html'deki onclick="stopImpersonation()" calismaya devam eder.
+async function stopImpersonation(){
   const adminBackup = localStorage.getItem('cu_admin_backup');
   if(!adminBackup){ toast('Görüntülenen profil bulunamadı','error'); return; }
+  // iz, currentUser hala hedef kullanici iken yazilir → vekaleten=true kaydedilir
+  await vekaletenIzKaydet('stopImpersonation', (typeof currentUser!=='undefined')?currentUser:null);
   localStorage.setItem('cu', adminBackup);
   localStorage.removeItem('cu_admin_backup');
   localStorage.removeItem('impersonating');
