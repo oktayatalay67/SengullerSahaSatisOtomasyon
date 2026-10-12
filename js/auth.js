@@ -1,5 +1,7 @@
 // ============================================================
-// auth.js — v1.2.29
+// auth.js — v1.2.30
+//   v1.2.30 (V31.176) — Ana menudeki "Cagri Merkezi" kutusu lead yetkileriyle
+//     de gorunur (onceden yalniz arama_agent/arama_rapor).
 //   v1.2.29 (V31.173) — initApp sonunda denetimOzetKontrol() cagriliyor
 //     (haftalik supheli hareket ozeti; ADMIN olmayanda hemen cikar).
 //   v1.2.28 (V31.172) — FIX: startImpersonation izi, impersonating bayragi
@@ -304,8 +306,11 @@ function loadDashboard(){
   if(ab) ab.classList.toggle('hide', !hasPerm('admin_panel'));
   const pdBtn=document.getElementById('profilDegistirBtn');
   if(pdBtn) pdBtn.style.display = hasPerm('admin_panel') ? '' : 'none';
+  // V31.176: kutu artik Cagri Merkezi — teyit VEYA lead yetkilerinden biri varsa gorunur.
   const aramaBox=document.getElementById('menuAramaBox');
-  if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')));
+  if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')
+                                                 ||hasPerm('lead_agent')||hasPerm('lead_rapor')
+                                                 ||hasPerm('lead_liste_yonet')));
   // V31.97: Hızlı Sevkiyat Ana Menü'den kaldırıldı — Donanım Takip > Stok/
   // Rezervasyon sekmelerinin içine taşındı (bkz. donanim.js initDonanimPage).
   // V31.109: Yönetici Paneli artık ayrı bir bölüm değil, ana ızgaranın normal

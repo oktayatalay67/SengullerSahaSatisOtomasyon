@@ -729,7 +729,9 @@
       <div class="menu-box" onclick="navTo('pageMenuRapor')"><div class="menu-box-icon">📈</div><div class="menu-box-title">Raporlar</div></div>
       <div class="menu-box" onclick="navTo('pageGorev')" style="position:relative;"><div class="menu-box-icon">✅</div><div class="menu-box-title">Görevler</div><span id="gorevMenuBadge" style="display:none;position:absolute;top:2px;right:2px;background:var(--red);color:#fff;font-size:13px;font-weight:800;border-radius:12px;padding:2px 8px;min-width:24px;line-height:1.3;text-align:center;box-shadow:0 0 0 2px var(--card);"></span></div>
 <div class="menu-box" onclick="navTo('pageDuyuru')" id="menuDuyuruBox" style="position:relative;"><div class="menu-box-icon">📢</div><div class="menu-box-title">Duyurular</div><span id="duyuruMenuBadge" style="display:none;position:absolute;top:6px;right:6px;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:18px;text-align:center;"></span></div>
-      <div class="menu-box hide" onclick="navTo('pageArama')" id="menuAramaBox"><div class="menu-box-icon">🎧</div><div class="menu-box-title">Ziyaret Teyit</div></div>
+      <!-- V31.176: kutu adi "Ziyaret Teyit" -> "Cagri Merkezi". Artik dogrudan
+           teyit ekranini acmiyor; iki kutulu Cagri Merkezi menusunu aciyor. -->
+      <div class="menu-box hide" onclick="navTo('pageCagriMerkezi')" id="menuAramaBox"><div class="menu-box-icon">☎️</div><div class="menu-box-title">Çağrı Merkezi</div></div>
       <div class="menu-box" onclick="navTo('pageHangiMusteri')"><div class="menu-box-icon">🧭</div><div class="menu-box-title">Hangi Müşteriye Gidelim</div></div>
       <div class="menu-box" onclick="navTo('pageTaleplerim')"><div class="menu-box-icon">📋</div><div class="menu-box-title">Uygulama Taleplerim</div></div>
       <div class="menu-box hide" id="yoneticiMenuBox" onclick="navTo('pageYonetici')"><div class="menu-box-icon">📊</div><div class="menu-box-title">Yönetici Paneli</div></div>
@@ -2343,7 +2345,24 @@
 
 <div class="page" id="pageDuyuru"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Duyurular</div></div><div class="scroll"><div style="padding:10px 14px 0;font-size:11px;color:var(--text2);">📋 Beyan &nbsp;|&nbsp; 📄 Evrak — fırsat bu adımlara her geçtiğinde burada listelenir, en yeni en üstte.</div><div id="duyuruListesi" style="padding:10px 14px;"><div class="empty">Yükleniyor…</div></div></div><div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Duyurular</div></div>
 
+<!-- V31.176: CAGRI MERKEZI — iki kutulu ara menu.
+     Ziyaret Teyit ekrani (pageArama) oldugu gibi korundu, yalnizca bir
+     seviye asagi indi. Kutu gorunurlugu initCagriMerkezi() ile yetkiye
+     gore ayarlanir (js/utils.js — navigasyon katmani, Bolum 12). -->
+<div class="page" id="pageCagriMerkezi">
+  <div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Çağrı Merkezi</div></div>
+  <div class="scroll" style="padding:16px;">
+    <div class="menu-grid">
+      <div class="menu-box" id="cmTeyitBox" onclick="navTo('pageArama')"><div class="menu-box-icon">✅</div><div class="menu-box-title">Ziyaret Teyit</div></div>
+      <div class="menu-box" id="cmLeadBox" onclick="navTo('pageLead')" style="border-color:rgba(96,165,250,.35);"><div class="menu-box-icon">🎯</div><div class="menu-box-title">Lead Aramaları</div></div>
+    </div>
+  </div>
+</div>
+
 <div class="page" id="pageArama"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Ziyaret Teyit Aramaları</div></div><div class="scroll"><div id="aramaListesi"><div class="loader"><div class="spinner"></div></div></div></div></div>
+
+<!-- V31.176: LEAD ARAMALARI — icerik js/lead.js icinde uretilir. -->
+<div class="page" id="pageLead"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Lead Aramaları</div></div><div class="scroll"><div id="leadListesi"><div class="loader"><div class="spinner"></div></div></div></div></div>
 
 <div class="modal-overlay" id="aramadanKapatModal" onclick="if(event.target===this)closeModal('aramadanKapatModal')">
   <div class="modal">
@@ -3660,7 +3679,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.175"></script>
+<script src="js/config.js?v=v31.182"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3668,16 +3687,18 @@
      ALTYAPI modulu — kendisini cagiran rapor/admin/veriyonetimi/donanim/
      firsat/temas/auth dosyalarindan ONCE yuklenmeli. -->
 <script src="js/denetim.js?v=v31.175"></script>
-<script src="js/yetki.js?v=v31.175"></script>
+<script src="js/yetki.js?v=v31.176"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
 <script src="js/donanim.js?v=v31.171"></script>
-<script src="js/utils.js?v=v31.169"></script>
-<script src="js/auth.js?v=v31.173"></script>
+<script src="js/utils.js?v=v31.176"></script>
+<script src="js/auth.js?v=v31.176"></script>
 <script src="js/gorev.js?v=v31.166"></script>
 <script src="js/talep.js?v=v31.34"></script>
 <script src="js/temas.js?v=v31.171"></script>
 <script src="js/arama.js?v=v31.168"></script>
+<!-- lead.js: Cagri Merkezi > Lead Aramalari (lead_liste/lead_kayit/lead_arama) -->
+<script src="js/lead.js?v=v31.182"></script>
 <script src="js/firsat.js?v=v31.171"></script>
 <script src="js/duyuru.js?v=v31.102"></script>
 <script src="js/musteri.js?v=v31.170"></script>

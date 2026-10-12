@@ -1,5 +1,10 @@
 // ============================================================
-// utils.js — v1.0.5
+// utils.js — v1.0.6
+// Değişiklikler:
+//   v1.0.6 (V31.176) — Çağrı Merkezi ara menüsü: navTo içine pageCagriMerkezi
+//            ve pageLead kayıtları, initCagriMerkezi() (iki kutunun yetkiye
+//            göre görünürlüğü). Navigasyon katmanında — iki modülü birlikte
+//            ilgilendirdiği için özellik modülüne konmadı (Bölüm 12).
 // Son güncelleme: 2026-10-08
 // Değişiklikler:
 //   v1.0.5 (V31.169) — FIX: Tarayıcı yakınlaştırması %100 değilken (Ctrl +/-)
@@ -182,7 +187,9 @@ function navTo(pid,reset=false){
   if(pid==='pageFirsatForm'){if(reset)initFirsatForm();else initFirsatForm();}
   if(pid==='pageGorev'){initGorevModulu();}
   if(pid==='pageHangiMusteri'){ if(typeof initHangiMusteri==='function') initHangiMusteri(); }
+  if(pid==='pageCagriMerkezi'){ initCagriMerkezi(); }                               // V31.176
   if(pid==='pageArama'){ if(typeof initAramaEkrani==='function') initAramaEkrani(); }
+  if(pid==='pageLead'){ initLeadEkrani(); }                                          // V31.176
   if(pid==='pageSevkiyat'){ if(typeof initSevkiyatPage==='function') initSevkiyatPage(); }   // V31.65
   if(pid==='pageGorevAdmin'){renderGorevTipleriAdmin();}
   if(pid==='pageAdmin'){ adminMenueGeri(); }
@@ -217,6 +224,18 @@ function goBack(){
     navTo('pageDash');
   }
 }
+/* ===== ÇAĞRI MERKEZİ ARA MENÜSÜ (V31.176) =====
+   İki kutu: Ziyaret Teyit (js/arama.js) ve Lead Aramaları (js/lead.js).
+   Navigasyon katmanında duruyor çünkü İKİ modülü birlikte ilgilendiriyor —
+   özellik modüllerinden birinin içine konsa, o dosya yüklenmediğinde diğer
+   kutu da kaybolurdu (çalışma kuralları Bölüm 12). */
+function initCagriMerkezi(){
+  const teyit = hasPerm('arama_agent') || hasPerm('arama_rapor');
+  const lead  = hasPerm('lead_agent')  || hasPerm('lead_rapor') || hasPerm('lead_liste_yonet');
+  const t=document.getElementById('cmTeyitBox'); if(t) t.style.display = teyit ? '' : 'none';
+  const l=document.getElementById('cmLeadBox');  if(l) l.style.display = lead  ? '' : 'none';
+}
+
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function openModal(id){document.getElementById(id).classList.add('show');}
 function toast(msg,type='info'){const c=document.getElementById('toastContainer');const t=document.createElement('div');t.className='toast '+type;t.innerHTML=msg;c.appendChild(t);setTimeout(()=>t.remove(),3800);}

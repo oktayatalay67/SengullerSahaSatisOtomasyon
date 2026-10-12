@@ -1,7 +1,79 @@
 // ============================================================
-// config.js — v1.4.17
-// Son güncelleme: 2026-10-08
+// config.js — v1.4.24
+// Son güncelleme: 2026-10-12
 // Değişiklikler:
+//   v1.4.24 — APP_VERSION → V31.182. LEAD (lead.js v1.5.0): 'Karar verici
+//     degil' secenegi artik takvim acmiyor. Alt soru soruluyor — karar
+//     vericinin bilgisi verildiyse yeni kontak acilir ve kayit 'Henuz
+//     Aranmadi' kuyruguna doner (telefon zorunlu); verilmediyse gorusme
+//     kapanir ve analizde olumsuz sayilir.
+//   v1.4.23 — APP_VERSION → V31.181. LEAD: 'Musteri talebi' sonucu eklendi
+//     (lead.js v1.4.0). Sikayet ve Talep, teyit aramasindaki ile AYNI gorev
+//     tiplerini acar: 'Musteri Sikayeti' / 'Musteri Talebi'.
+//     Sikayet hedefi AYNI zincirden bulunur — takim lideri -> KCM muduru ->
+//     operasyon muduru (arama.js:_sikayetTalepHedefBul, kopyalanmadi).
+//     Talep, musterinin portfoy sahibi MY'sine atanir (teyitteki kural).
+//     GOREV DURUMU kuyruk kartinda ve arama gecmisinde rozet olarak gorunur;
+//     tiklayinca gorev.js:openGorevDetay acilir — gorev kapatma akisi teyit
+//     aramasiyla BIREBIR AYNI, ayri bir kapatma yolu YOK.
+//     Talep sonuc_grubu='olumlu' (satis acilimi). Sikayet bilerek grupsuz:
+//     'olumsuz' saymak red nedenleri raporunu kirletirdi.
+//   v1.4.22 — APP_VERSION → V31.180. BUG FIX (lead.js v1.3.1): Lead arama
+//     ekraninda portfoyu DOLU musteriler icin bile "Portfoy sahibi:
+//     atanmamis" yaziyordu. Sebep: auth.js'te `let myIdToName = {}` ust
+//     duzey let ile tanimli — global degisken yaratir ama WINDOW UZERINE
+//     BINMEZ. lead.js korumayi `window.myIdToName && myIdToName[...]` diye
+//     yazdigi icin kosul HER ZAMAN false donuyor, MY adi hicbir yerde
+//     cozulmuyordu (portfoy sahibi, kilit sahibi, gecmis agent adi, Cagri
+//     Analizi agent tablosu, ziyaret satirlari). Tek okuma noktasi:
+//     _leadMyAd(). NOT: ayni tuzak uygulamanin baska yerinde YOK — tarandi;
+//     window.userSecici / window.PERM / window.FIRSAT_PRODUCTS acikca
+//     window'a atanmis durumda.
+//   v1.4.21 — APP_VERSION → V31.179. LEAD DUZELTMELERI (lead.js v1.3.0):
+//     (1) FIX: urun listesi 0-7 indeks basiyordu. FALLBACK_PRODUCTS bir
+//         DIZI ([{cat,items:[{n,t,product_id}]}]) ve loadProductsFromDB()
+//         giriste products tablosundan tazeliyor; artik kategori
+//         baslikli (optgroup) gercek urun agaci geliyor, product_id de
+//         lead_arama.urun_id'ye yaziliyor.
+//     (2) 'Zaten Turkcell musterisi' secenegi kaldirildi (Oktay: zaten
+//         Turkcell musterileri araniyor).
+//     (3) ARAMA ONCESI MUSTERI OZETI: portfoy sahibi, son ziyaret (kac gun
+//         once), acik firsat uyarisi, son teyit aramasi ve sikayet uyarisi
+//         + acilir temas/teyit gecmisi listeleri.
+//     (4) ARAMA ENGELI: musteri daha once aranmak istemedigini belirttiyse
+//         arama ekrani ACILMIYOR; kirmizi uyari + 'kaydi kapat' secenegi.
+//     (5) Agent gunluk panosu (bugun arama/ulasma/olumlu/gorev).
+//   v1.4.20 — APP_VERSION → V31.178. CAGRI MERKEZI FAZ 4 (lead.js v1.2.0):
+//     AGENT ARAMA EKRANI. Liste secimi -> 4 kutu (Henuz Aranmadi / Tekrar
+//     Aranacak / Ulasilamadi / Tamamlanan) + Cagri Analizi cipi. Iletisim
+//     bilgisi yoksa KONTAK KARTI acilir, kaydedilince dogrudan arama moduna
+//     gecilir. DURUM AGACI: 22 yaprak, ilerleyen sorular (tek state, her
+//     secimde yeniden render; ust secim degisince alt cevaplar temizlenir).
+//     FIRSAT KAYDI ACILMAZ — 'Lead Satis Firsati' gorev karti acilir ve
+//     musterinin MY'sine atanir; firsati MY ziyaret formuyla acar.
+//     Ek fonksiyonlar: yumusak kilit (iki agent ayni firmayi aramaz),
+//     deneme limiti ve rakip sozlesme bitisi supurmesi (zamanlayici YOK,
+//     ekran acilinca firsatci sekilde), saat bazli ulasma orani, red
+//     nedenleri raporu, agent bazli performans.
+//   v1.4.19 — APP_VERSION → V31.177. CAGRI MERKEZI FAZ 3 (lead.js v1.1.0):
+//     liste yonetimi (olustur/durum/ilerleme) + musteri ekleme iki yoldan:
+//     (1) FILTREYLE — KCM/MY/il/sektor/hat/profil sinyalleri + temas boslugu
+//         (hic ziyaret edilmemis, N gundur ziyaret yok, hic firsat yok) ve
+//         ELEME RAPORU: hangi musterinin neden elendigi tek tek gorunur.
+//     (2) EXCEL — kolon eslemeli; NCST sistemde yoksa satir ATILMAZ,
+//         unvaniyla girer ve sistemde_var=false isaretlenir.
+//     Tarama yontemi: once customers uzerinde DB tarafi filtre (sayfali,
+//     8000 ust sinir), sonra YALNIZ aday NCST'ler icin parcali .in()
+//     sorgulari — sorgu hacmi aday sayisiyla buyur, tablo boyutuyla degil.
+//     'Aranmak istemiyor' elemesi KAPATILAMAZ. Hic hatti olmayan musteri
+//     otomatik yuksek oncelik (oncelik=1).
+//   v1.4.18 — APP_VERSION → V31.176. CAGRI MERKEZI FAZ 2 — menu ayrimi:
+//     ana menudeki 'Ziyaret Teyit' kutusu 'Cagri Merkezi' (telefon ikonu) oldu
+//     ve iki kutulu ara menuyu aciyor: Ziyaret Teyit (mevcut modul,
+//     DOKUNULMADI) ve Lead Aramalari (yeni js/lead.js). yetki.js: 3 action
+//     yetkisi (lead_agent/lead_rapor/lead_liste_yonet) + 'lead' kapsam modulu
+//     matriste gorunuyor. utils.js: navTo kayitlari + initCagriMerkezi().
+//     Faz 1 SQL: LEAD_01_Tablolar_Yetkiler_2026-10-12.sql
 //   v1.4.17 — APP_VERSION → V31.175. Veri Guvenligi yetkileri Rol & Yetki
 //     matrisine alindi: veri_guvenlik_gor (ekrani gorur) + veri_guvenlik_ozet
 //     (haftalik ozeti e-posta ile alir). Onceden ikisi de admin_panel'e
@@ -1007,7 +1079,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.175';
+const APP_VERSION = 'V31.182';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

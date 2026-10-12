@@ -69,6 +69,7 @@ const YETKI_MODUL_ADLARI = {
   gorev:'Görev', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
   donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)',
   arama:'Ziyaret Teyit (Arama)', // v1.2.6 (V31.7x): kritik guvenlik fix — daha once bu modulun HIC scope kisiti yoktu
+  lead:'Lead Aramaları (Çağrı Merkezi)', // V31.176: agent/raporcu hangi KÇM'nin listelerini görür
   hedef_giris:'Hedef Girişi (Çalışan Listesi)' // v1.2.8 (V31.96): Yönetici Paneli > Hedef Yönetimi > Hedef Girişi
     // ekranı hiç kapsam kontrolü yapmıyordu, her yönetici tüm şirket personelini görüyordu.
     // NOT: Bu modül DB'de henüz tanımlı değilse getScope() varsayılan olarak 'PRT' (sadece
@@ -110,6 +111,10 @@ const YETKI_ACTION_GRUP = [
       veri_kalite_duzelt_onayla:'Veri Kalitesi düzeltme önerilerini onaylar/uygular',
       veri_guvenlik_gor:'Veri Güvenliği ekranını görüntüler (rapor/Excel çıkış izi)',
       veri_guvenlik_ozet:'Haftalık şüpheli hareket özetini e-posta ile alır' } },
+  { grup:'Çağrı Merkezi — Lead', items:{
+      lead_agent:'Lead aramaları yapar (agent ekranı)',
+      lead_rapor:'Lead çağrı analizini görür',
+      lead_liste_yonet:'Arama listesi oluşturur/kapatır, Excel yükler, filtreyle müşteri ekler' } },
   { grup:'Memnuniyet Arama', items:{
       arama_agent:'Ziyaret teyit araması yapar (agent ekranı)',
       arama_rapor:'Çağrı analizi/raporunu görür (yönetici)' } },
