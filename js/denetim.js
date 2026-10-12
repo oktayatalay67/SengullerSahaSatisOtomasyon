@@ -1,5 +1,11 @@
 // ============================================================
-// denetim.js — v1.2.0
+// denetim.js — v1.3.0
+//   v1.3.0 (V31.175): yetkiler Rol & Yetki matrisine tasindi —
+//   veri_guvenlik_gor (ekrani gorur) ve veri_guvenlik_ozet (ozeti alir).
+//   Onceden admin_panel yetkisine yapistirilmisti.
+//   v1.2.1 (V31.174): FIX — ozet alicilari rol ADINA gore seciliyordu
+//   (yetki_seviyesi='ADMIN' sabit). "SÜPER ADMIN" rolune e-posta hic
+//   gitmiyordu. Artik admin_panel YETKISI olan tum roller alici.
 //   v1.2.0 (V31.173): haftalık şüpheli hareket özeti — ADMIN girişinde
 //   kontrol edilir, bulgu varsa bildirim.js ile ADMIN e-postalarına gider.
 //   Zamanlayıcı YOK; son gönderim veri_cikis_log içinde tutulur.
@@ -247,6 +253,13 @@ function _vgKisiAdi(r){
 function initVeriGuvenlik(){
   const el=document.getElementById('veriGuvenlikSonuc');
   if(!el) return;
+  // V31.175: yetki artik Rol & Yetki matrisinden geliyor (veri_guvenlik_gor).
+  // Onceden admin_panel'e yapistirilmisti; ekrani gormek ile ozeti almak
+  // ayri kararlardir, ikisi de matriste ayri satir.
+  if(typeof hasPerm==='function' && !hasPerm('veri_guvenlik_gor')){
+    el.innerHTML='<div class="empty" style="color:var(--red);">Bu ekran için yetkiniz yok.</div>';
+    return;
+  }
   el.innerHTML =
     '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">'+
       '<span style="font-size:11px;color:var(--text3);">Dönem:</span>'+
@@ -638,7 +651,9 @@ const DENETIM_OZET_PENCERE = 7;      // özetin kapsadığı gün sayısı
 
 async function denetimOzetKontrol(){
   try{
-    if(typeof hasPerm!=='function' || !hasPerm('admin_panel')) return;
+    // V31.175: ekrani gorme yetkisi olan birinin girisi ozet suprumesini
+    // tetikler. Kimin ALDIGI ayri yetki (veri_guvenlik_ozet) ile belirlenir.
+    if(typeof hasPerm!=='function' || !hasPerm('veri_guvenlik_gor')) return;
 
     // 1) Son özet ne zaman gönderildi/kontrol edildi?
     const {data:son, error:sonErr} = await sb.from(DENETIM_TABLO)
@@ -685,20 +700,44 @@ async function denetimOzetGonder(elle){
     return;
   }
 
-  // Alıcılar: aktif ADMIN'ler
-  const {data:adminler} = await sb.from('users')
-    .select('email,ad_soyad').eq('aktif',true).eq('yetki_seviyesi','ADMIN');
-  const alicilar = (adminler||[]).map(u=>u.email).filter(Boolean);
-  if(!alicilar.length){
-    if(elle) toast('E-posta adresi olan aktif ADMIN bulunamadı','error');
-    console.warn('[denetim] ozet gonderilemedi: alici yok');
+  // Alıcılar: V31.174 — rol ADINA gore DEGIL, YETKIYE gore secilir.
+  // Onceden yetki_seviyesi='ADMIN' sabit yaziliydi; "SÜPER ADMIN" gibi ayri bir
+  // yonetici rolu listeye hic girmiyordu. Artik admin_panel yetkisi olan HER
+  // role gider — Rol & Yetki ekranindan yeni bir yonetici rolu tanimlandiginda
+  // kod degismeden listeye dahil olur.
+  // Buyuk/kucuk harf tuzagi: window.PERM roller buyuk harfle tutar, users
+  // tablosundaki yazim farkli olabilir. Bu yuzden .in() ile sorgulamiyoruz;
+  // hasPerm ile ayni karsilastirmayi (toUpperCase) JS tarafinda yapiyoruz.
+  // V31.175: alici roller Rol & Yetki matrisindeki veri_guvenlik_ozet
+  // yetkisinden okunur. Matriste hic rol isaretlenmemisse (SQL hic
+  // calistirilmadiysa) ozet sessizce kaybolmasin diye admin_panel'e duser
+  // ve konsola uyari yazar.
+  let kaynakYetki = 'veri_guvenlik_ozet';
+  let roller = (window.PERM && window.PERM['veri_guvenlik_ozet']) || [];
+  if(!roller.length){
+    roller = (window.PERM && window.PERM['admin_panel']) || ['ADMIN'];
+    kaynakYetki = 'admin_panel (yedek)';
+    console.warn('[denetim] veri_guvenlik_ozet yetkisi hicbir role verilmemis — '+
+                 'Rol & Yetki ekranindan isaretle. Simdilik admin_panel kullanildi.');
+  }
+  const yetkiliRoller = roller.map(r=>String(r).toUpperCase());
+  const {data:kullanicilar} = await sb.from('users')
+    .select('email,ad_soyad,yetki_seviyesi').eq('aktif',true);
+  const alicilar = (kullanicilar||[])
+    .filter(u=>yetkiliRoller.includes(String(u.yetki_seviyesi||'').toUpperCase()))
+    .map(u=>u.email).filter(Boolean);
+  // Mukerrer adres (ayni e-posta iki hesapta) tek kez gonderilsin
+  const tekilAlicilar = [...new Set(alicilar.map(e=>String(e).trim().toLowerCase()))];
+  if(!tekilAlicilar.length){
+    if(elle) toast('"Haftalık özet alır" yetkisi olan ve e-postası tanımlı kullanıcı yok — Rol & Yetki ekranından kontrol et','error');
+    console.warn('[denetim] ozet gonderilemedi: alici yok. Yetkili roller:', yetkiliRoller);
     return;
   }
 
   const konu = 'SSSO Veri Güvenliği — '+bulgular.length+' şüpheli hareket ('+
                DENETIM_OZET_PENCERE+' gün)';
   const gonderildi = await bildirimGonder(
-    alicilar, konu, _denetimOzetMetin(bulgular), _denetimOzetHtml(bulgular), 'denetim');
+    tekilAlicilar, konu, _denetimOzetMetin(bulgular), _denetimOzetHtml(bulgular), 'denetim');
 
   // Gönderim denemesi SONRASI kaydedilir: gönderim başarısızsa bir sonraki
   // ADMIN girişinde tekrar denenir, hafta boşa yanmaz.
@@ -707,11 +746,12 @@ async function denetimOzetGonder(elle){
     rapor_adi:'Haftalık şüpheli hareket özeti', bicim:'ekran',
     satir_sayisi:bulgular.length,
     kapsam:{pencere_gun:DENETIM_OZET_PENCERE, bulgu:bulgular.length,
-            gonderildi:!!gonderildi, alici_sayisi:alicilar.length, elle:!!elle}
+            gonderildi:!!gonderildi, alici_sayisi:tekilAlicilar.length,
+            yetkili_roller:yetkiliRoller, alici_yetkisi:kaynakYetki, elle:!!elle}
   });
 
   if(elle){
-    if(gonderildi) toast(bulgular.length+' bulgu, '+alicilar.length+' ADMIN\'e gönderildi','success');
+    if(gonderildi) toast(bulgular.length+' bulgu, '+tekilAlicilar.length+' yöneticiye gönderildi','success');
     else           toast('Gönderilemedi — konsolda [bildirim] satırına bakın','error');
   }
 }

@@ -1,7 +1,19 @@
 // ============================================================
-// config.js — v1.4.15
+// config.js — v1.4.17
 // Son güncelleme: 2026-10-08
 // Değişiklikler:
+//   v1.4.17 — APP_VERSION → V31.175. Veri Guvenligi yetkileri Rol & Yetki
+//     matrisine alindi: veri_guvenlik_gor (ekrani gorur) + veri_guvenlik_ozet
+//     (haftalik ozeti e-posta ile alir). Onceden ikisi de admin_panel'e
+//     yapistirilmisti; ekrani gormek ile ozeti almak ayri kararlar.
+//     yetki.js: iki yeni action, 'Yonetim' grubunda.
+//     SQL: DENETIM_03_Yetki_Matrisi_2026-10-12.sql — admin_panel yetkisi olan
+//     HER role iki yetkiyi isaretler (rol adi varsayilmaz).
+//   v1.4.16 — APP_VERSION → V31.174. FIX: haftalik ozet yalniz 'ADMIN'
+//     rolune gidiyordu, 'SÜPER ADMIN' listeye girmiyordu. Alici secimi rol
+//     adina gore degil admin_panel YETKISINE gore yapiliyor (window.PERM).
+//     Buyuk/kucuk harf farki icin karsilastirma JS'te hasPerm ile ayni
+//     sekilde yapiliyor; mukerrer e-posta adresleri tekilleniyor.
 //   v1.4.15 — APP_VERSION → V31.173. HAFTALIK SUPHELI HAREKET OZETI:
 //     denetim.js v1.2.0 — bulgu varsa ADMIN e-postalarina ozet gider, yoksa
 //     mesaj gonderilmez. ZAMANLAYICI YOK: ADMIN girisinde kontrol edilir
@@ -995,7 +1007,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.173';
+const APP_VERSION = 'V31.175';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

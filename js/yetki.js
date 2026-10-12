@@ -107,7 +107,9 @@ const YETKI_ACTION_GRUP = [
       veri_yonetimi:'Veri Yönetimi ekranını kullanır (toplu güncelleme/yükleme)',
       veri_kalite_gor:'Veri Kalitesi Denetim ekranını görüntüler',
       veri_kalite_calistir:'Veri Kalitesi taramasını çalıştırır (Excel rapor üretir)',
-      veri_kalite_duzelt_onayla:'Veri Kalitesi düzeltme önerilerini onaylar/uygular' } },
+      veri_kalite_duzelt_onayla:'Veri Kalitesi düzeltme önerilerini onaylar/uygular',
+      veri_guvenlik_gor:'Veri Güvenliği ekranını görüntüler (rapor/Excel çıkış izi)',
+      veri_guvenlik_ozet:'Haftalık şüpheli hareket özetini e-posta ile alır' } },
   { grup:'Memnuniyet Arama', items:{
       arama_agent:'Ziyaret teyit araması yapar (agent ekranı)',
       arama_rapor:'Çağrı analizi/raporunu görür (yönetici)' } },
