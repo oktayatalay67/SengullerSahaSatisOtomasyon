@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.4.29
-// Son güncelleme: 2026-10-13
+// config.js — v1.4.30
+// Son güncelleme: 2026-10-15
 // Değişiklikler:
+//   v1.4.30 — APP_VERSION → V31.188. temas.js v2.10.52: ziyaret formundan acilan
+//     firsat icin activity_logs kaydi (Oluşturuldu + varsa Not) artik yaziliyor.
 //   v1.4.29 — APP_VERSION → V31.187. LEAD (lead.js v1.9.0): arama listesi
 //     filtrelerinde il/ilce/sektor/musteri tipi COKLU SECIM oldu; degerler
 //     veritabanindan okunuyor. Ilce listesi secili illere bagli.
@@ -1102,7 +1104,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.187';
+const APP_VERSION = 'V31.188';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

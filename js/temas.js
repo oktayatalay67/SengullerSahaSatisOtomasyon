@@ -1,4 +1,12 @@
 // ============================================================
+// temas.js — v2.10.52
+//   v2.10.52 — V31.188: ZIYARET FORMUNDAN ACILAN FIRSAT ARTIK activity_logs YAZIYOR.
+//     Onceden saveTemas icindeki opportunities.insert sonrasi firsat icin log
+//     yazilmiyordu (yalnizca visits logu vardi); bu yolla giren firsatlarin zaman
+//     cizelgesinde Olusturuldu kaydi ve asama gecmisi yoktu. Simdi firsat.js ile
+//     ayni biçimde addLog('opportunities', opp_id, 'Oluşturuldu', 'Aşama | Ürün')
+//     ve aciklama varsa ayrica 'Not' yazilir. Gecmis kayitlar DEGISMEDI (geriye
+//     donuk log uretilmedi). Veri modeli degismedi.
 // temas.js — v2.10.51
 //   v2.10.51 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
 //     (js/denetim.js, veri_cikis_log tablosu). Nokta: fetchAdvancedReport
@@ -1642,6 +1650,13 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
           await sb.from('opportunity_products').insert({
             opp_id:oppData[0].opp_id,urun_adi:f.urun,adet:f.adet||1,tutar:f.tutar||null
           });
+          // v2.10.52 (V31.188): ziyaret formundan acilan firsat icin activity_logs kaydi.
+          // Biçim firsat.js ile AYNI (aksiyon 'Oluşturuldu', detay 'Aşama | Ürün'): firsat
+          // zaman cizelgesi ve dashboard Evrak bekleme hesabi bu biçime dayanir.
+          // addLog kendi icinde hata yutar; log yazilamazsa firsat kaydi etkilenmez.
+          const _oppLogId=oppData[0].opp_id;
+          await addLog('opportunities',_oppLogId,'Oluşturuldu',(f.adim||'Fırsat')+(f.urun?' | '+f.urun:''));
+          if(f.aciklama) await addLog('opportunities',_oppLogId,'Not',f.aciklama);
         }
       }
       tmsEklenmisFirsatList=[];
