@@ -1,6 +1,7 @@
 // ============================================================
-// utils.js — v1.0.7
+// utils.js — v1.0.8
 // Değişiklikler:
+//   v1.0.8 (V31.189) — navTo: pageDashboardKcm -> initDashboardKcm() (js/dashboard.js).
 //   v1.0.6 (V31.176) — Çağrı Merkezi ara menüsü: navTo içine pageCagriMerkezi
 //            ve pageLead kayıtları, initCagriMerkezi() (iki kutunun yetkiye
 //            göre görünürlüğü). Navigasyon katmanında — iki modülü birlikte
@@ -204,6 +205,7 @@ function navTo(pid,reset=false){
   if(pid==='pageHangiMusteri'){ if(typeof initHangiMusteri==='function') initHangiMusteri(); }
   if(pid==='pageCagriMerkezi'){ initCagriMerkezi(); }                               // V31.176
   if(pid==='pageArama'){ if(typeof initAramaEkrani==='function') initAramaEkrani(); }
+  if(pid==='pageDashboardKcm'){ if(typeof initDashboardKcm==='function') initDashboardKcm(); }   // V31.189
   if(pid==='pageLead'){ initLeadEkrani(); }                                          // V31.176
   if(pid==='pageSevkiyat'){ if(typeof initSevkiyatPage==='function') initSevkiyatPage(); }   // V31.65
   if(pid==='pageGorevAdmin'){renderGorevTipleriAdmin();}

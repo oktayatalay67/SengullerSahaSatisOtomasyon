@@ -1,5 +1,6 @@
 // ============================================================
-// admin.js — v1.1.7
+// admin.js — v1.1.8
+//   v1.1.8 (V31.189) — Uygulama Ayarlari: "Dashboard Ayarlari" sekmesi (renderDashboardAyarlari, js/dashboard.js).
 //   v1.1.7 (V31.172) — ADMIN kutu menusune "Veri Guvenligi" eklendi;
 //     ekranin kendisi js/denetim.js icinde (initVeriGuvenlik).
 //   v1.1.6 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
@@ -948,7 +949,7 @@ async function aramaAyarKaydet(id){
 // Rezervasyon Akışı V2 için sistem_ayarlari'deki 5 yeni parametre).
 // ============================================================
 function uygulamaAyarlariSekmeAc(sekme){
-  ['arama','donanim'].forEach(function(s){
+  ['arama','donanim','dashboard'].forEach(function(s){
     const p=document.getElementById('uygAyarPanel_'+s);
     const b=document.getElementById('uygAyarTab_'+s);
     if(p) p.style.display = (s===sekme) ? '' : 'none';
@@ -956,6 +957,7 @@ function uygulamaAyarlariSekmeAc(sekme){
   });
   if(sekme==='arama')   renderAramaAyarlari();
   if(sekme==='donanim') renderDonanimSurecAyarlari();
+  if(sekme==='dashboard' && typeof renderDashboardAyarlari==='function') renderDashboardAyarlari();   // V31.189
 }
 async function renderDonanimSurecAyarlari(){
   const el=document.getElementById('donanimSurecAyarlariListesi');

@@ -1,5 +1,7 @@
 // ============================================================
-// yetki.js — v1.3.2
+// yetki.js — v1.3.3
+//   v1.3.3 — (V31.189) Yeni izin: dashboard_gor + dashboard modulu (KCM karsilastirmali Dashboard).
+//     Otomatik atanmadi: Rol&Yetki ekranindan elle verilmeli; yoneticiler icin kapsam TUM, MY/FMY icin KCM.
 // Son güncelleme: 2026-09-19
 // Değişiklikler:
 //   v1.3.1 — (V31.135) Yeni izin anahtarı: donanim_hareket_raporu_gor — Stok
@@ -70,6 +72,7 @@ const YETKI_MODUL_ADLARI = {
   donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)',
   arama:'Ziyaret Teyit (Arama)', // v1.2.6 (V31.7x): kritik guvenlik fix — daha once bu modulun HIC scope kisiti yoktu
   lead:'Lead Aramaları (Çağrı Merkezi)', // V31.176: agent/raporcu hangi KÇM'nin listelerini görür
+  dashboard:'Dashboard (KÇM Karşılaştırma)', // V31.189: TÜM = tüm KÇM leri görür; KÇM/tanımsız = yalnız kendi KÇM si
   hedef_giris:'Hedef Girişi (Çalışan Listesi)' // v1.2.8 (V31.96): Yönetici Paneli > Hedef Yönetimi > Hedef Girişi
     // ekranı hiç kapsam kontrolü yapmıyordu, her yönetici tüm şirket personelini görüyordu.
     // NOT: Bu modül DB'de henüz tanımlı değilse getScope() varsayılan olarak 'PRT' (sadece
@@ -111,6 +114,8 @@ const YETKI_ACTION_GRUP = [
       veri_kalite_duzelt_onayla:'Veri Kalitesi düzeltme önerilerini onaylar/uygular',
       veri_guvenlik_gor:'Veri Güvenliği ekranını görüntüler (rapor/Excel çıkış izi)',
       veri_guvenlik_ozet:'Haftalık şüpheli hareket özetini e-posta ile alır' } },
+  { grup:'Dashboard', items:{
+      dashboard_gor:'KÇM karşılaştırmalı Dashboard ekranını görüntüler (kapsam: Görüntüleme sekmesi, dashboard modülü)' } },
   { grup:'Çağrı Merkezi — Lead', items:{
       lead_agent:'Lead aramaları yapar (agent ekranı)',
       lead_rapor:'Lead çağrı analizini görür',

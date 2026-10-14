@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.4.30
+// config.js — v1.4.31
 // Son güncelleme: 2026-10-15
 // Değişiklikler:
+//   v1.4.31 — APP_VERSION → V31.189. YENI: js/dashboard.js v1.0.0, KCM karsilastirmali Dashboard
+//     (ziyaret, firsat, teyit, kontak puani). index.html: menu kutusu, sayfa, Dashboard Ayarlari sekmesi,
+//     config/temas ?v= onbellek parametreleri duzeltildi.
 //   v1.4.30 — APP_VERSION → V31.188. temas.js v2.10.52: ziyaret formundan acilan
 //     firsat icin activity_logs kaydi (Oluşturuldu + varsa Not) artik yaziliyor.
 //   v1.4.29 — APP_VERSION → V31.187. LEAD (lead.js v1.9.0): arama listesi
@@ -1104,7 +1107,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.188';
+const APP_VERSION = 'V31.189';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

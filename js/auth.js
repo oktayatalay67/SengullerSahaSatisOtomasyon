@@ -1,5 +1,6 @@
 // ============================================================
-// auth.js — v1.2.30
+// auth.js — v1.2.31
+//   v1.2.31 (V31.189) — Ana menuye Dashboard kutusu (dashboard_gor yetkisiyle gorunur).
 //   v1.2.30 (V31.176) — Ana menudeki "Cagri Merkezi" kutusu lead yetkileriyle
 //     de gorunur (onceden yalniz arama_agent/arama_rapor).
 //   v1.2.29 (V31.173) — initApp sonunda denetimOzetKontrol() cagriliyor
@@ -311,6 +312,9 @@ function loadDashboard(){
   if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')
                                                  ||hasPerm('lead_agent')||hasPerm('lead_rapor')
                                                  ||hasPerm('lead_liste_yonet')));
+  // V31.189: KCM karsilastirmali Dashboard kutusu (dashboard_gor yetkisi).
+  const dkmBox=document.getElementById('menuDashboardBox');
+  if(dkmBox) dkmBox.classList.toggle('hide', !hasPerm('dashboard_gor'));
   // V31.97: Hızlı Sevkiyat Ana Menü'den kaldırıldı — Donanım Takip > Stok/
   // Rezervasyon sekmelerinin içine taşındı (bkz. donanim.js initDonanimPage).
   // V31.109: Yönetici Paneli artık ayrı bir bölüm değil, ana ızgaranın normal

@@ -734,6 +734,8 @@
       <div class="menu-box hide" onclick="navTo('pageCagriMerkezi')" id="menuAramaBox"><div class="menu-box-icon">☎️</div><div class="menu-box-title">Çağrı Merkezi</div></div>
       <div class="menu-box" onclick="navTo('pageHangiMusteri')"><div class="menu-box-icon">🧭</div><div class="menu-box-title">Hangi Müşteriye Gidelim</div></div>
       <div class="menu-box" onclick="navTo('pageTaleplerim')"><div class="menu-box-icon">📋</div><div class="menu-box-title">Uygulama Taleplerim</div></div>
+      <!-- V31.189: KCM karsilastirmali Dashboard (js/dashboard.js). Yetki: dashboard_gor -->
+      <div class="menu-box hide" onclick="navTo('pageDashboardKcm')" id="menuDashboardBox"><div class="menu-box-icon">📉</div><div class="menu-box-title">Dashboard</div></div>
       <div class="menu-box hide" id="yoneticiMenuBox" onclick="navTo('pageYonetici')"><div class="menu-box-icon">📊</div><div class="menu-box-title">Yönetici Paneli</div></div>
     </div>
     <div id="adminMenuBox" class="hide">
@@ -2508,6 +2510,7 @@
   <div style="display:flex;gap:8px;margin-bottom:14px;">
     <button class="btn btn-sm" id="uygAyarTab_arama" onclick="uygulamaAyarlariSekmeAc('arama')" style="flex:1;">Arama Ayarları</button>
     <button class="btn btn-sm" id="uygAyarTab_donanim" onclick="uygulamaAyarlariSekmeAc('donanim')" style="flex:1;">Donanım Satış Süreç Ayarları</button>
+    <button class="btn btn-sm" id="uygAyarTab_dashboard" onclick="uygulamaAyarlariSekmeAc('dashboard')" style="flex:1;">Dashboard Ayarları</button>
   </div>
   <div id="uygAyarPanel_arama" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
     <div class="section-title">Arama Ayarları</div>
@@ -2516,6 +2519,10 @@
   <div id="uygAyarPanel_donanim" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
     <div class="section-title">Donanım Satış Süreç Ayarları</div>
     <div id="donanimSurecAyarlariListesi" style="margin-top:8px;"></div>
+  </div>
+  <div id="uygAyarPanel_dashboard" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
+    <div class="section-title">Dashboard Ayarları</div>
+    <div id="dashboardAyarlariListesi" style="margin-top:8px;"></div>
   </div>
 </div>
   <div id="adminTabUrunler" class="scroll">
@@ -3610,6 +3617,16 @@
      Portföyünde hiç ziyaret edilmemiş bir müşteri önerir; hiç kalmadıysa en uzun
      süredir ziyaret edilmeyeni önerir. "Devam" temas planlama formunu (Planlandı)
      bu müşteri seçili olarak açar. -->
+<!-- ===== DASHBOARD (KCM karsilastirmali) — V31.189, js/dashboard.js ===== -->
+<div class="page" id="pageDashboardKcm">
+  <div class="topbar">
+    <button class="topbar-back" onclick="goBack()">&#8592;</button>
+    <div class="topbar-title">Dashboard</div>
+  </div>
+  <div class="scroll" id="dkmIcerik"></div>
+  <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Dashboard</div>
+</div>
+
 <div class="page" id="pageHangiMusteri">
   <div class="topbar">
     <button class="topbar-back" onclick="goBack()">&#8592;</button>
@@ -3711,7 +3728,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.187"></script>
+<script src="js/config.js?v=v31.189"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3719,15 +3736,15 @@
      ALTYAPI modulu — kendisini cagiran rapor/admin/veriyonetimi/donanim/
      firsat/temas/auth dosyalarindan ONCE yuklenmeli. -->
 <script src="js/denetim.js?v=v31.175"></script>
-<script src="js/yetki.js?v=v31.183"></script>
+<script src="js/yetki.js?v=v31.189"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
 <script src="js/donanim.js?v=v31.171"></script>
-<script src="js/utils.js?v=v31.185"></script>
-<script src="js/auth.js?v=v31.176"></script>
+<script src="js/utils.js?v=v31.189"></script>
+<script src="js/auth.js?v=v31.189"></script>
 <script src="js/gorev.js?v=v31.166"></script>
 <script src="js/talep.js?v=v31.34"></script>
-<script src="js/temas.js?v=v31.171"></script>
+<script src="js/temas.js?v=v31.189"></script>
 <script src="js/arama.js?v=v31.185"></script>
 <!-- lead.js: Cagri Merkezi > Lead Aramalari (lead_liste/lead_kayit/lead_arama) -->
 <script src="js/lead.js?v=v31.187"></script>
@@ -3735,9 +3752,11 @@
 <script src="js/duyuru.js?v=v31.102"></script>
 <script src="js/musteri.js?v=v31.170"></script>
 <script src="js/hedef.js?v=v31.150"></script>
-<script src="js/admin.js?v=v31.172"></script>
+<script src="js/admin.js?v=v31.189"></script>
 <script src="js/veriyonetimi.js?v=v31.171"></script>
 <script src="js/rapor.js?v=v31.171"></script>
+<!-- dashboard.js: KCM karsilastirmali Dashboard (V31.189). veri_kalitesi.js ve yetki.js sonrasi yuklenir. -->
+<script src="js/dashboard.js?v=v31.189"></script>
 
 </body>
 </html>
