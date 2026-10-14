@@ -1,5 +1,5 @@
 // ============================================================
-// arama.js — v1.1.17
+// arama.js — v1.1.18
 //   v1.1.17 (05.10.2026, V31.168): Sikayet bildirim e-postasi kendi
 //     fetch i yerine js/bildirim.js icindeki bildirimGonder() ile
 //     gonderiliyor. Donus sozlesmesi ayni ('ok'|'adres_yok'|'hata').
@@ -1297,6 +1297,19 @@ function aramadanKapatAc(taskId){
   const notEl=document.getElementById('aramadanKapatNot'); if(notEl) notEl.value='';
   window._aramadanKapatNeden=null;
   openModal('aramadanKapatModal');
+}
+
+/* V31.185 — ARAMA EKRANINDAN "ARAMADAN KAPAT"
+   Agent "Ara" tuşuna basıp anket modalını açtıktan sonra, görüşmeyi hiç
+   yapmadan kaydı kapatabilmeli (Oktay, 14.10.2026). Görev kartındaki tuşla
+   AYNI modalı ve AYNI kayıt yolunu kullanır — ikinci bir kapatma akışı
+   yazılmadı, tek yerden bakılır. Anket modalı önce kapatılır ki iki modal
+   üst üste binmesin. */
+function aramaAnketAramadanKapat(){
+  const a=window._anket;
+  if(!a || !a.taskId){ toast('Kayıt bulunamadı','error'); return; }
+  closeModal('aramaAnketModal');
+  aramadanKapatAc(a.taskId);
 }
 function _aramadanKapatSec(el,neden){
   document.querySelectorAll('#aramadanKapatNedenler .sonuc-item').forEach(e=>e.classList.remove('selected'));

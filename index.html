@@ -2364,6 +2364,19 @@
 <!-- V31.176: LEAD ARAMALARI — icerik js/lead.js icinde uretilir. -->
 <div class="page" id="pageLead"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Lead Aramaları</div></div><div class="scroll"><div id="leadListesi"><div class="loader"><div class="spinner"></div></div></div></div></div>
 
+<!-- V31.187: LEAD — filtre coklu secim paneli (il/ilce/sektor/musteri tipi).
+     Secenekler lead_filtre_secenekleri() fonksiyonundan, VERIDEN gelir. -->
+<div class="modal-overlay" id="leadCokModal" onclick="if(event.target===this)leadCokKapat()">
+  <div class="modal" style="max-height:88vh;">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="leadCokBaslik">Seç</div>
+    <input type="text" id="leadCokAra" placeholder="Ara..." oninput="leadCokAraDegisti(this.value)"
+      style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;margin-bottom:10px;">
+    <div id="leadCokGovde" style="max-height:58vh;overflow-y:auto;"></div>
+    <button class="btn" style="width:100%;margin-top:10px;background:var(--green);color:#04301f;" onclick="leadCokKapat()">✓ Tamam</button>
+  </div>
+</div>
+
 <!-- V31.185: LEAD — aramadan tamamla. Teyit tarafindaki aramadanKapatModal ile
      ayni mantik; nedenler lead'e ozel oldugu icin ayri modal. -->
 <div class="modal-overlay" id="leadAramadanTamamlaModal" onclick="if(event.target===this)closeModal('leadAramadanTamamlaModal')">
@@ -3698,7 +3711,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.186"></script>
+<script src="js/config.js?v=v31.187"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3717,7 +3730,7 @@
 <script src="js/temas.js?v=v31.171"></script>
 <script src="js/arama.js?v=v31.185"></script>
 <!-- lead.js: Cagri Merkezi > Lead Aramalari (lead_liste/lead_kayit/lead_arama) -->
-<script src="js/lead.js?v=v31.186"></script>
+<script src="js/lead.js?v=v31.187"></script>
 <script src="js/firsat.js?v=v31.171"></script>
 <script src="js/duyuru.js?v=v31.102"></script>
 <script src="js/musteri.js?v=v31.170"></script>

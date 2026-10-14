@@ -1,5 +1,5 @@
 // ============================================================
-// yetki.js — v1.3.1
+// yetki.js — v1.3.2
 // Son güncelleme: 2026-09-19
 // Değişiklikler:
 //   v1.3.1 — (V31.135) Yeni izin anahtarı: donanim_hareket_raporu_gor — Stok
@@ -114,7 +114,10 @@ const YETKI_ACTION_GRUP = [
   { grup:'Çağrı Merkezi — Lead', items:{
       lead_agent:'Lead aramaları yapar (agent ekranı)',
       lead_rapor:'Lead çağrı analizini görür',
-      lead_liste_yonet:'Arama listesi oluşturur/kapatır, Excel yükler, filtreyle müşteri ekler' } },
+      lead_liste_yonet:'Arama listesi oluşturur/kapatır, Excel yükler, filtreyle müşteri ekler',
+      // V31.183: silme AYRI yetki. Liste yönetimi olan herkes silemez —
+      // yalnız bu kutu işaretli roller. Arama izi (lead_arama) silinmez.
+      lead_sil:'Arama listesini ve listedeki firmaları SİLER (yalnız yönetim)' } },
   { grup:'Memnuniyet Arama', items:{
       arama_agent:'Ziyaret teyit araması yapar (agent ekranı)',
       arama_rapor:'Çağrı analizi/raporunu görür (yönetici)' } },

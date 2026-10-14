@@ -1,5 +1,5 @@
 // ============================================================
-// lead.js — v1.8.0
+// lead.js — v1.9.0
 // Son güncelleme: 2026-10-12
 //
 // ÇAĞRI MERKEZİ / LEAD ARAMALARI
@@ -29,6 +29,13 @@
 //   hasPerm/getScope → js/config.js · yetki katmanı
 //
 // SÜRÜM NOTLARI
+//   v1.9.0 (V31.187) — FİLTRELER ÇOKLU SEÇİME ÇEVRİLDİ. İl / İlçe / Sektör /
+//           Müşteri tipi serbest metindi ve .ilike() ile tam eşleşme
+//           aranıyordu; Türkçe İ/i, boşluk ve yazım farkları yüzünden ekran
+//           hep boş dönüyordu. Artık değerler VERİDEN okunur
+//           (lead_filtre_secenekleri RPC — LEAD_03 SQL), kullanıcı listeden
+//           seçer, sorgu .in() ile çalışır. İlçe listesi seçili illere bağlı.
+//           LEAD.filtre.il/ilce/sektor/tip artık DİZİ.
 //   v1.8.0 (V31.186) — "Aramadan Kapat" ve "🗑 Sil", AGENT KUYRUK KARTINA da
 //           eklendi (Oktay): agent arama ekranını hiç açmadan kaydı kapatır,
 //           yetkili müşteriyi listeden tek tuşla çıkarır. Yönetim ekranındaki
@@ -181,7 +188,11 @@ function _leadIsaretli(id){ const e=document.getElementById(id); return !!(e&&e.
 function _leadFiltreSifirla(){
   LEAD.filtre = {
     kcm:'', takim:'', my:'', atamasiz:false,
-    il:'', ilce:'', sektor:'', tip:'', aktif:'true', churn:'',
+    // V31.187: il/ilce/sektor/tip artık DİZİ — çoklu seçim.
+    // Eskiden serbest metindi ve .ilike() ile tam eşleşme aranıyordu;
+    // Türkçe İ/i, baştaki-sondaki boşluk ve farklı yazımlar yüzünden
+    // pratikte hiçbir şey dönmüyordu.
+    il:[], ilce:[], sektor:[], tip:[], aktif:'true', churn:'',
     hatMin:'', hatMax:'', byMin:'', byMax:'',
     sunucu:'', firewall:'', itEkibi:'', profil:'',
     ziyaret:'hic',          // '' | hic | gun
@@ -693,16 +704,190 @@ async function _leadFiltreSeceneklerDoldur(){
   }
   await _leadMyDoldur();
 
-  // İl / Sektör / Tip — mevcut müşteri verisinden değil, sabit listelerden okunur
-  // olmadığı için customers'tan DISTINCT çekmek pahalı. Serbest metin kutusu
-  // daha dürüst: kullanıcı ne yazarsa ona göre filtrelenir.
+  // V31.187: İl / İlçe / Sektör / Müşteri tipi — serbest metin DEĞİL, veriden
+  // beslenen çoklu seçim. Kutuya tıklanınca seçim paneli açılır.
   const ilEl=document.getElementById('leadIlAlan');
-  if(ilEl) ilEl.innerHTML='<div class="field"><label>İl (tam ad)</label><input type="text" id="lfIl" placeholder="Örn: İSTANBUL" style="'+_LEAD_INP+'"></div>'+
-                          '<div class="field"><label>İlçe (tam ad)</label><input type="text" id="lfIlce" style="'+_LEAD_INP+'"></div>';
+  if(ilEl) ilEl.innerHTML=_leadCokKutuHTML('il')+_leadCokKutuHTML('ilce');
   const sekEl=document.getElementById('leadSektorAlan');
-  if(sekEl) sekEl.innerHTML='<div class="field"><label>Sektör (tam ad)</label><input type="text" id="lfSektor" style="'+_LEAD_INP+'"></div>';
+  if(sekEl) sekEl.innerHTML=_leadCokKutuHTML('sektor');
   const tipEl=document.getElementById('leadTipAlan');
-  if(tipEl) tipEl.innerHTML='<div class="field"><label>Müşteri tipi (tam ad)</label><input type="text" id="lfTip" style="'+_LEAD_INP+'"></div>';
+  if(tipEl) tipEl.innerHTML=_leadCokKutuHTML('tip');
+}
+
+/* ============================================================================
+   V31.187 — ÇOKLU SEÇİM FİLTRELERİ (il · ilçe · sektör · müşteri tipi)
+
+   NEDEN
+     Bu dört alan serbest metindi ve .ilike() ile tam eşleşme aranıyordu.
+     Kullanıcı "İstanbul" yazıyor, veride "İSTANBUL" duruyor; Türkçe İ/i
+     katlanması, baştaki-sondaki boşluk ve farklı yazımlar yüzünden ekran
+     hep boş dönüyordu. Artık kullanıcı YAZMAZ, veriden gelen listeden SEÇER.
+
+   KAYNAK
+     Supabase'deki lead_filtre_secenekleri(alan, iller) okuma fonksiyonu
+     (LEAD_03_Filtre_Secenekleri_2026-10-14.sql). Düz GROUP BY, zamanlayıcı
+     yok, materialized view yok — kendi sunucuna taşıdığında aynen çalışır.
+
+   ÖNBELLEK
+     Liste bir kez okunur, oturum boyunca LEAD._secenek'te durur. İlçe,
+     seçili illere bağlı olduğu için il seçimi değişince yeniden okunur.
+   ============================================================================ */
+const _LEAD_COK_ALAN = {
+  il:     {sql:'il',           etiket:'İl',            hedef:'leadIlAlan'},
+  ilce:   {sql:'ilce',         etiket:'İlçe',          hedef:'leadIlAlan'},
+  sektor: {sql:'sektor',       etiket:'Sektör',        hedef:'leadSektorAlan'},
+  tip:    {sql:'musteri_tipi', etiket:'Müşteri tipi',  hedef:'leadTipAlan'}
+};
+
+function _leadCokDizi(anahtar){
+  const v=LEAD.filtre && LEAD.filtre[anahtar];
+  return Array.isArray(v) ? v : [];
+}
+
+/* Seçenekleri okur. zorla=true ise önbelleği atlar (ilçe için gerekir). */
+async function _leadSecenekOku(anahtar, zorla){
+  if(!LEAD._secenek) LEAD._secenek={};
+  const tanim=_LEAD_COK_ALAN[anahtar];
+  // İlçe anahtarı seçili illere bağlı — iller değişince önbellek geçersiz.
+  const iller=_leadCokDizi('il');
+  const cacheKey = (anahtar==='ilce') ? ('ilce|'+iller.slice().sort().join(',')) : anahtar;
+  if(!zorla && LEAD._secenek[cacheKey]) return LEAD._secenek[cacheKey];
+
+  const parametre={p_alan:tanim.sql};
+  if(anahtar==='ilce' && iller.length) parametre.p_iller=iller;
+  const {data, error}=await sb.rpc('lead_filtre_secenekleri', parametre);
+  if(error){
+    console.warn('[lead] secenek okunamadi:', anahtar, error);
+    LEAD._secenek[cacheKey]={hata:error.message, liste:[]};
+    return LEAD._secenek[cacheKey];
+  }
+  LEAD._secenek[cacheKey]={hata:null, liste:(data||[])};
+  return LEAD._secenek[cacheKey];
+}
+
+/* Kapalı haldeki kutu: seçilenleri chip olarak gösterir. */
+function _leadCokKutuHTML(anahtar){
+  const tanim=_LEAD_COK_ALAN[anahtar];
+  const secili=_leadCokDizi(anahtar);
+  const ilBagi=(anahtar==='ilce' && !_leadCokDizi('il').length);
+  const ozet = secili.length
+    ? secili.slice(0,3).map(v=>'<span style="background:var(--blue);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-right:4px;">'+escapeHTML(v)+'</span>').join('')+
+      (secili.length>3?'<span style="font-size:11px;color:var(--text3);">+'+(secili.length-3)+'</span>':'')
+    : '<span style="color:var(--text3);font-size:12px;">'+(ilBagi?'Tümü (önce il seçersen daralır)':'Tümü')+'</span>';
+  return '<div class="field"><label>'+escapeHTML(tanim.etiket)+
+      (secili.length?' <span style="color:var(--blue);">('+secili.length+' seçili)</span>':'')+'</label>'+
+    '<div id="lfKutu_'+anahtar+'" onclick="leadCokAc(\''+anahtar+'\')" '+
+      'style="'+_LEAD_INP+'cursor:pointer;min-height:34px;display:flex;align-items:center;flex-wrap:wrap;gap:3px;">'+
+      ozet+'</div>'+
+    (secili.length
+      ? '<div style="margin-top:4px;"><span onclick="leadCokTemizle(\''+anahtar+'\')" '+
+        'style="font-size:11px;color:var(--red);cursor:pointer;">✕ seçimi temizle</span></div>'
+      : '')+
+    '</div>';
+}
+
+/* Seçim panelini açar: arama kutusu + say'lı liste + toplu seçim. */
+async function leadCokAc(anahtar){
+  const tanim=_LEAD_COK_ALAN[anahtar]; if(!tanim) return;
+  window._leadCokAktif=anahtar;
+  const bas=document.getElementById('leadCokBaslik');
+  if(bas) bas.textContent=tanim.etiket+' seç';
+  const govde=document.getElementById('leadCokGovde');
+  if(govde) govde.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const ara=document.getElementById('leadCokAra'); if(ara) ara.value='';
+  openModal('leadCokModal');
+
+  const sonuc=await _leadSecenekOku(anahtar, anahtar==='ilce');
+  _leadCokListeRender(sonuc, '');
+}
+
+function _leadCokListeRender(sonuc, arama){
+  const govde=document.getElementById('leadCokGovde'); if(!govde) return;
+  const anahtar=window._leadCokAktif;
+  if(sonuc.hata){
+    govde.innerHTML='<div class="empty" style="color:var(--red);">Seçenekler okunamadı: '+
+      escapeHTML(sonuc.hata)+'<div style="font-size:11px;color:var(--text3);margin-top:6px;">'+
+      'lead_filtre_secenekleri fonksiyonu veritabanında kurulu mu?</div></div>';
+    return;
+  }
+  const secili=_leadCokDizi(anahtar);
+  const q=(arama||'').toLocaleLowerCase('tr');
+  const liste=sonuc.liste.filter(r=>!q || String(r.deger||'').toLocaleLowerCase('tr').indexOf(q)>=0);
+  if(!liste.length){
+    govde.innerHTML='<div class="empty">'+(arama?'Eşleşen kayıt yok.':'Veride bu alan boş.')+'</div>';
+    return;
+  }
+  // 400'den fazlasını tek seferde basmak telefonu kilitliyor — kullanıcıyı
+  // aramaya yönlendir, "tümünü seç" yine TÜM eşleşenleri alır.
+  const kesildi = liste.length>400;
+  const gosterilen = kesildi ? liste.slice(0,400) : liste;
+  govde.innerHTML=
+    '<div style="display:flex;gap:6px;margin-bottom:8px;">'+
+      '<button class="btn btn-sm btn-ghost" style="flex:1;margin-top:0;" onclick="leadCokTumu(true)">Eşleşenleri seç ('+liste.length+')</button>'+
+      '<button class="btn btn-sm btn-ghost" style="flex:1;margin-top:0;" onclick="leadCokTumu(false)">Temizle</button>'+
+    '</div>'+
+    (kesildi?'<div style="font-size:11px;color:var(--amber);margin-bottom:6px;">İlk 400 gösteriliyor — daraltmak için yukarıdan ara.</div>':'')+
+    gosterilen.map(r=>{
+      const v=String(r.deger||'');
+      const on=secili.indexOf(v)>=0;
+      return '<label style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--navy3);'+
+        'border-radius:6px;margin-bottom:4px;cursor:pointer;font-size:12px;">'+
+        '<input type="checkbox"'+(on?' checked':'')+' onchange="leadCokSec(\''+escapeHTML(v).replace(/'/g,"\\'")+'\',this.checked)">'+
+        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escapeHTML(v)+'</span>'+
+        '<span style="color:var(--text3);font-size:11px;">'+_leadSayi(r.adet||0)+'</span>'+
+        '</label>';
+    }).join('');
+}
+
+function leadCokAraDegisti(v){
+  const anahtar=window._leadCokAktif;
+  const iller=_leadCokDizi('il');
+  const cacheKey=(anahtar==='ilce')?('ilce|'+iller.slice().sort().join(',')):anahtar;
+  const sonuc=(LEAD._secenek||{})[cacheKey];
+  if(sonuc) _leadCokListeRender(sonuc, v);
+}
+
+function leadCokSec(deger, acik){
+  const anahtar=window._leadCokAktif; if(!anahtar) return;
+  const dizi=_leadCokDizi(anahtar);
+  const i=dizi.indexOf(deger);
+  if(acik && i<0) dizi.push(deger);
+  if(!acik && i>=0) dizi.splice(i,1);
+  LEAD.filtre[anahtar]=dizi;
+  // İl değişti → ilçe seçimi artık geçersiz olabilir, sıfırlanır.
+  if(anahtar==='il') LEAD.filtre.ilce=[];
+}
+
+function leadCokTumu(hepsi){
+  const anahtar=window._leadCokAktif; if(!anahtar) return;
+  const iller=_leadCokDizi('il');
+  const cacheKey=(anahtar==='ilce')?('ilce|'+iller.slice().sort().join(',')):anahtar;
+  const sonuc=(LEAD._secenek||{})[cacheKey]; if(!sonuc) return;
+  const q=(document.getElementById('leadCokAra')?.value||'').toLocaleLowerCase('tr');
+  const esleşen=sonuc.liste.filter(r=>!q || String(r.deger||'').toLocaleLowerCase('tr').indexOf(q)>=0)
+                           .map(r=>String(r.deger||''));
+  if(hepsi){
+    const mevcut=_leadCokDizi(anahtar);
+    esleşen.forEach(v=>{ if(mevcut.indexOf(v)<0) mevcut.push(v); });
+    LEAD.filtre[anahtar]=mevcut;
+  }else{
+    LEAD.filtre[anahtar]=_leadCokDizi(anahtar).filter(v=>esleşen.indexOf(v)<0);
+  }
+  if(anahtar==='il') LEAD.filtre.ilce=[];
+  _leadCokListeRender(sonuc, document.getElementById('leadCokAra')?.value||'');
+}
+
+function leadCokTemizle(anahtar){
+  LEAD.filtre[anahtar]=[];
+  if(anahtar==='il') LEAD.filtre.ilce=[];
+  _leadFiltreSeceneklerDoldur();
+}
+
+function leadCokKapat(){
+  closeModal('leadCokModal');
+  window._leadCokAktif=null;
+  // Kutular seçim sayısıyla yeniden çizilir (KÇM/MY seçimi korunur).
+  _leadFiltreSeceneklerDoldur();
 }
 
 async function _leadMyDoldur(){
@@ -721,8 +906,10 @@ async function _leadMyDoldur(){
 function _leadFiltreOku(){
   const F=LEAD.filtre;
   F.kcm=_leadDeger('lfKcm'); F.my=_leadDeger('lfMy'); F.atamasiz=_leadIsaretli('lfAtamasiz');
-  F.il=_leadDeger('lfIl'); F.ilce=_leadDeger('lfIlce');
-  F.sektor=_leadDeger('lfSektor'); F.tip=_leadDeger('lfTip');
+  // V31.187: bu dortlu artik coklu secim — degerleri DOM'dan degil,
+  // secim panelinin tuttugu diziden okunur (LEAD.filtre uzerinde yasar).
+  F.il=_leadCokDizi('il'); F.ilce=_leadCokDizi('ilce');
+  F.sektor=_leadCokDizi('sektor'); F.tip=_leadCokDizi('tip');
   F.aktif=_leadDeger('lfAktif');
   F.hatMin=_leadDeger('lfHatMin'); F.hatMax=_leadDeger('lfHatMax');
   F.byMin=_leadDeger('lfByMin');  F.byMax=_leadDeger('lfByMax');
@@ -738,7 +925,8 @@ function _leadFiltreOku(){
 async function leadAdayOnizle(){
   _leadFiltreOku();
   const F=LEAD.filtre;
-  const daraltici = F.kcm||F.my||F.il||F.ilce||F.sektor||F.tip||F.atamasiz||
+  const daraltici = F.kcm||F.my||F.atamasiz||
+                    F.il.length||F.ilce.length||F.sektor.length||F.tip.length||
                     F.hatMin!==''||F.hatMax!==''||F.byMin!==''||F.byMax!==''||
                     F.sunucu||F.firewall||F.itEkibi||F.profil||F.ziyaret||F.firsat||F.iletisim;
   if(!daraltici){
@@ -774,10 +962,12 @@ async function _leadAdaylarBul(F){
     if(F.kcm) q=q.eq('kcm_id',parseInt(F.kcm));
     if(F.my)  q=q.eq('my_id',parseInt(F.my));
     else if(F.atamasiz) q=q.is('my_id',null);
-    if(F.il)     q=q.ilike('il',F.il);
-    if(F.ilce)   q=q.ilike('ilce',F.ilce);
-    if(F.sektor) q=q.ilike('sektor',F.sektor);
-    if(F.tip)    q=q.ilike('musteri_tipi',F.tip);
+    // V31.187: .ilike() tam eslesme yerine .in() — degerler zaten
+    // veritabanindan okundu, birebir ayni yazimla geri gidiyor.
+    if(F.il.length)     q=q.in('il',F.il);
+    if(F.ilce.length)   q=q.in('ilce',F.ilce);
+    if(F.sektor.length) q=q.in('sektor',F.sektor);
+    if(F.tip.length)    q=q.in('musteri_tipi',F.tip);
     if(F.aktif!=='') q=q.eq('aktif',F.aktif==='true');
     if(F.hatMin!=='') q=q.gte('toplam_hat',parseInt(F.hatMin));
     if(F.hatMax!=='') q=q.lte('toplam_hat',parseInt(F.hatMax));
@@ -2644,4 +2834,4 @@ async function _leadAgentPanoHTML(){
   }catch(e){ return ''; }
 }
 
-// v1.8.0 lead loaded (kuyruk karti: kapat + sil)
+// v1.9.0 lead loaded (coklu secim filtreleri)

@@ -1,7 +1,11 @@
 // ============================================================
-// config.js — v1.4.28
+// config.js — v1.4.29
 // Son güncelleme: 2026-10-13
 // Değişiklikler:
+//   v1.4.29 — APP_VERSION → V31.187. LEAD (lead.js v1.9.0): arama listesi
+//     filtrelerinde il/ilce/sektor/musteri tipi COKLU SECIM oldu; degerler
+//     veritabanindan okunuyor. Ilce listesi secili illere bagli.
+//     ONKOSUL: LEAD_03_Filtre_Secenekleri_2026-10-14.sql calistirilmis olmali.
 //   v1.4.28 — APP_VERSION → V31.186. LEAD (lead.js v1.8.0): agent kuyruk
 //     kartina "Aramadan Kapat" ve (lead_sil yetkisiyle) "Sil" tuslari eklendi.
 //     Yonetim ekranindaki "Listedeki Firmalar" bolumu de duruyor.
@@ -1098,7 +1102,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.186';
+const APP_VERSION = 'V31.187';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,5 +1,5 @@
 // ============================================================
-// utils.js — v1.0.6
+// utils.js — v1.0.7
 // Değişiklikler:
 //   v1.0.6 (V31.176) — Çağrı Merkezi ara menüsü: navTo içine pageCagriMerkezi
 //            ve pageLead kayıtları, initCagriMerkezi() (iki kutunun yetkiye
@@ -162,7 +162,22 @@ function renderLogSection(tabloAdi, kayitId, logs, containerId){
 
 /* ===== NAVİGASYON ===== */
 /* ===== NAVİGASYON ===== */
-function showPage(pid){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(pid).classList.add('active');}
+function showPage(pid){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const el=document.getElementById(pid);
+  if(!el) return;
+  el.classList.add('active');
+  // V31.185 — SAYFA DEGISINCE KAYDIRMA BASA ALINIR.
+  // Oktay'in bildirdigi hata: "Cagri merkezi modulune girildiginde ekran
+  // simsiyah geliyor, asagiya cekince menuler geliyor." Nedeni: uzun bir
+  // sayfadan (orn. musteri listesi) gelindiginde yeni sayfa onceki kaydirma
+  // konumunda aciliyordu; ustteki menu kutulari ekranin disinda kaliyordu.
+  // Tek bir yerde cozuldugu icin TUM modulleri birden duzeltir.
+  try{
+    el.querySelectorAll('.scroll').forEach(s=>{ s.scrollTop=0; });
+    if(typeof window.scrollTo==='function') window.scrollTo(0,0);
+  }catch(e){ /* kaydirma sifirlanamadi — sayfa yine de acilir, bloke etmez */ }
+}
 let navHistory=[];
 function navTo(pid,reset=false){
   // Mevcut sayfayı history'ye ekle
