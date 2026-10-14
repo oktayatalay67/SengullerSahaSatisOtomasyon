@@ -1,7 +1,26 @@
 // ============================================================
-// config.js — v1.4.24
-// Son güncelleme: 2026-10-12
+// config.js — v1.4.28
+// Son güncelleme: 2026-10-13
 // Değişiklikler:
+//   v1.4.28 — APP_VERSION → V31.186. LEAD (lead.js v1.8.0): agent kuyruk
+//     kartina "Aramadan Kapat" ve (lead_sil yetkisiyle) "Sil" tuslari eklendi.
+//     Yonetim ekranindaki "Listedeki Firmalar" bolumu de duruyor.
+//   v1.4.27 — APP_VERSION → V31.185.
+//     1) utils.js v1.0.7: showPage() sayfa degisince kaydirmayi basa alir.
+//        "Cagri merkezine girince ekran simsiyah, asagi cekince menuler
+//        geliyor" hatasi. Tek yerde cozuldu, tum modulleri duzeltir.
+//     2) lead.js v1.7.0: arama ekraninda "Aramadan Tamamla" (neden + aciklama).
+//     3) arama.js v1.1.18: teyit anket modalinda "Aramadan Kapat" — gorev
+//        kartindaki AYNI modal ve ayni kayit yolu kullanilir.
+//   v1.4.26 — APP_VERSION → V31.184. BUG FIX (lead.js v1.6.1): liste yonetimi
+//     yetkisi olan kullanici Lead ekraninda AGENT tarafina dusuyordu; silme
+//     tuslari yonetim ekraninda oldugu icin gorunmuyordu. Artik yonetim
+//     yetkisi olan once yonetim ekranina duser.
+//   v1.4.25 — APP_VERSION → V31.183. LEAD (lead.js v1.6.0): urun/servis odagi
+//     urun agacindan URUN GRUBU olarak secilir. Yeni 'lead_sil' yetkisi:
+//     arama listesi ve listedeki firmalar silinebilir, ARAMA IZI SILINMEZ.
+//     yetki.js: lead_sil yetki matrisine eklendi.
+//     ONKOSUL: LEAD_02_Silme_Yetkisi_2026-10-13.sql calistirilmis olmali.
 //   v1.4.24 — APP_VERSION → V31.182. LEAD (lead.js v1.5.0): 'Karar verici
 //     degil' secenegi artik takvim acmiyor. Alt soru soruluyor — karar
 //     vericinin bilgisi verildiyse yeni kontak acilir ve kayit 'Henuz
@@ -1079,7 +1098,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.182';
+const APP_VERSION = 'V31.186';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

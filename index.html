@@ -2364,6 +2364,20 @@
 <!-- V31.176: LEAD ARAMALARI — icerik js/lead.js icinde uretilir. -->
 <div class="page" id="pageLead"><div class="topbar"><button class="topbar-back" onclick="goBack()">←</button><div class="topbar-title">Lead Aramaları</div></div><div class="scroll"><div id="leadListesi"><div class="loader"><div class="spinner"></div></div></div></div></div>
 
+<!-- V31.185: LEAD — aramadan tamamla. Teyit tarafindaki aramadanKapatModal ile
+     ayni mantik; nedenler lead'e ozel oldugu icin ayri modal. -->
+<div class="modal-overlay" id="leadAramadanTamamlaModal" onclick="if(event.target===this)closeModal('leadAramadanTamamlaModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Aramadan Tamamla</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Bu müşteriyi arama yapmadan kapatıyorsunuz. Neden:</div>
+    <div class="sonuc-grid" id="leadAramadanTamamlaNedenler"></div>
+    <div class="field" style="margin-top:10px;"><label id="leadAramadanTamamlaNotLabel">Alt açıklama (opsiyonel)</label><textarea id="leadAramadanTamamlaNot" rows="2"></textarea></div>
+    <button class="btn" style="width:100%;margin-top:8px;background:var(--green);color:#04301f;" onclick="leadAramadanTamamlaKaydet()">✓ Tamamla</button>
+    <button class="btn-iptal" style="margin-top:8px;" onclick="closeModal('leadAramadanTamamlaModal')">✕ Vazgeç</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="aramadanKapatModal" onclick="if(event.target===this)closeModal('aramadanKapatModal')">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -2390,7 +2404,12 @@
     <div id="aramaAnketTel" style="margin-bottom:10px;"></div>
     <div id="aramaAnketGovde" style="max-height:58vh;overflow-y:auto;"></div>
     <div id="aramaAnketAksiyon" style="margin-top:10px;"></div>
-    <button class="btn-iptal" style="margin-top:8px;" onclick="closeModal('aramaAnketModal')">✕ Vazgeç</button>
+    <!-- V31.185: Vazgeç ikiye bölündü. Sol taraf "aramadan kapat" — görüşme
+         yapılmadan kayıt kapatılır, neden sorulur (aramadanKapatModal). -->
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn" style="flex:1;background:#2a1f05;border:1.5px solid var(--amber);color:#fff;" onclick="aramaAnketAramadanKapat()">📵 Aramadan Kapat</button>
+      <button class="btn-iptal" style="flex:1;margin-top:0;" onclick="closeModal('aramaAnketModal')">✕ Vazgeç</button>
+    </div>
   </div>
 </div>
 
@@ -3679,7 +3698,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.182"></script>
+<script src="js/config.js?v=v31.186"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3687,18 +3706,18 @@
      ALTYAPI modulu — kendisini cagiran rapor/admin/veriyonetimi/donanim/
      firsat/temas/auth dosyalarindan ONCE yuklenmeli. -->
 <script src="js/denetim.js?v=v31.175"></script>
-<script src="js/yetki.js?v=v31.176"></script>
+<script src="js/yetki.js?v=v31.183"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
 <script src="js/donanim.js?v=v31.171"></script>
-<script src="js/utils.js?v=v31.176"></script>
+<script src="js/utils.js?v=v31.185"></script>
 <script src="js/auth.js?v=v31.176"></script>
 <script src="js/gorev.js?v=v31.166"></script>
 <script src="js/talep.js?v=v31.34"></script>
 <script src="js/temas.js?v=v31.171"></script>
-<script src="js/arama.js?v=v31.168"></script>
+<script src="js/arama.js?v=v31.185"></script>
 <!-- lead.js: Cagri Merkezi > Lead Aramalari (lead_liste/lead_kayit/lead_arama) -->
-<script src="js/lead.js?v=v31.182"></script>
+<script src="js/lead.js?v=v31.186"></script>
 <script src="js/firsat.js?v=v31.171"></script>
 <script src="js/duyuru.js?v=v31.102"></script>
 <script src="js/musteri.js?v=v31.170"></script>

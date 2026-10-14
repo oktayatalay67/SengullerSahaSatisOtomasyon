@@ -1,5 +1,5 @@
 // ============================================================
-// lead.js — v1.5.0
+// lead.js — v1.8.0
 // Son güncelleme: 2026-10-12
 //
 // ÇAĞRI MERKEZİ / LEAD ARAMALARI
@@ -29,6 +29,34 @@
 //   hasPerm/getScope → js/config.js · yetki katmanı
 //
 // SÜRÜM NOTLARI
+//   v1.8.0 (V31.186) — "Aramadan Kapat" ve "🗑 Sil", AGENT KUYRUK KARTINA da
+//           eklendi (Oktay): agent arama ekranını hiç açmadan kaydı kapatır,
+//           yetkili müşteriyi listeden tek tuşla çıkarır. Yönetim ekranındaki
+//           "Listedeki Firmalar" bölümü DURUYOR — ikisi bir arada.
+//           leadAramadanTamamlaAc(kayitId) artık iki yoldan çağrılabiliyor;
+//           hedef tek state'te toplandı. Kuyruktan "aranmak istemiyor"
+//           seçilirse kimseyle konuşulmadığı için o NCST'nin TÜM kontakları
+//           işaretlenir; arama ekranından seçilirse yalnız konuşulan kişi.
+//   v1.7.0 (V31.185) — "Aramadan Tamamla": agent müşteriyi hiç aramadan
+//           kaydı kapatabilir. Neden sorulur (aranmak istemiyor / iletişim
+//           bilgisi yok / yönetici talimatı / diğer) + alt açıklama ("Diğer"
+//           için zorunlu). Arama izi YİNE yazılır — kim, ne zaman, neden
+//           kapattı kaybolmaz. "Yönetici talimatı" ve "Diğer" bilerek
+//           sonuc_grubu almaz; red nedenleri raporu kirlenmesin.
+//   v1.6.1 (V31.184) — BUG FIX: Lead ekranı açılışı. Liste yönetimi yetkisi
+//           olan kullanıcı (admin) her girişte AGENT ekranına düşüyordu;
+//           silme tuşları ve 'Listedeki Firmalar' yönetim ekranında olduğu
+//           için hiç görünmüyordu. Tek aktif liste varsa agent ekranı doğrudan
+//           arama kuyruğuna atladığından üstteki geçiş çubuğu da gözden
+//           kaçıyordu. Artık yönetim yetkisi olan önce yönetim ekranına düşer.
+//   v1.6.0 (V31.183) — Ürün/servis odağı artık ürün ağacından ÜRÜN GRUBU
+//           (kategori) olarak seçilir; eskiden dizi indeksi (0–7) basılıyordu.
+//           Kampanya detayı açıklama alanına yazılır.
+//           SİLME: yeni 'lead_sil' yetkisi. Liste kartında ve yeni eklenen
+//           'Listedeki Firmalar' bölümünde 🗑. Arama izi (lead_arama) SİLİNMEZ —
+//           LEAD_02 SQL'i kayit_id bağını ON DELETE SET NULL yaptı; ayrıca her
+//           arama satırına liste_adi anlık kopyası yazılır, liste silinse de
+//           raporda kampanya adı okunur kalır.
 //   v1.5.0 (V31.182) — 'Karar verici değil' akışı düzeltildi. Eskiden bu
 //           seçenek takvim (tekrar arama tarihi) açıyordu; kimin ne zaman
 //           aranacağı belli olmadığı için kuyruğu şişirmekten başka işe
@@ -83,6 +111,7 @@ const LEAD = {
   ekleSekme: 'filtre',    // filtre | excel
   filtre: null,
   aday: null,             // {adaylar:[], eleme:{}, kesildi:bool}
+  uyeSayfa: 0,            // V31.183: listedeki firmalar sayfasi
   excel: null             // {dosyaAd, headers, rows, mapping, aday}
 };
 
@@ -185,9 +214,17 @@ async function initLeadEkrani(){
   LEAD.ekran='listeler';
   LEAD.aktifListe=null;
   _leadFiltreSifirla();
-  // Agent yetkisi varsa dogrudan arama ekranina girer; yoksa liste yonetimine.
-  // Ikisi de varsa ustte gecis cubugu cikar (_leadModBariHTML).
-  await _leadModSec(agent ? 'agent' : 'yonetim');
+  // V31.184 — ACILIS EKRANI DUZELTMESI (Oktay'in bildirdigi hata)
+  // Eskiden: lead_agent yetkisi varsa HERKES agent ekranina dusuyordu. Admin'in
+  // hem agent hem yonetim yetkisi oldugu icin yonetim ekranini (liste silme,
+  // "Listedeki Firmalar", Excel yukleme) hic gormuyordu; dahasi tek aktif liste
+  // varsa agent ekrani dogrudan arama kuyruguna atliyor ve ust gecis cubugu bile
+  // gozden kaciyordu.
+  // Artik: liste yonetimi yetkisi olan ONCE yonetim ekranina duser. Agent yetkisi
+  // de varsa ustteki cubuktan "🎯 Arama"ya tek tusla gecer.
+  // Yalniz rapor yetkisi olan (agent de degil, yonetici de degil) yonetim
+  // ekranina duser — orada analiz/raporu gorur.
+  await _leadModSec(yonet ? 'yonetim' : (agent ? 'agent' : 'yonetim'));
 }
 
 /* ============================================================
@@ -258,7 +295,14 @@ function _leadListeRender(){
              _leadSayi(s.toplam)+' müşteri · kalan '+_leadSayi(kalan)+
            '</div>'+
          '</div>'+
-         '<span class="tag '+(DURUM_RENK[l.durum]||'tag-gray')+'">'+(DURUM_ETIKET[l.durum]||l.durum)+'</span>'+
+         '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">'+
+           '<span class="tag '+(DURUM_RENK[l.durum]||'tag-gray')+'">'+(DURUM_ETIKET[l.durum]||l.durum)+'</span>'+
+           // V31.183: silme AYRI yetki (lead_sil). Liste yönetimi olan herkeste çıkmaz.
+           (hasPerm('lead_sil')
+             ? '<span title="Listeyi sil" style="cursor:pointer;font-size:15px;padding:2px 4px;" '+
+               'onclick="event.stopPropagation();leadListeSil(\''+l.liste_id+'\')">🗑</span>'
+             : '')+
+         '</div>'+
        '</div>'+
        '<div style="margin-top:8px;height:6px;background:var(--navy3);border-radius:4px;overflow:hidden;">'+
          '<div style="height:100%;width:'+yuzde+'%;background:var(--green);"></div>'+
@@ -275,8 +319,6 @@ function _leadListeRender(){
 function leadYeniListeAc(){
   if(!hasPerm('lead_liste_yonet')){ toast('Yetkiniz yok','error'); return; }
   const el=document.getElementById('leadListesi'); if(!el) return;
-  const urunler=(typeof FALLBACK_PRODUCTS!=='undefined' && FALLBACK_PRODUCTS)
-    ? Object.keys(FALLBACK_PRODUCTS) : [];
   el.innerHTML=
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">'+
       '<button class="topbar-back" onclick="initLeadEkrani()" style="position:relative;width:auto;padding:6px 12px;font-size:13px;">← Geri</button>'+
@@ -286,12 +328,15 @@ function leadYeniListeAc(){
       '<div class="field"><label>Liste adı *</label>'+
         '<input type="text" id="lnAd" placeholder="Örn: Ekim SOL Kampanyası" '+
         'style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;"></div>'+
-      '<div class="field"><label>Ürün odağı</label>'+
+      '<div class="field"><label>Ürün / servis odağı</label>'+
         '<select id="lnUrun" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">'+
           '<option value="">— Seçin (isteğe bağlı) —</option>'+
-          urunler.map(u=>'<option value="'+escapeHTML(u)+'">'+escapeHTML(u)+'</option>').join('')+
-        '</select></div>'+
-      '<div class="field"><label>Açıklama</label><textarea id="lnAciklama" rows="2"></textarea></div>'+
+          _leadUrunGrupSecenekleriHTML()+
+        '</select>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:6px;">'+
+          'Ürün ağacındaki gruplardan biri. Hangi ürün/servis olduğunu aşağıdaki açıklamaya yaz.</div></div>'+
+      '<div class="field"><label>Açıklama (kampanya detayı)</label>'+
+        '<textarea id="lnAciklama" rows="3" placeholder="Örn: SOL 100 Mbps kampanyası — 24 ay taahhüt, ilk 3 ay bedava"></textarea></div>'+
       '<div class="field"><label>Konuşma metni (agent arama ekranında görünür)</label>'+
         '<textarea id="lnMetin" rows="5" placeholder="Merhaba, Turkcell Şengüller\'den arıyorum..."></textarea></div>'+
       '<div class="field"><label>Deneme limiti (kaç denemeden sonra otomatik kapanır)</label>'+
@@ -340,6 +385,7 @@ async function leadListeDetayAc(listeId){
   LEAD.aktifListe=l;
   LEAD.ekleSekme='filtre';
   LEAD.aday=null; LEAD.excel=null;
+  LEAD.uyeSayfa=0;
   _leadFiltreSifirla();
   await _leadDetayRender();
 }
@@ -395,10 +441,137 @@ async function _leadDetayRender(){
         '</div>'+
         '<div id="leadEklePanel"></div>'+
        '</div>';
+
+    // V31.183: listedeki firmalar — daha önce listenin içini görebileceğin
+    // bir ekran yoktu, yalnız sayaçlar vardı. Silme burada yapılır.
+    h+='<div class="form-section" style="margin-top:12px;">'+
+        '<div class="form-section-title">Listedeki Firmalar</div>'+
+        '<div id="leadUyeAlan"><div class="loader"><div class="spinner"></div></div></div>'+
+       '</div>';
   }
 
   el.innerHTML=h;
-  if(yonet) _leadEklePanelRender();
+  if(yonet){ _leadEklePanelRender(); _leadUyeListesiYukle(); }
+}
+
+/* ============================================================
+   V31.183 — LİSTEDEKİ FİRMALAR + SİLME
+   Silme yetkisi 'lead_sil'. ARAMA İZİ (lead_arama) SİLİNMEZ:
+   LEAD_02 SQL'i ile kayit_id bağı ON DELETE SET NULL yapıldı, yani kayıt
+   silinince arama satırı kalır, sadece kayda bağı kopar. ncst, liste_id,
+   liste_adi ve agent_id arama satırında zaten duruyor.
+   ============================================================ */
+const LEAD_UYE_SAYFA = 50;
+
+async function _leadUyeListesiYukle(sayfa){
+  const kutu=document.getElementById('leadUyeAlan'); if(!kutu) return;
+  const l=LEAD.aktifListe; if(!l) return;
+  LEAD.uyeSayfa = (sayfa==null) ? (LEAD.uyeSayfa||0) : sayfa;
+  const bas=LEAD.uyeSayfa*LEAD_UYE_SAYFA;
+
+  const {data:satirlar, count, error}=await sb.from(LEAD_TABLO_KAYIT)
+    .select('kayit_id,ncst,unvan,durum,durum_grubu,deneme_sayisi,sistemde_var',{count:'exact'})
+    .eq('liste_id',l.liste_id)
+    .order('olusturma',{ascending:true})
+    .range(bas, bas+LEAD_UYE_SAYFA-1);
+
+  if(error){ kutu.innerHTML='<div class="empty" style="color:var(--red);">Okunamadı: '+escapeHTML(error.message)+'</div>'; return; }
+  // son sayfadaki tek kayit silinince bos sayfada kalma — bir geri don
+  if((!satirlar||!satirlar.length) && LEAD.uyeSayfa>0){ return _leadUyeListesiYukle(LEAD.uyeSayfa-1); }
+  if(!satirlar||!satirlar.length){ kutu.innerHTML='<div class="empty">Listede henüz firma yok.</div>'; return; }
+
+  const silebilir=hasPerm('lead_sil');
+  const toplam=count||satirlar.length;
+  const sonSayfa=Math.max(0, Math.ceil(toplam/LEAD_UYE_SAYFA)-1);
+
+  kutu.innerHTML=
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:7px;">'+
+      _leadSayi(toplam)+' firma'+(toplam>LEAD_UYE_SAYFA?' · '+(bas+1)+'–'+Math.min(bas+LEAD_UYE_SAYFA,toplam)+' arası':'')+
+    '</div>'+
+    satirlar.map(k=>{
+      const dd=LEAD_DURUM[k.durum]||{};
+      const etiket=dd.et||(k.durum==='henuz_aranmadi'?'Henüz aranmadı':k.durum);
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--navy3);'+
+        'border-radius:6px;margin-bottom:4px;">'+
+        '<div style="flex:1;min-width:0;">'+
+          '<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+
+            escapeHTML(k.unvan||'(unvan yok)')+
+            (k.sistemde_var?'':' <span style="color:var(--amber);font-size:10px;">· sistemde yok</span>')+
+          '</div>'+
+          '<div style="font-size:10px;color:var(--text3);">'+escapeHTML(k.ncst)+' · '+
+            escapeHTML(etiket)+' · '+(k.deneme_sayisi||0)+' deneme</div>'+
+        '</div>'+
+        (silebilir
+          ? '<span title="Firmayı listeden sil" style="cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0;" '+
+            'onclick="leadKayitSil(\''+k.kayit_id+'\')">🗑</span>'
+          : '')+
+      '</div>';
+    }).join('')+
+    (toplam>LEAD_UYE_SAYFA
+      ? '<div style="display:flex;gap:6px;margin-top:8px;">'+
+        '<button class="btn btn-sm btn-ghost" style="flex:1;" '+(LEAD.uyeSayfa<=0?'disabled':'')+
+          ' onclick="_leadUyeListesiYukle('+(LEAD.uyeSayfa-1)+')">← Önceki</button>'+
+        '<button class="btn btn-sm btn-ghost" style="flex:1;" '+(LEAD.uyeSayfa>=sonSayfa?'disabled':'')+
+          ' onclick="_leadUyeListesiYukle('+(LEAD.uyeSayfa+1)+')">Sonraki →</button>'+
+        '</div>'
+      : '');
+}
+
+/* Tek firmayı listeden siler. Müşteri (customers) KAYDINA DOKUNMAZ —
+   yalnız bu listedeki üyeliği gider. */
+async function leadKayitSil(kayitId){
+  if(!hasPerm('lead_sil')){ toast('Silme yetkiniz yok','error'); return; }
+  const l=LEAD.aktifListe; if(!l) return;
+
+  const {data:k}=await sb.from(LEAD_TABLO_KAYIT)
+    .select('ncst,unvan,deneme_sayisi').eq('kayit_id',kayitId).maybeSingle();
+  if(!k){ toast('Kayıt bulunamadı','error');
+          if(LEAD.mod==='agent') _leadAgentKuyruk(); else _leadUyeListesiYukle();
+          return; }
+
+  const ad=k.unvan||k.ncst;
+  if(!confirm('"'+ad+'" bu arama listesinden silinecek.\n\n'+
+              '· Müşteri kaydına dokunulmaz, yalnız bu listedeki üyeliği gider.\n'+
+              '· Yapılmış '+(k.deneme_sayisi||0)+' aramanın izi SİLİNMEZ, raporlarda kalır.\n\n'+
+              'Devam edilsin mi?')) return;
+
+  const {error}=await sb.from(LEAD_TABLO_KAYIT).delete().eq('kayit_id',kayitId);
+  if(error){ toast('Silinemedi: '+error.message,'error'); return; }
+
+  await addLog(LEAD_TABLO_LISTE, l.liste_id, 'Listeden Firma Silindi', ad+' ('+k.ncst+')');
+  toast(ad+' listeden silindi','success');
+  // V31.186: hangi ekrandan silindiyse oraya dönülür — agent kuyruğundan
+  // silindiğinde yönetim ekranına atlamamalı.
+  if(LEAD.mod==='agent') _leadAgentKuyruk(); else _leadDetayRender();
+}
+
+/* Tüm listeyi siler. lead_kayit satırları FK cascade ile gider;
+   lead_arama satırları SET NULL sayesinde KALIR. */
+async function leadListeSil(listeId){
+  if(!hasPerm('lead_sil')){ toast('Silme yetkiniz yok','error'); return; }
+
+  const {data:l}=await sb.from(LEAD_TABLO_LISTE).select('ad').eq('liste_id',listeId).maybeSingle();
+  if(!l){ toast('Liste bulunamadı','error'); initLeadEkrani(); return; }
+
+  const {count:firmaSayisi}=await sb.from(LEAD_TABLO_KAYIT)
+    .select('kayit_id',{count:'exact',head:true}).eq('liste_id',listeId);
+  const {count:aramaSayisi}=await sb.from(LEAD_TABLO_ARAMA)
+    .select('id',{count:'exact',head:true}).eq('liste_id',listeId);
+
+  if(!confirm('"'+l.ad+'" arama listesi SİLİNECEK.\n\n'+
+              '· Listedeki '+_leadSayi(firmaSayisi||0)+' firma kaydı gider.\n'+
+              '· Yapılmış '+_leadSayi(aramaSayisi||0)+' aramanın izi SİLİNMEZ — raporlarda kalır.\n'+
+              '· Müşteri kayıtlarına dokunulmaz.\n\n'+
+              'Bu işlem geri alınamaz. Devam edilsin mi?')) return;
+
+  const {error}=await sb.from(LEAD_TABLO_LISTE).delete().eq('liste_id',listeId);
+  if(error){ toast('Silinemedi: '+error.message,'error'); return; }
+
+  await addLog(LEAD_TABLO_LISTE, listeId, 'Liste Silindi',
+               l.ad+' · '+(firmaSayisi||0)+' firma · '+(aramaSayisi||0)+' arama izi korundu');
+  toast('"'+l.ad+'" silindi — arama izi korundu','success');
+  LEAD.aktifListe=null;
+  initLeadEkrani();
 }
 
 async function leadListeDurumDegistir(durum){
@@ -1133,8 +1306,27 @@ const LEAD_DURUM = {
   // Sikayet bilerek sonuc_grubu ALMAZ — sikayeti 'olumsuz' saymak red
   // nedenleri raporunu kirletir; sikayet gorev uzerinden takip edilir.
   g_talep:                 {et:'Müşteri talebi iletti',               grup:'tamam', sonuc:'olumlu', talep:true, gorevTipi:'Müşteri Talebi'},
-  g_dil_sorunu:            {et:'Dil / iletişim sorunu',               grup:'tamam', sonuc:'olumsuz'}
+  g_dil_sorunu:            {et:'Dil / iletişim sorunu',               grup:'tamam', sonuc:'olumsuz'},
+
+  // --- V31.185: ARAMADAN TAMAMLANDI (görüşme hiç yapılmadı)
+  // Bunlar bir arama SONUCU değil, bir KAPATMA nedenidir. 'Yönetici talimatı'
+  // ve 'Diğer' bilerek sonuc_grubu ALMAZ: bunları 'olumsuz' saymak red
+  // nedenleri raporunu kirletir — müşteri bir şey reddetmedi, aranmadı bile.
+  k_istemiyor:             {et:'Aramadan tamamlandı — müşteri aranmak istemiyor', grup:'tamam', sonuc:'istemiyor', istemiyor:true, aramasiz:true},
+  k_iletisim_yok:          {et:'Aramadan tamamlandı — iletişim bilgisi bulunamadı', grup:'tamam', sonuc:'olumsuz', aramasiz:true},
+  k_yonetici:              {et:'Aramadan tamamlandı — yönetici talimatı',          grup:'tamam', aramasiz:true},
+  k_diger:                 {et:'Aramadan tamamlandı — diğer',                      grup:'tamam', aramasiz:true}
 };
+
+/* V31.185 — "Aramadan Tamamla" nedenleri (Oktay'ın verdiği liste).
+   Her neden bir LEAD_DURUM koduna bağlanır; böylece kuyruk/rapor mantığı
+   normal arama sonuçlarıyla aynı yoldan işler. */
+const LEAD_ARAMASIZ_NEDEN = [
+  {kod:'k_istemiyor',    et:'Müşteri aranmak istemiyor'},
+  {kod:'k_iletisim_yok', et:'İletişim bilgisi bulunamıyor'},
+  {kod:'k_yonetici',     et:'Yönetici talimatı'},
+  {kod:'k_diger',        et:'Diğer'}
+];
 
 const LEAD_SEKME_ETIKET={yeni:'Henüz Aranmadı', tekrar:'Tekrar Aranacak',
                          ulasilamadi:'Ulaşılamadı', tamam:'Tamamlanan'};
@@ -1409,7 +1601,20 @@ async function _leadKuyrukYukle(){
       '</div>'+
       (kilitli
         ? '<div style="margin-top:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);border-radius:8px;padding:6px 9px;font-size:11px;color:var(--amber);">⏳ Şu an '+escapeHTML(kilitAd)+' arıyor</div>'
-        : '<button class="btn btn-sm" style="width:100%;margin-top:8px;background:var(--green);color:#04301f;" onclick="leadKayitAc(\''+k.kayit_id+'\')">📞 Ara</button>')+
+        : '<button class="btn btn-sm" style="width:100%;margin-top:8px;background:var(--green);color:#04301f;" onclick="leadKayitAc(\''+k.kayit_id+'\')">📞 Ara</button>'+
+          // V31.186 (Oktay): aramadan kapatma ve silme KUYRUK KARTINDA da olsun.
+          // Agent, arama ekranını hiç açmadan kaydı kapatabilsin; yetkili olan
+          // müşteriyi listeden tek tuşla çıkarabilsin. Yönetim ekranındaki
+          // "Listedeki Firmalar" bölümü DURUYOR — ikisi birden var.
+          '<div style="display:flex;gap:6px;margin-top:6px;">'+
+            '<button class="btn btn-sm" style="flex:1;margin-top:0;background:#2a1f05;border:1.5px solid var(--amber);color:#fff;font-size:11px;" '+
+              'onclick="leadAramadanTamamlaAc(\''+k.kayit_id+'\')">📵 Aramadan Kapat</button>'+
+            (hasPerm('lead_sil')
+              ? '<button class="btn btn-sm" title="Müşteriyi listeden sil" '+
+                'style="flex:0 0 46px;margin-top:0;background:#350f18;border:1.5px solid #ed2345;color:#fff;font-size:13px;" '+
+                'onclick="leadKayitSil(\''+k.kayit_id+'\')">🗑</button>'
+              : '')+
+          '</div>')+
       '</div>';
   }).join('');
 }
@@ -1826,8 +2031,112 @@ function _leadAnketRender(){
           (LEAD_SEKME_ETIKET[d.grup]||d.grup)+(d.sonuc?' · analiz: '+d.sonuc:'')+'</div></div>'+
       '<button class="btn" style="width:100%;background:var(--green);color:#04301f;" onclick="leadAramaKaydet()">✓ Kaydet</button>';
   }
-  h+='<button class="btn-iptal" style="margin-top:8px;" onclick="leadKayitKapat()">✕ Vazgeç</button>';
+  // V31.185: Vazgeç ikiye bölündü. Sol taraf "aramadan tamamla" — görüşme
+  // yapılmadan kayıt kapatılır, neden ve alt açıklama sorulur.
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">'+
+       '<button class="btn" style="flex:1;background:#2a1f05;border:1.5px solid var(--amber);color:#fff;" '+
+         'onclick="leadAramadanTamamlaAc()">📵 Aramadan Tamamla</button>'+
+       '<button class="btn-iptal" style="flex:1;margin-top:0;" onclick="leadKayitKapat()">✕ Vazgeç</button>'+
+     '</div>';
   g.innerHTML=h;
+}
+
+/* ============================================================
+   V31.185 — ARAMADAN TAMAMLA
+   Agent müşteriyi hiç aramadan kaydı kapatır. Arama izi (lead_arama) YİNE
+   yazılır: kimin, ne zaman, hangi gerekçeyle kapattığı kaybolmaz.
+   ============================================================ */
+/* V31.186 — iki yerden çağrılır:
+     • kuyruk kartından  → leadAramadanTamamlaAc(kayitId)  (arama ekranı açılmaz)
+     • arama ekranından  → leadAramadanTamamlaAc()         (window._lanket'ten)
+   Hedef tek bir state'te toplanır ki kaydetme tarafı iki yol bilmesin. */
+async function leadAramadanTamamlaAc(kayitId){
+  let hedef=null;
+  if(kayitId){
+    const {data:k}=await sb.from(LEAD_TABLO_KAYIT).select('*').eq('kayit_id',kayitId).maybeSingle();
+    if(!k){ toast('Kayıt bulunamadı','error'); return _leadAgentKuyruk(); }
+    hedef={kayit:k, liste:LEAD.aktifListe, telefon:null, kontak:null, kuyruktan:true};
+  }else{
+    const A=window._lanket;
+    if(!A || !A.kayit){ toast('Kayıt bulunamadı','error'); return; }
+    hedef={kayit:A.kayit, liste:A.liste, telefon:A.telefon, kontak:A.kontak, kuyruktan:false};
+  }
+  window._leadAramasizHedef=hedef;
+  window._leadAramasizNeden=null;
+  const box=document.getElementById('leadAramadanTamamlaNedenler');
+  if(box) box.innerHTML=LEAD_ARAMASIZ_NEDEN.map(n=>
+    '<div class="sonuc-item" onclick="_leadAramasizSec(this,\''+n.kod+'\')">'+escapeHTML(n.et)+'</div>').join('');
+  const not=document.getElementById('leadAramadanTamamlaNot'); if(not) not.value='';
+  const lbl=document.getElementById('leadAramadanTamamlaNotLabel');
+  if(lbl) lbl.textContent='Alt açıklama (opsiyonel)';
+  openModal('leadAramadanTamamlaModal');
+}
+
+function _leadAramasizSec(el, kod){
+  document.querySelectorAll('#leadAramadanTamamlaNedenler .sonuc-item').forEach(e=>e.classList.remove('selected'));
+  el.classList.add('selected');
+  window._leadAramasizNeden=kod;
+  // "Diğer" seçildiyse açıklama zorunlu — yoksa neden hiç anlaşılmaz.
+  const lbl=document.getElementById('leadAramadanTamamlaNotLabel');
+  if(lbl) lbl.textContent=(kod==='k_diger') ? 'Alt açıklama *' : 'Alt açıklama (opsiyonel)';
+}
+
+async function leadAramadanTamamlaKaydet(){
+  const A=window._leadAramasizHedef; if(!A || !A.kayit) return;
+  const kod=window._leadAramasizNeden;
+  if(!kod){ toast('Bir neden seçin','error'); return; }
+  const d=LEAD_DURUM[kod]; if(!d){ toast('Neden tanınmadı','error'); return; }
+  const not=(document.getElementById('leadAramadanTamamlaNot')?.value||'').trim();
+  if(kod==='k_diger' && !not){ toast('"Diğer" için alt açıklama zorunlu','error'); return; }
+
+  const k=A.kayit, simdi=new Date().toISOString();
+
+  // 1) ARAMA İZİ — görüşme yok ama kapatma kaydı var
+  const {error:aErr}=await sb.from(LEAD_TABLO_ARAMA).insert({
+    kayit_id:k.kayit_id, liste_id:k.liste_id, ncst:k.ncst,
+    liste_adi:(A.liste&&A.liste.ad)||null,
+    agent_id:currentUser.my_id, deneme_no:(k.deneme_sayisi||0)+1,
+    baslangic:simdi, bitis:simdi, sure_sn:0,
+    telefon:A.telefon||null, contact_id:(A.kontak&&A.kontak.contact_id)||null,
+    durum:kod, ulasildi:false,
+    ulasilamama_neden:d.et,
+    agent_notu:not||null
+  });
+  if(aErr){ toast('Kaydedilemedi: '+aErr.message,'error'); return; }
+
+  // 2) KAYIT KAPANIR — tekrar kuyruğa düşmez
+  const {error:kErr}=await sb.from(LEAD_TABLO_KAYIT).update({
+    durum:kod, durum_grubu:d.grup, sonuc_grubu:d.sonuc||null,
+    deneme_sayisi:(k.deneme_sayisi||0)+1, son_arama:simdi, sonraki_arama:null,
+    kilit_agent_id:null, kilit_zaman:null, guncelleme:simdi
+  }).eq('kayit_id',k.kayit_id);
+  if(kErr){ toast('Kayıt güncellenemedi: '+kErr.message,'error'); return; }
+
+  // 3) "Aranmak istemiyor" ise kontak da işaretlenir — sonraki listelerde elenir.
+  //    Arama ekranından gelindiyse konuşulan KİŞİ işaretlenir.
+  //    Kuyruktan gelindiyse kimseyle konuşulmamıştır; talep firmaya aittir,
+  //    bu yüzden o NCST'nin tüm kontakları işaretlenir.
+  let isaretNotu='';
+  if(d.istemiyor){
+    if(!A.kuyruktan && A.kontak && A.kontak.contact_id){
+      const {error}=await sb.from('contacts').update({aranmak_istemiyor:true}).eq('contact_id',A.kontak.contact_id);
+      if(error) console.warn('[lead] aranmak_istemiyor yazilamadi:', error);
+      else isaretNotu=' · kontak işaretlendi';
+    }else{
+      const {data:kon, error}=await sb.from('contacts').update({aranmak_istemiyor:true})
+        .eq('ncst',k.ncst).select('contact_id');
+      if(error) console.warn('[lead] aranmak_istemiyor (ncst) yazilamadi:', error);
+      else isaretNotu=' · '+((kon&&kon.length)||0)+' kontak işaretlendi';
+    }
+  }
+
+  await addLog(LEAD_TABLO_KAYIT, k.kayit_id, 'Aramadan Tamamlandı', d.et+(not?' · '+not:'')+isaretNotu);
+  toast('Aramadan tamamlandı'+isaretNotu,'success');
+  closeModal('leadAramadanTamamlaModal');
+  window._lanket=null;
+  window._leadAramasizHedef=null;
+  window._leadAramasizNeden=null;
+  _leadAgentKuyruk();
 }
 
 /* ---------------------------------------------------------------- kaydet */
@@ -1851,6 +2160,9 @@ async function leadAramaKaydet(){
   // 1) ARAMA SATIRI — değiştirilemez iz
   const arama={
     kayit_id:k.kayit_id, liste_id:k.liste_id, ncst:k.ncst,
+    // V31.183: liste adinin anlik kopyasi. Liste sonradan silinse de
+    // raporda hangi kampanyada arandigi okunur kalir (LEAD_02 kolonu).
+    liste_adi:(A.liste&&A.liste.ad)||null,
     agent_id:currentUser.my_id, deneme_no:(k.deneme_sayisi||0)+1,
     baslangic:new Date(A.baslangic).toISOString(), bitis:simdi, sure_sn:sureSn,
     telefon:A.telefon||null, contact_id:(A.kontak&&A.kontak.contact_id)||null,
@@ -2111,6 +2423,20 @@ function _leadUrunSecenekleriHTML(secili){
   }).join('');
 }
 
+/* V31.183 — liste düzeyinde ÜRÜN GRUBU (kategori) seçimi.
+   Agent ekranındaki seçim tek tek ÜRÜN (yukarıdaki fonksiyon); liste düzeyinde
+   tek ürün değil, bir odak grubu seçilir: "SOL", "Mobil", "DBS"...
+   Kaynak aynı ürün ağacı — elle yazılmış sabit liste YOKTUR. */
+function _leadUrunGrupSecenekleriHTML(secili){
+  const agac=(typeof FALLBACK_PRODUCTS!=='undefined'&&Array.isArray(FALLBACK_PRODUCTS))?FALLBACK_PRODUCTS:[];
+  const gruplar=[];
+  agac.forEach(k=>{ const ad=(k&&k.cat)?String(k.cat).trim():''; if(ad&&gruplar.indexOf(ad)<0) gruplar.push(ad); });
+  if(!gruplar.length) return '<option value="" disabled>Ürün ağacı yüklenemedi</option>';
+  return gruplar.map(g=>
+    '<option value="'+escapeHTML(g)+'"'+(secili===g?' selected':'')+'>'+escapeHTML(g)+'</option>'
+  ).join('');
+}
+
 function _leadUrunSec(deger){
   const c=window._lanket.c;
   c.urun_deger=deger;
@@ -2273,6 +2599,9 @@ async function leadIstemiyorKapat(){
   const k=A.kayit, simdi=new Date().toISOString();
   const {error:aErr}=await sb.from(LEAD_TABLO_ARAMA).insert({
     kayit_id:k.kayit_id, liste_id:k.liste_id, ncst:k.ncst,
+    // V31.183: liste adinin anlik kopyasi. Liste sonradan silinse de
+    // raporda hangi kampanyada arandigi okunur kalir (LEAD_02 kolonu).
+    liste_adi:(A.liste&&A.liste.ad)||null,
     agent_id:currentUser.my_id, deneme_no:(k.deneme_sayisi||0)+1,
     baslangic:simdi, bitis:simdi, sure_sn:0,
     telefon:A.telefon||null, contact_id:(A.kontak&&A.kontak.contact_id)||null,
@@ -2315,4 +2644,4 @@ async function _leadAgentPanoHTML(){
   }catch(e){ return ''; }
 }
 
-// v1.5.0 lead loaded (karar verici alt akisi)
+// v1.8.0 lead loaded (kuyruk karti: kapat + sil)
