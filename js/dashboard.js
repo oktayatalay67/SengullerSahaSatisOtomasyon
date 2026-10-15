@@ -1,7 +1,13 @@
 // ============================================================
-// dashboard.js — v1.0.0
+// dashboard.js — v1.1.0
 // Son guncelleme: 2026-10-15
 // Degisiklikler:
+//   v1.1.0 — (V31.190) MY/FMY SIRALAMASI: KCM tablolarinin altina kisi bazli tablo.
+//     Satir = kisi; basliga tiklayinca siralanir; KCM ve rol filtresi; sutunda en
+//     iyi yesil / en kotu kirmizi. GENEL SKOR sutunu: 4 bolum skorunun agirlikli
+//     ortalamasi (varsayilan 40/30/15/15; Dashboard Ayarlari sekmesinden degisir),
+//     ham gostergeler her zaman yanda gorunur. MY/FMY kendi KCM sindeki herkesi
+//     gorur (kapsam KCM), yoneticiler tum KCM leri gorur.
 //   v1.0.0 — (V31.189) YENI MODUL: KCM karsilastirmali Dashboard. Ana Menu >
 //     Dashboard. TV Box dashboard dosyasindan (dashboard_v5_16.html) BAGIMSIZDIR,
 //     ona dokunmaz.
@@ -33,7 +39,10 @@ const DKM = {
   donem: { bas: null, bit: null },
   ayar: { hedefMY: 3, hedefFMY: 4 },
   istek: 0,
-  sonuc: null
+  sonuc: null,
+  kisiSira: { k: 'skor', yon: 'desc' },
+  kisiKcm: '',
+  kisiRol: ''
 };
 
 // Teyit gorevi durum gruplari (arama.js ile ayni degerler)
@@ -46,7 +55,11 @@ const DKM_ACIK_ASAMA = ['Fırsat', 'Teklif', 'Beyan'];
 
 const DKM_AYAR_TANIM = [
   { tip: 'dash_ziyaret_hedef_my',  ad: 'Günlük ziyaret hedefi — MY (ziyaret / iş günü)',  varsayilan: 3, sira: 30 },
-  { tip: 'dash_ziyaret_hedef_fmy', ad: 'Günlük ziyaret hedefi — FMY (ziyaret / iş günü)', varsayilan: 4, sira: 31 }
+  { tip: 'dash_ziyaret_hedef_fmy', ad: 'Günlük ziyaret hedefi — FMY (ziyaret / iş günü)', varsayilan: 4, sira: 31 },
+  { tip: 'dash_agirlik_ziyaret',   ad: 'Genel skor ağırlığı — Ziyaret',     varsayilan: 40, sira: 32 },
+  { tip: 'dash_agirlik_firsat',    ad: 'Genel skor ağırlığı — Fırsat',      varsayilan: 30, sira: 33 },
+  { tip: 'dash_agirlik_teyit',     ad: 'Genel skor ağırlığı — Müşteri teyit', varsayilan: 15, sira: 34 },
+  { tip: 'dash_agirlik_veri',      ad: 'Genel skor ağırlığı — Temiz veri',  varsayilan: 15, sira: 35 }
 ];
 
 /* ============================================================
@@ -191,16 +204,18 @@ function dkmIsGunu(bas, bit, tatilMap) {
    4) VERI YUKLEME
    ============================================================ */
 async function _dkmAyarYukle() {
-  DKM.ayar = { hedefMY: 3, hedefFMY: 4 };
+  DKM.ayar = { hedefMY: 3, hedefFMY: 4, agirlik: { ziyaret: 40, firsat: 30, teyit: 15, veri: 15 } };
   try {
     const r = await sb.from('sistem_ayarlari').select('ayar_tipi,deger')
-      .in('ayar_tipi', ['dash_ziyaret_hedef_my', 'dash_ziyaret_hedef_fmy', 'arama_sla_gun']).eq('aktif', true);
+      .in('ayar_tipi', ['dash_ziyaret_hedef_my', 'dash_ziyaret_hedef_fmy', 'arama_sla_gun',
+        'dash_agirlik_ziyaret', 'dash_agirlik_firsat', 'dash_agirlik_teyit', 'dash_agirlik_veri']).eq('aktif', true);
     (r.data || []).forEach(function (a) {
       const n = parseFloat(a.deger);
       if (!(n > 0)) return;
       if (a.ayar_tipi === 'dash_ziyaret_hedef_my') DKM.ayar.hedefMY = n;
       else if (a.ayar_tipi === 'dash_ziyaret_hedef_fmy') DKM.ayar.hedefFMY = n;
       else if (a.ayar_tipi === 'arama_sla_gun') DKM.ayar.slaGun = n;
+      else if (a.ayar_tipi.indexOf('dash_agirlik_') === 0) DKM.ayar.agirlik[a.ayar_tipi.slice(13)] = n;
     });
   } catch (e) { console.warn('[dashboard] ayar okunamadi, varsayilan kullanildi', e); }
   if (!DKM.ayar.slaGun) DKM.ayar.slaGun = 7;
@@ -341,7 +356,7 @@ function _dkmGercekArama(r) {
   return r.ulasildi === true || r.ulasildi === false;
 }
 
-function dkmHesapla(g) {
+function _dkmHesaplaGrup(g, kisiMod) {
   const simdi = g.simdi || new Date();
   const sanal = {};
   (g.sanalIds || []).forEach(function (x) { sanal[_dkmAnahtar(x)] = true; });
@@ -351,9 +366,12 @@ function dkmHesapla(g) {
   const kadroMap = {};
   g.kadro.forEach(function (u) {
     if (u.is_sanal || u.kcm_id === null || u.kcm_id === undefined) return;
-    const kid = _dkmAnahtar(u.kcm_id);
-    if (!kovalar[kid]) kovalar[kid] = _dkmKova(u.kcm_id, u.kcm_adi);
-    if (!kovalar[kid].ad || kovalar[kid].ad === ('KÇM ' + u.kcm_id)) { if (u.kcm_adi) kovalar[kid].ad = u.kcm_adi; }
+    const kid = _dkmAnahtar(kisiMod ? u.my_id : u.kcm_id);
+    if (!kovalar[kid]) {
+      kovalar[kid] = kisiMod ? _dkmKova(u.my_id, u.ad_soyad || ('MY ' + u.my_id)) : _dkmKova(u.kcm_id, u.kcm_adi);
+      if (kisiMod) { kovalar[kid].kcmAd = u.kcm_adi || ''; kovalar[kid].kcmRef = u.kcm_id; kovalar[kid].rol = u.yetki_seviyesi; }
+    }
+    if (!kisiMod && (!kovalar[kid].ad || kovalar[kid].ad === ('KÇM ' + u.kcm_id))) { if (u.kcm_adi) kovalar[kid].ad = u.kcm_adi; }
     if (u.yetki_seviyesi === 'FMY') kovalar[kid].kadroFMY++; else kovalar[kid].kadroMY++;
     kadroMap[_dkmAnahtar(u.my_id)] = u;
   });
@@ -364,15 +382,15 @@ function dkmHesapla(g) {
   const ziyaretler = g.ziyaret.filter(function (v) { return !sanal[_dkmAnahtar(v.my_id)]; });
   ziyaretler.forEach(function (v) {
     ziyaretKisi[_dkmAnahtar(v.my_id)] = (ziyaretKisi[_dkmAnahtar(v.my_id)] || 0) + 1;
-    const kid = _dkmAnahtar(v.kcm_id);
-    if (!kid) { notlar.kcmsizZiyaret++; return; }
+    const kid = _dkmAnahtar(kisiMod ? v.my_id : v.kcm_id);
+    if (!kid) { if (!kisiMod) notlar.kcmsizZiyaret++; return; }
     if (!kovalar[kid]) return;
     kovalar[kid].ziyaret++;
     const sahip = kadroMap[_dkmAnahtar(v.my_id)];
-    if (sahip && _dkmAnahtar(sahip.kcm_id) !== kid) notlar.kcmUyumsuz++;
+    if (!kisiMod && sahip && _dkmAnahtar(sahip.kcm_id) !== kid) notlar.kcmUyumsuz++;
   });
   Object.keys(kadroMap).forEach(function (mid) {
-    if (!ziyaretKisi[mid]) kovalar[_dkmAnahtar(kadroMap[mid].kcm_id)].kisiSifir++;
+    if (!ziyaretKisi[mid]) kovalar[_dkmAnahtar(kisiMod ? mid : kadroMap[mid].kcm_id)].kisiSifir++;
   });
   Object.keys(kovalar).forEach(function (kid) {
     const b = kovalar[kid];
@@ -386,9 +404,9 @@ function dkmHesapla(g) {
   (g.ziyaretTum || []).forEach(function (v) { kimseZiyaretEtmedi[_dkmAnahtar(v.ncst)] = true; });
   const donemSet = {}, tumSet = {};
   g.musteri.forEach(function (m) {
-    if (m.kcm_id === null || m.kcm_id === undefined) { notlar.kcmsizMusteri++; return; }
+    if (m.kcm_id === null || m.kcm_id === undefined) { if (!kisiMod) notlar.kcmsizMusteri++; return; }
     if (m.my_id === null || m.my_id === undefined) return;
-    const kid = _dkmAnahtar(m.kcm_id);
+    const kid = _dkmAnahtar(kisiMod ? m.my_id : m.kcm_id);
     if (!kovalar[kid]) return;
     kovalar[kid].portfoy++;
     if (!kimseZiyaretEtmedi[_dkmAnahtar(m.ncst)]) kovalar[kid].hicZiyaretsiz++;
@@ -398,7 +416,7 @@ function dkmHesapla(g) {
       const m = musteriMap[_dkmAnahtar(v.ncst)];
       if (!m || m.kcm_id === null || m.kcm_id === undefined) return;
       if (_dkmAnahtar(m.my_id) !== _dkmAnahtar(v.my_id)) return;
-      const kid = _dkmAnahtar(m.kcm_id);
+      const kid = _dkmAnahtar(kisiMod ? m.my_id : m.kcm_id);
       if (!kovalar[kid]) return;
       const anahtar = kid + '|' + _dkmAnahtar(v.ncst);
       if (set[anahtar]) return;
@@ -412,7 +430,7 @@ function dkmHesapla(g) {
   // --- 2) FIRSAT ---
   const basMs = g.basMs, bitMs = g.bitMs;
   g.firsat.forEach(function (o) {
-    const kid = _dkmAnahtar(o.kcm_id);
+    const kid = _dkmAnahtar(kisiMod ? o.my_id : o.kcm_id);
     const b = kovalar[kid];
     if (!b) return;
     const adim = o.adim || o.durum || 'Fırsat';
@@ -448,7 +466,7 @@ function dkmHesapla(g) {
   // --- 3) TEYIT ---
   const visitKcm = {};
   const visitMs = {};
-  ziyaretler.forEach(function (v) { visitKcm[_dkmAnahtar(v.visit_id)] = _dkmAnahtar(v.kcm_id); visitMs[_dkmAnahtar(v.visit_id)] = new Date(v.tarih_saat).getTime(); });
+  ziyaretler.forEach(function (v) { visitKcm[_dkmAnahtar(v.visit_id)] = _dkmAnahtar(kisiMod ? v.my_id : v.kcm_id); visitMs[_dkmAnahtar(v.visit_id)] = new Date(v.tarih_saat).getTime(); });
   const slaMs = (g.ayar.slaGun || 7) * 86400000;
   (g.gorevler || []).forEach(function (t) {
     const b = kovalar[visitKcm[_dkmAnahtar(t.visit_id)]];
@@ -484,7 +502,7 @@ function dkmHesapla(g) {
   const goruldu = {};
   ziyaretler.forEach(function (v) {
     if (v.contact_id === null || v.contact_id === undefined) return;
-    const kid = _dkmAnahtar(v.kcm_id);
+    const kid = _dkmAnahtar(kisiMod ? v.my_id : v.kcm_id);
     const b = kovalar[kid];
     if (!b) return;
     const anahtar = kid + '|' + _dkmAnahtar(v.contact_id);
@@ -501,8 +519,44 @@ function dkmHesapla(g) {
   });
 
   const liste = Object.keys(kovalar).map(function (k) { return kovalar[k]; })
-    .sort(function (a, b) { return Number(a.kcmId) - Number(b.kcmId); });
-  return { kovalar: liste, toplam: _dkmBirlestir(liste), notlar: notlar };
+    .sort(function (a, b) { return kisiMod ? String(a.ad).localeCompare(String(b.ad), 'tr') : Number(a.kcmId) - Number(b.kcmId); });
+  return { kovalar: liste, toplam: kisiMod ? null : _dkmBirlestir(liste), notlar: notlar };
+}
+
+// Genel skor: 4 bolum skoru (0-100), agirlikli ortalama. Verisi olmayan bolum atlanir,
+// kalan agirliklar yeniden oranlanir (kisi ziyaret girmediyse teyit/veri bolumu bos kalir).
+const DKM_AGIRLIK_VARSAYILAN = { ziyaret: 40, firsat: 30, teyit: 15, veri: 15 };
+function _dkmSkorla(liste, ag) {
+  ag = ag || DKM_AGIRLIK_VARSAYILAN;
+  let maxF = 0;
+  liste.forEach(function (b) { if (b.donemOlusan > maxF) maxF = b.donemOlusan; });
+  liste.forEach(function (b) {
+    const bil = {};
+    bil.ziyaret = b.hedef > 0 ? Math.min(100, 100 * b.ziyaret / b.hedef) : null;
+    const f = [];
+    if (maxF > 0) f.push(100 * b.donemOlusan / maxF);                       // listedeki en cok firsat acana gore
+    if (b.acikSay > 0) f.push(100 - 100 * b.acikDokunulmamis / b.acikSay);  // dokunulmamis oraninin tersi
+    bil.firsat = f.length ? _dkmOrt(f) : null;
+    const t = [];
+    if (b.zvN > 0) t.push(100 * b.zvEvet / b.zvN);
+    if (b.aramaN > 0) t.push(100 - 100 * b.yanlisNo / b.aramaN);
+    bil.teyit = t.length ? _dkmOrt(t) : null;
+    bil.veri = b.kontakN > 0 ? 25 * (b.adOk + b.telOk + b.mailOk + b.tipOk) / b.kontakN : null;
+    let top = 0, w = 0;
+    ['ziyaret', 'firsat', 'teyit', 'veri'].forEach(function (k) {
+      if (bil[k] !== null && ag[k] > 0) { top += bil[k] * ag[k]; w += ag[k]; }
+    });
+    b.bilesen = bil;
+    b.skor = w > 0 ? top / w : null;
+  });
+}
+
+function dkmHesapla(g) {
+  const kcm = _dkmHesaplaGrup(g, false);
+  const kisi = _dkmHesaplaGrup(g, true);
+  _dkmSkorla(kisi.kovalar, g.ayar && g.ayar.agirlik);
+  kcm.kisiler = kisi.kovalar;
+  return kcm;
 }
 
 // Bir kontagin 4 alanini dogrular (veri_kalitesi.js fonksiyonlari ile ayni kurallar)
@@ -571,7 +625,26 @@ const DKM_BOLUMLER = [
   ] }
 ];
 
+// MY/FMY siralama tablosu sutunlari (k = siralama anahtari)
+const DKM_KISI_SUTUN = [
+  { k: 'skor', e: 'Genel skor', v: function (b) { return b.skor; }, f: function (x) { return _dkmFmt(x, 1); }, iyi: 'yuksek', skorSutun: true },
+  { k: 'ziyaret', e: 'Ziyaret', v: function (b) { return b.ziyaret; }, f: function (x) { return _dkmFmt(x, 0); }, iyi: 'yuksek' },
+  { k: 'hedef', e: 'Hedef gerç.', v: function (b) { return _dkmOran(b.ziyaret, b.hedef); }, f: _dkmPct, iyi: 'yuksek' },
+  { k: 'pen', e: 'Penetrasyon', v: function (b) { return _dkmOran(b.penDonem, b.portfoy); }, f: _dkmPct, iyi: 'yuksek' },
+  { k: 'hic', e: 'Hiç ziyaret edilmeyen', v: function (b) { return _dkmOran(b.hicZiyaretsiz, b.portfoy); }, f: _dkmPct, iyi: 'dusuk' },
+  { k: 'firsat', e: 'Dönemde fırsat', v: function (b) { return b.donemOlusan; }, f: function (x) { return _dkmFmt(x, 0); }, iyi: 'yuksek' },
+  { k: 'acik', e: 'Açık pipeline', v: function (b) { return b.acikSay; }, f: function (x) { return _dkmFmt(x, 0); } },
+  { k: 'evrak', e: 'Evrakta', v: function (b) { return b.adimSay['Evrak']; }, f: function (x) { return _dkmFmt(x, 0); } },
+  { k: 'dok', e: '14+ gün dokunulmamış', v: function (b) { return _dkmOran(b.acikDokunulmamis, b.acikSay); }, f: _dkmPct, iyi: 'dusuk' },
+  { k: 'zv', e: 'Teyit "Evet"', v: function (b) { return _dkmOran(b.zvEvet, b.zvN); }, f: function (x, b) { return _dkmPct(x) + ' (n=' + b.zvN + ')'; }, iyi: 'yuksek' },
+  { k: 'ulas', e: 'Ulaşılabilirlik', v: function (b) { return _dkmOran(b.ulasildi, b.aramaN); }, f: function (x, b) { return _dkmPct(x) + ' (n=' + b.aramaN + ')'; }, iyi: 'yuksek' },
+  { k: 'numara', e: 'Numara doğruluğu', v: function (b) { return b.aramaN > 0 ? 100 - _dkmOran(b.yanlisNo, b.aramaN) : null; }, f: _dkmPct, iyi: 'yuksek' },
+  { k: 'kontak', e: 'Kontak puanı', v: function (b) { return b.kontakN > 0 ? 25 * (b.adOk + b.telOk + b.mailOk + b.tipOk) / b.kontakN : null; }, f: function (x, b) { return _dkmFmt(x, 1) + ' (n=' + b.kontakN + ')'; }, iyi: 'yuksek' }
+];
+
 const DKM_TANIMLAR = [
+  ['Genel skor (kişi)', 'Dört bölüm skorunun ağırlıklı ortalaması (0-100). Ziyaret: hedef gerçekleşme (en çok 100). Fırsat: dönemde açtığı fırsatın listedeki en yüksek değere oranı ile (100 - dokunulmamış %) ortalaması. Teyit: ziyaret teyit "Evet" % ile numara doğruluğunun ortalaması. Temiz veri: kontak puanı. Verisi olmayan bölüm atlanır, ağırlıklar kalanlara oranlanır. Ağırlıklar Admin Panel > Dashboard Ayarları\'ndan değişir. Evrak aşaması skora girmez.'],
+  ['Kişi bazı', 'Ziyaret ve teyit ziyareti giren kişiye, fırsat fırsatı açan kişiye, portföy müşterinin güncel MY sine göre hesaplanır.'],
   ['Ziyaret', 'Temas türü "Ziyaret", durumu "Gerçekleşti", sanal kullanıcılar hariç. KÇM = ziyaret kaydındaki KÇM.'],
   ['Hedef', '(MY sayısı x MY günlük hedefi + FMY sayısı x FMY günlük hedefi) x iş günü. İş günü: hafta sonu ve resmi tatil hariç, yarım gün 0,5. Dönem bugünü aşıyorsa bugüne kadar sayılır. Tüm aktif MY/FMY kadrosu dahildir.'],
   ['Penetrasyon', 'Portföy içi ziyaret edilen tekil müşteri / portföy müşteri sayısı. Portföy içi: ziyareti yapan MY, müşterinin güncel sahibi olmalı.'],
@@ -618,6 +691,11 @@ function _dkmStilEkle() {
     '.dkm-cubuk i{display:block;height:100%;background:var(--blue);}' +
     '.dkm-not{background:rgba(255,180,0,.1);border:1px solid rgba(255,180,0,.35);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.5;}' +
     '.dkm-hata{background:rgba(224,4,42,.1);border:1px solid rgba(224,4,42,.4);border-radius:10px;padding:10px 12px;margin:10px 12px;font-size:12px;}' +
+    '.dkm-ths{cursor:pointer;user-select:none;}' +
+    '.dkm-ths:hover{color:var(--text);}' +
+    '.dkm-fil{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);}' +
+    '.dkm-fil select{background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 9px;font-size:12px;}' +
+    '.dkm-sk{font-weight:800;}' +
     '.dkm-tan{font-size:12px;color:var(--text2);line-height:1.55;padding:6px 12px 12px;}' +
     '.dkm-tan b{color:var(--text);}';
   document.head.appendChild(s);
@@ -801,11 +879,98 @@ function _dkmCiz(sonuc, kap, ctx) {
     html += '</tbody></table></div></div>';
   });
 
+  html += '<div class="dkm-kart" id="dkmKisiKart"></div>';
   html += '<div class="dkm-kart"><h3>Tanımlar</h3><div class="dkm-tan">' +
     DKM_TANIMLAR.map(function (t) { return '<p style="margin-bottom:6px;"><b>' + escapeHTML(t[0]) + ':</b> ' + escapeHTML(t[1]) + '</p>'; }).join('') +
     '</div></div>';
 
   _dkmGoster(html);
+  _dkmKisiCiz();
+}
+
+// MY / FMY siralamasi: tiklayarak siralanir, KCM ve rol filtresi, en iyi yesil / en kotu kirmizi
+function dkmKisiSirala(k) {
+  if (DKM.kisiSira.k === k) DKM.kisiSira.yon = DKM.kisiSira.yon === 'desc' ? 'asc' : 'desc';
+  else { DKM.kisiSira.k = k; DKM.kisiSira.yon = (k === 'ad' || k === 'kcm') ? 'asc' : 'desc'; }
+  _dkmKisiCiz();
+}
+function dkmKisiFiltre() {
+  const a = document.getElementById('dkmFKcm'), b = document.getElementById('dkmFRol');
+  DKM.kisiKcm = a ? a.value : '';
+  DKM.kisiRol = b ? b.value : '';
+  _dkmKisiCiz();
+}
+
+function _dkmKisiCiz() {
+  const kart = document.getElementById('dkmKisiKart');
+  if (!kart || !DKM.sonuc || !DKM.sonuc.kisiler) return;
+  const tum = DKM.sonuc.kisiler;
+  const kcmler = {};
+  tum.forEach(function (b) { kcmler[_dkmAnahtar(b.kcmRef)] = b.kcmAd || ('KÇM ' + b.kcmRef); });
+  let liste = tum.filter(function (b) {
+    if (DKM.kisiKcm && _dkmAnahtar(b.kcmRef) !== DKM.kisiKcm) return false;
+    if (DKM.kisiRol && b.rol !== DKM.kisiRol) return false;
+    return true;
+  });
+  const sira = DKM.kisiSira;
+  const sut = DKM_KISI_SUTUN.filter(function (c) { return c.k === sira.k; })[0];
+  const carp = sira.yon === 'desc' ? -1 : 1;
+  liste = liste.slice().sort(function (a, b) {
+    let x, y;
+    if (sira.k === 'ad') { return carp * String(a.ad).localeCompare(String(b.ad), 'tr'); }
+    if (sira.k === 'kcm') { return carp * String(a.kcmAd).localeCompare(String(b.kcmAd), 'tr'); }
+    x = sut ? sut.v(a) : null; y = sut ? sut.v(b) : null;
+    const xn = (x === null || x === undefined || isNaN(x)), yn = (y === null || y === undefined || isNaN(y));
+    if (xn && yn) return 0;
+    if (xn) return 1;
+    if (yn) return -1;
+    return carp * (x - y);
+  });
+
+  // en iyi / en kotu: sutun bazinda, gorunen satirlar arasinda
+  const vurgu = DKM_KISI_SUTUN.map(function (c) {
+    const d = liste.map(function (b) { const x = c.v(b); return (x === null || x === undefined || isNaN(x)) ? null : x; }).filter(function (x) { return x !== null; });
+    if (!c.iyi || d.length < 2) return null;
+    const mx = Math.max.apply(null, d), mn = Math.min.apply(null, d);
+    if (mx === mn) return null;
+    return { iyi: c.iyi === 'yuksek' ? mx : mn, kotu: c.iyi === 'yuksek' ? mn : mx };
+  });
+
+  const ok = function (k) { return sira.k === k ? (sira.yon === 'desc' ? ' ▼' : ' ▲') : ''; };
+  let h = '<h3>MY / FMY Sıralaması <span style="font-weight:400;color:var(--text2);font-size:11px;">(' + liste.length + ' kişi, başlığa tıklayarak sıralayın)</span></h3>';
+  h += '<div class="dkm-fil">';
+  if (Object.keys(kcmler).length > 1) {
+    h += '<select id="dkmFKcm" onchange="dkmKisiFiltre()"><option value="">Tüm KÇM</option>' +
+      Object.keys(kcmler).map(function (k) { return '<option value="' + escapeHTML(k) + '"' + (DKM.kisiKcm === k ? ' selected' : '') + '>' + escapeHTML(kcmler[k]) + '</option>'; }).join('') + '</select>';
+  }
+  h += '<select id="dkmFRol" onchange="dkmKisiFiltre()"><option value="">MY + FMY</option>' +
+    '<option value="MY"' + (DKM.kisiRol === 'MY' ? ' selected' : '') + '>Yalnız MY</option>' +
+    '<option value="FMY"' + (DKM.kisiRol === 'FMY' ? ' selected' : '') + '>Yalnız FMY</option></select></div>';
+  h += '<div class="dkm-kaydir"><table class="dkm-tbl"><thead><tr>' +
+    '<th class="dkm-ths" onclick="dkmKisiSirala(\'ad\')">Kişi' + ok('ad') + '</th>' +
+    '<th class="dkm-ths" onclick="dkmKisiSirala(\'kcm\')" style="text-align:left;">KÇM' + ok('kcm') + '</th><th style="text-align:left;">Rol</th>' +
+    DKM_KISI_SUTUN.map(function (c) { return '<th class="dkm-ths" onclick="dkmKisiSirala(\'' + c.k + '\')">' + escapeHTML(c.e) + ok(c.k) + '</th>'; }).join('') +
+    '</tr></thead><tbody>';
+  if (!liste.length) h += '<tr><td colspan="' + (DKM_KISI_SUTUN.length + 3) + '" style="text-align:center;color:var(--text2);">Kayıt yok</td></tr>';
+  liste.forEach(function (b, i) {
+    h += '<tr><td>' + (i + 1) + '. ' + escapeHTML(b.ad) + '</td>' +
+      '<td style="text-align:left;color:var(--text2);">' + escapeHTML(b.kcmAd) + '</td><td style="text-align:left;color:var(--text2);">' + escapeHTML(b.rol) + '</td>';
+    DKM_KISI_SUTUN.forEach(function (c, j) {
+      const x = c.v(b);
+      const bos = (x === null || x === undefined || isNaN(x));
+      let sinif = '';
+      if (!bos && vurgu[j]) { if (x === vurgu[j].iyi) sinif = 'dkm-iyi'; else if (x === vurgu[j].kotu) sinif = 'dkm-kotu'; }
+      let tip = '';
+      if (c.skorSutun && b.bilesen) {
+        const bl = b.bilesen;
+        tip = ' title="' + escapeHTML('Ziyaret ' + _dkmFmt(bl.ziyaret, 0) + ' | Fırsat ' + _dkmFmt(bl.firsat, 0) + ' | Teyit ' + _dkmFmt(bl.teyit, 0) + ' | Temiz veri ' + _dkmFmt(bl.veri, 0)) + '"';
+      }
+      h += '<td class="' + sinif + (c.skorSutun ? ' dkm-sk' : '') + '"' + tip + '>' + (bos ? '-' : escapeHTML(c.f(x, b))) + '</td>';
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  kart.innerHTML = h;
 }
 
 /* ============================================================
