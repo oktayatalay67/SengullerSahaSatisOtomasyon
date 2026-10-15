@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.4.32
+// config.js — v1.4.33
 // Son güncelleme: 2026-10-15
 // Değişiklikler:
+//   v1.4.33 — APP_VERSION → V31.191. YENI: js/gorev_toplu.js v1.0.0, Veri Yonetimi > Toplu Gorev
+//     (Excel ile toplu gorev atamasi). veriyonetimi.js v1.7.0, yetki.js v1.3.4 (gorev_toplu_ata).
 //   v1.4.32 — APP_VERSION → V31.190. dashboard.js v1.1.0: MY/FMY siralama tablosu + genel skor.
 //   v1.4.31 — APP_VERSION → V31.189. YENI: js/dashboard.js v1.0.0, KCM karsilastirmali Dashboard
 //     (ziyaret, firsat, teyit, kontak puani). index.html: menu kutusu, sayfa, Dashboard Ayarlari sekmesi,
@@ -1108,7 +1110,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.190';
+const APP_VERSION = 'V31.191';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

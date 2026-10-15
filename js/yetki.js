@@ -1,5 +1,6 @@
 // ============================================================
-// yetki.js — v1.3.3
+// yetki.js — v1.3.4
+//   v1.3.4 — (V31.191) Yeni izin: gorev_toplu_ata (Veri Yonetimi > Toplu Gorev). Otomatik atanmadi.
 //   v1.3.3 — (V31.189) Yeni izin: dashboard_gor + dashboard modulu (KCM karsilastirmali Dashboard).
 //     Otomatik atanmadi: Rol&Yetki ekranindan elle verilmeli; yoneticiler icin kapsam TUM, MY/FMY icin KCM.
 // Son güncelleme: 2026-09-19
@@ -109,6 +110,7 @@ const YETKI_ACTION_GRUP = [
       yonetici_tam:'Tam yönetici işlemleri (Admin/Direktör)',
       gorev_tumunu_gor:'Tüm görevleri görür',
       veri_yonetimi:'Veri Yönetimi ekranını kullanır (toplu güncelleme/yükleme)',
+      gorev_toplu_ata:'Veri Yönetimi > Toplu Görev: Excel ile toplu görev atar ve kendi yüklemesini iptal eder',
       veri_kalite_gor:'Veri Kalitesi Denetim ekranını görüntüler',
       veri_kalite_calistir:'Veri Kalitesi taramasını çalıştırır (Excel rapor üretir)',
       veri_kalite_duzelt_onayla:'Veri Kalitesi düzeltme önerilerini onaylar/uygular',

@@ -3709,7 +3709,7 @@
   <div class="scroll">
     <div style="padding:12px 14px;">
       <div style="background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;">
-        <div style="display:flex;gap:8px;margin-bottom:12px;"><button id="vyTab_musteri" class="btn" onclick="vyTab('musteri')" style="padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:#34d399;color:#062;font-weight:700;">Müşteri</button><button id="vyTab_kontak" class="btn" onclick="vyTab('kontak')" style="padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--text2);">Kontak</button><button id="vyTab_atama" class="btn" onclick="vyTab('atama')" style="padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--text2);">MY'ye Atama</button><button id="vyTab_devir" class="btn" onclick="vyTab('devir')" style="padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--text2);">Portföy Devri</button></div></div><div id="vyAtamaPanel" style="display:none;"></div><div id="vyDevirPanel" style="display:none;"></div><div id="vyNormalPanel"><div style="background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;"><div style="font-weight:700;margin-bottom:6px;">Toplu Veri Yükleme</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;"><button id="vyTab_musteri" class="btn" onclick="vyTab('musteri')" style="padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:#34d399;color:#062;font-weight:700;">Müşteri</button><button id="vyTab_kontak" class="btn" onclick="vyTab('kontak')" style="padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--text2);">Kontak</button><button id="vyTab_atama" class="btn" onclick="vyTab('atama')" style="padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--text2);">MY'ye Atama</button><button id="vyTab_devir" class="btn" onclick="vyTab('devir')" style="padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--text2);">Portföy Devri</button><button id="vyTab_gorev" class="btn" onclick="vyTab('gorev')" style="display:none;padding:8px 18px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--text2);">Toplu Görev</button></div></div><div id="vyAtamaPanel" style="display:none;"></div><div id="vyDevirPanel" style="display:none;"></div><div id="vyGorevPanel" style="display:none;"></div><div id="vyNormalPanel"><div style="background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;"><div style="font-weight:700;margin-bottom:6px;">Toplu Veri Yükleme</div>
         <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px;">
           Excel (.xlsx/.xls) veya CSV yükleyin, ilk satır başlık. Analiz aşamasında <b>hiçbir kayıt yapılmaz</b>.<br><span id="vyIpucu">Ilk kolon <b>ncst</b> olmali. Anahtar: ncst.</span>
         </div>
@@ -3728,7 +3728,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.190"></script>
+<script src="js/config.js?v=v31.191"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3736,7 +3736,7 @@
      ALTYAPI modulu — kendisini cagiran rapor/admin/veriyonetimi/donanim/
      firsat/temas/auth dosyalarindan ONCE yuklenmeli. -->
 <script src="js/denetim.js?v=v31.175"></script>
-<script src="js/yetki.js?v=v31.189"></script>
+<script src="js/yetki.js?v=v31.191"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
 <script src="js/donanim.js?v=v31.171"></script>
@@ -3753,7 +3753,9 @@
 <script src="js/musteri.js?v=v31.170"></script>
 <script src="js/hedef.js?v=v31.150"></script>
 <script src="js/admin.js?v=v31.189"></script>
-<script src="js/veriyonetimi.js?v=v31.171"></script>
+<script src="js/veriyonetimi.js?v=v31.191"></script>
+<!-- gorev_toplu.js: Veri Yonetimi > Toplu Gorev (V31.191). veriyonetimi.js ve rapor.js (ensureXLSX) ile birlikte calisir. -->
+<script src="js/gorev_toplu.js?v=v31.191"></script>
 <script src="js/rapor.js?v=v31.171"></script>
 <!-- dashboard.js: KCM karsilastirmali Dashboard (V31.189). veri_kalitesi.js ve yetki.js sonrasi yuklenir. -->
 <script src="js/dashboard.js?v=v31.190"></script>

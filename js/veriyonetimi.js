@@ -1,5 +1,7 @@
 // ============================================================
-// veriyonetimi.js — v1.6.2  (4 sekme: Musteri + Kontak + Atama + Devir)
+// veriyonetimi.js — v1.7.0  (5 sekme: Musteri + Kontak + Atama + Devir + Toplu Gorev)
+//   v1.7.0 — V31.191: "Toplu Gorev" sekmesi eklendi (vyTab gorev -> gtInit, js/gorev_toplu.js).
+//     Sekme dugmesi yalniz gorev_toplu_ata yetkisi olanlara gorunur.
 //   v1.6.2 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
 //     (js/denetim.js, veri_cikis_log tablosu). Nokta: vyRaporExcelDetayli
 //     (devir ve veri yonetimi raporlarinin ortak cikis fonksiyonu).
@@ -92,7 +94,8 @@ window.VY = { mode:'musteri', fileName:'', headers:[], rows:[], raw:[], mapping:
 function vyCfg(){ return VY_MODES[VY.mode]; }
 function vyType(f){ const s=vyCfg().schema.find(x=>x[0]===f); return s?s[1]:'str'; }
 
-function openVeriYonetimi(){ if(!hasPerm('veri_yonetimi')){ toast('Bu ekran icin yetkiniz yok','error'); return; } vyReset('musteri'); navTo('pageVeriYonetimi'); vyTabStyle(); }
+function openVeriYonetimi(){ if(!hasPerm('veri_yonetimi')){ toast('Bu ekran icin yetkiniz yok','error'); return; } vyReset('musteri'); navTo('pageVeriYonetimi'); vyTabStyle();
+  const gtb=document.getElementById('vyTab_gorev'); if(gtb) gtb.style.display = hasPerm('gorev_toplu_ata') ? '' : 'none'; }   // V31.191
 function vyReset(mode){
   window.VY = { mode:mode||VY.mode||'musteri', fileName:'', headers:[], rows:[], raw:[], mapping:[], analiz:null, nullSet:null, secim:null, pagers:{} };
   ['vyInfo','vyMapping','vyAnalizSonuc','vyPreview'].forEach(id=>{ const e=document.getElementById(id); if(e) e.innerHTML=''; });
@@ -101,16 +104,18 @@ function vyReset(mode){
   const ip=document.getElementById('vyIpucu'); if(ip) ip.innerHTML=vyCfg().ipucu;
 }
 function vyTab(mode){
-  ['vyAtamaPanel','vyDevirPanel'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
+  ['vyAtamaPanel','vyDevirPanel','vyGorevPanel'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
   const np=document.getElementById('vyNormalPanel');
+  // V31.191: Toplu Gorev sekmesi (js/gorev_toplu.js)
+  if(mode==='gorev'){ VY.mode='gorev'; vyTabStyle(); if(np) np.style.display='none'; const gp=document.getElementById('vyGorevPanel'); if(gp){ gp.style.display=''; if(typeof gtInit==='function') gtInit(); } return; }
   if(mode==='atama'){ VY.mode='atama'; vyTabStyle(); if(np) np.style.display='none'; const ap=document.getElementById('vyAtamaPanel'); if(ap){ ap.style.display=''; vyAtamaInit(); } return; }
   if(mode==='devir'){ VY.mode='devir'; vyTabStyle(); if(np) np.style.display='none'; const dp=document.getElementById('vyDevirPanel'); if(dp){ dp.style.display=''; vyDevirInit(); } return; }
   if(np) np.style.display='';
   vyReset(mode); vyTabStyle();
 }
 function vyTabStyle(){
-  ['musteri','kontak','atama','devir'].forEach(m=>{ const b=document.getElementById('vyTab_'+m); if(b){ const on=VY.mode===m; b.style.background=on?'#34d399':'var(--bg2)'; b.style.color=on?'#062':'var(--text2)'; b.style.fontWeight=on?'700':'500'; } });
-  const ip=document.getElementById('vyIpucu'); if(ip && VY.mode!=='atama' && VY.mode!=='devir') ip.innerHTML=vyCfg().ipucu;
+  ['musteri','kontak','atama','devir','gorev'].forEach(m=>{ const b=document.getElementById('vyTab_'+m); if(b){ const on=VY.mode===m; b.style.background=on?'#34d399':'var(--bg2)'; b.style.color=on?'#062':'var(--text2)'; b.style.fontWeight=on?'700':'500'; } });
+  const ip=document.getElementById('vyIpucu'); if(ip && VY.mode!=='atama' && VY.mode!=='devir' && VY.mode!=='gorev') ip.innerHTML=vyCfg().ipucu;
 }
 
 // ============================================================
