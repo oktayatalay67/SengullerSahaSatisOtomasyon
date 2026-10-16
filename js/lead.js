@@ -1,6 +1,6 @@
 // ============================================================
-// lead.js — v1.9.0
-// Son güncelleme: 2026-10-12
+// lead.js — v1.10.0
+// Son güncelleme: 2026-10-16
 //
 // ÇAĞRI MERKEZİ / LEAD ARAMALARI
 //   Satış odaklı çağrı modülü. Ziyaret Teyit (js/arama.js) ile EKRAN ve AKIŞ
@@ -29,6 +29,16 @@
 //   hasPerm/getScope → js/config.js · yetki katmanı
 //
 // SÜRÜM NOTLARI
+//   v1.10.0 (V31.192) — KUYRUK KARTI: İLETİŞİM. (1) Filtre satırına "Sadece
+//           iletişimi olanlar" anahtarı (LEAD.sadeceIletisim; sekme değişince
+//           sıfırlanmaz). Açıkken 1000 kayıt çekilip süzülür, ilk 300 gösterilir.
+//           (2) "Ara" tuşu ikiye bölündü: Ara | İletişim Ekle / Düzenle.
+//           Aranabilir telefon varsa Ara canlı + Düzenle soluk; yoksa tersi.
+//           (3) leadKontakDuzenleAc: ekle/düzenle formu (kontak çipleri +
+//           "Yeni kontak"). Düzenleme kuyruğa döner; yeni kontak aramaya geçer.
+//           (4) Teyit araması / önceki lead araması / kontak işaretinden biri
+//           "aranmak istemiyor" diyorsa kartta ve arama ekranında kırmızı
+//           kalın uyarı. Aranabilir kontak yoksa Ara soluk.
 //   v1.9.0 (V31.187) — FİLTRELER ÇOKLU SEÇİME ÇEVRİLDİ. İl / İlçe / Sektör /
 //           Müşteri tipi serbest metindi ve .ilike() ile tam eşleşme
 //           aranıyordu; Türkçe İ/i, boşluk ve yazım farkları yüzünden ekran
@@ -1693,7 +1703,24 @@ function _leadKuyrukFiltreRender(){
        '</select>';
   }
   h+='</div>';
+  // V31.192: "Sadece iletisimi olanlar" anahtari. Sekme degisince SIFIRLANMAZ
+  // (LEAD.filtre degil LEAD.sadeceIletisim'de yasar) — agent tum gun ayni
+  // modda calisir.
+  const on=!!LEAD.sadeceIletisim;
+  h+='<div onclick="leadSadeceIletisimToggle()" style="display:flex;align-items:center;gap:10px;margin:0 0 10px;cursor:pointer;user-select:none;">'+
+       '<div style="position:relative;width:40px;height:22px;flex:0 0 40px;border-radius:11px;'+
+         'background:'+(on?'var(--green)':'#2b3040')+';border:1px solid '+(on?'var(--green)':'var(--border)')+';">'+
+         '<div style="position:absolute;top:2px;left:'+(on?'20px':'2px')+';width:16px;height:16px;border-radius:50%;'+
+           'background:'+(on?'#04301f':'#8a93a6')+';"></div></div>'+
+       '<div style="font-size:12px;font-weight:600;color:'+(on?'var(--text)':'var(--text2)')+';">Sadece iletişimi olanlar</div>'+
+     '</div>';
   p.innerHTML=h;
+}
+
+function leadSadeceIletisimToggle(){
+  LEAD.sadeceIletisim=!LEAD.sadeceIletisim;
+  _leadKuyrukFiltreRender();
+  _leadKuyrukYukle();
 }
 
 let _leadFiltreZaman=null;
@@ -1717,21 +1744,39 @@ async function _leadKuyrukYukle(){
   const {data:kayitlar, error}=await q
     .order('oncelik',{ascending:true})
     .order('sonraki_arama',{ascending:true,nullsFirst:false})
-    .order('olusturma',{ascending:true}).limit(300);
+    .order('olusturma',{ascending:true}).limit(LEAD.sadeceIletisim?1000:300);
   if(error){ box.innerHTML='<div class="empty" style="color:var(--red);">Kuyruk okunamadı: '+escapeHTML(error.message)+'</div>'; return; }
 
   let liste=kayitlar||[];
   // müşteri bilgisi + telefon zenginleştirme
   const ncstler=[...new Set(liste.map(k=>k.ncst))];
-  const custMap={}, telMap={};
+  const custMap={}, kisiMap={}, istemiyorKaynak={};
+  const _ist=(n,s)=>{ const a=(istemiyorKaynak[n]=istemiyorKaynak[n]||[]); if(a.indexOf(s)<0) a.push(s); };
   for(const parca of _leadParcali(ncstler, LEAD_PARCA)){
     if(!parca.length) continue;
     const {data:cs}=await sb.from('customers').select('ncst,unvan,il,ilce,telefon,my_id,toplam_hat')
       .in('ncst',parca).limit(100000);
     (cs||[]).forEach(c=>{ custMap[c.ncst]=c; });
-    const {data:ks}=await sb.from('contacts').select('ncst,telefon,aktif')
+    const {data:ks}=await sb.from('contacts').select('ncst,telefon,aktif,aranmak_istemiyor')
       .in('ncst',parca).limit(100000);
-    (ks||[]).forEach(k=>{ if(k.aktif!==false && k.telefon && !telMap[k.ncst]) telMap[k.ncst]=k.telefon; });
+    (ks||[]).forEach(k=>{
+      if(k.aktif===false) return;
+      (kisiMap[k.ncst]=kisiMap[k.ncst]||[]).push(k);
+      if(k.aranmak_istemiyor===true) _ist(k.ncst,'kontak işareti');
+    });
+    // V31.192: "aranmak istemiyor" izi — teyit aramasi ve onceki lead aramasi
+    const {data:ts}=await sb.from('arama_sonuclari').select('ncst')
+      .in('ncst',parca).eq('sonra_aranmak_istedi',false).limit(100000);
+    (ts||[]).forEach(t=>_ist(t.ncst,'teyit araması'));
+    const {data:ls}=await sb.from(LEAD_TABLO_ARAMA).select('ncst')
+      .in('ncst',parca).in('durum',['g_aranmak_istemiyor','k_istemiyor']).limit(100000);
+    (ls||[]).forEach(l=>_ist(l.ncst,'çağrı merkezi araması'));
+  }
+
+  // V31.192: "Sadece iletisimi olanlar" — aranabilir telefonu olanlar.
+  // Sorgu 1000 kayit cekti; suzulup ilk 300 gosterilir.
+  if(LEAD.sadeceIletisim){
+    liste=liste.filter(k=>_leadKartIletisim(custMap[k.ncst]||{}, kisiMap[k.ncst]).araCanli).slice(0,300);
   }
 
   // V31.181: bu kayitlardan dogmus gorevlerin guncel durumu (son arama)
@@ -1758,13 +1803,18 @@ async function _leadKuyrukYukle(){
     });
   }
 
-  if(!liste.length){ box.innerHTML='<div class="empty">Bu sekmede kayıt yok.</div>'; return; }
+  if(!liste.length){
+    box.innerHTML='<div class="empty">'+(LEAD.sadeceIletisim?'Bu sekmede iletişimi olan kayıt yok.':'Bu sekmede kayıt yok.')+'</div>';
+    return;
+  }
 
   const simdi=Date.now();
   box.innerHTML=liste.map(k=>{
     const c=custMap[k.ncst]||{};
     const unvan=k.unvan||c.unvan||k.ncst;
-    const tel=telMap[k.ncst]||c.telefon||'';
+    const ic=_leadKartIletisim(c, kisiMap[k.ncst]);
+    const tel=ic.tel;
+    const ist=istemiyorKaynak[k.ncst];
     const kilitli = k.kilit_agent_id && k.kilit_zaman &&
                     (simdi-new Date(k.kilit_zaman).getTime() < 15*60000) &&
                     k.kilit_agent_id!==currentUser.my_id;
@@ -1780,10 +1830,14 @@ async function _leadKuyrukYukle(){
             (k.sistemde_var===false?' · <span style="color:var(--amber);">sistemde yok</span>':'')+
           '</div>'+
           '<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+
-            (tel?('📞 '+escapeHTML(_telGoster?_telGoster(tel):tel)):'<span style="color:var(--amber);">telefon yok — kontak kartı açılacak</span>')+
+            (tel?('📞 '+escapeHTML(_telGoster?_telGoster(tel):tel)):'<span style="color:var(--amber);">telefon yok — İletişim Ekle ile ekleyin</span>')+
             (k.deneme_sayisi?(' · '+k.deneme_sayisi+'. deneme'):'')+
             (k.sonraki_arama?(' · tekrar: '+_leadTarih(k.sonraki_arama)):'')+
           '</div>'+
+          // V31.192 (Oktay): teyit / onceki lead aramasi / kontak isaretinden biri
+          // "aranmak istemiyor" diyorsa kirmizi kalin uyari.
+          (ist?'<div style="font-size:12px;font-weight:800;color:var(--red);margin-top:4px;">Müşteri aranmak istemiyor '+
+               '<span style="font-size:10px;font-weight:600;">('+escapeHTML(ist.join(' · '))+')</span></div>':'')+
           (LEAD.aktifSekme!=='yeni'&&d.et?'<div style="font-size:11px;color:var(--text2);margin-top:3px;">'+escapeHTML(d.et)+'</div>':'')+
           (sonGorev[k.kayit_id]&&gorevMap[sonGorev[k.kayit_id]]
             ?'<div style="margin-top:3px;">'+_leadGorevRozeti(gorevMap[sonGorev[k.kayit_id]])+'</div>':'')+
@@ -1791,7 +1845,7 @@ async function _leadKuyrukYukle(){
       '</div>'+
       (kilitli
         ? '<div style="margin-top:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);border-radius:8px;padding:6px 9px;font-size:11px;color:var(--amber);">⏳ Şu an '+escapeHTML(kilitAd)+' arıyor</div>'
-        : '<button class="btn btn-sm" style="width:100%;margin-top:8px;background:var(--green);color:#04301f;" onclick="leadKayitAc(\''+k.kayit_id+'\')">📞 Ara</button>'+
+        : _leadKartAraSatiri(k.kayit_id, ic)+
           // V31.186 (Oktay): aramadan kapatma ve silme KUYRUK KARTINDA da olsun.
           // Agent, arama ekranını hiç açmadan kaydı kapatabilsin; yetkili olan
           // müşteriyi listeden tek tuşla çıkarabilsin. Yönetim ekranındaki
@@ -1807,6 +1861,153 @@ async function _leadKuyrukYukle(){
           '</div>')+
       '</div>';
   }).join('');
+}
+
+/* ============================================================
+   V31.192 — KUYRUK KARTI: İLETİŞİM DURUMU + BÖLÜNMÜŞ TUŞ
+   ============================================================ */
+// Kart telefonu: aranabilir (aranmak_istemiyor olmayan) kontak telefonu; yoksa
+// işaretli kontağınki; hiç kontak telefonu yoksa customers.telefon.
+// araCanli: gerçekten aranabilir telefon var mı (Ara tuşu + "iletişimi olanlar"
+// anahtarı bunu kullanır). Telefonu olan ama hepsi "aranmak istemiyor" ise
+// araCanli=false — Ara soluk, Düzenle canlı.
+function _leadKartIletisim(c, kisiler){
+  const tum=(kisiler||[]).filter(k=>k.telefon);
+  const aranabilir=tum.find(k=>k.aranmak_istemiyor!==true);
+  const tel=(aranabilir&&aranabilir.telefon)||(tum[0]&&tum[0].telefon)||(c&&c.telefon)||'';
+  const araCanli=!!((aranabilir&&aranabilir.telefon)||(!tum.length&&c&&c.telefon));
+  return {tel, araCanli};
+}
+
+// Soluk renk = kendi renginden gri tonlu. Canlı: Ara yeşil (onay ailesi),
+// İletişim Ekle/Düzenle mavi (yeni kayıt ailesi) — tuş renk standardı V31.150.
+function _leadKartAraSatiri(kayitId, ic){
+  const canli=ic.araCanli, telVar=!!ic.tel;
+  const araStil=canli
+    ? 'background:var(--green);color:#04301f;border:1.5px solid var(--green);'
+    : 'background:#26322d;color:#7f9187;border:1.5px solid #34443b;';
+  const edStil=canli
+    ? 'background:#262c39;color:#8995ab;border:1.5px solid #353d50;'
+    : 'background:var(--blue);color:#fff;border:1.5px solid var(--blue);';
+  // Telefon hiç yoksa Ara bilgi verir; telefon var ama işaretliyse mevcut engel ekranı açılır.
+  const araClick=telVar
+    ? "leadKayitAc('"+kayitId+"')"
+    : "toast('İletişim bilgisi yok — önce İletişim Ekle ile ekleyin','error')";
+  return '<div style="display:flex;gap:6px;margin-top:8px;">'+
+    '<button class="btn btn-sm" style="flex:1;margin-top:0;'+araStil+'" onclick="'+araClick+'">📞 Ara</button>'+
+    '<button class="btn btn-sm" style="flex:1;margin-top:0;font-size:12px;'+edStil+'" '+
+      'onclick="leadKontakDuzenleAc(\''+kayitId+'\')">'+(telVar?'✏️ Düzenle':'➕ İletişim Ekle')+'</button>'+
+  '</div>';
+}
+
+/* ---------------------------------------------------------------- ekle / düzenle formu
+   Kuyruk kartından açılır (arama ekranı açılmaz). Kontak çipleri + "Yeni kontak".
+   Düzenleme kaydedilince kuyruğa döner; YENİ kontak eklenince aramaya geçer
+   (Oktay kararı, 16.10.2026). */
+async function leadKontakDuzenleAc(kayitId){
+  const el=document.getElementById('leadListesi'); if(!el) return;
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const {data:k}=await sb.from(LEAD_TABLO_KAYIT).select('kayit_id,ncst,unvan').eq('kayit_id',kayitId).maybeSingle();
+  if(!k){ toast('Kayıt bulunamadı','error'); return _leadAgentKuyruk(); }
+  const {data:c}=await sb.from('customers').select('ncst,unvan,il,adres,telefon').eq('ncst',k.ncst).maybeSingle();
+  const {data:ks}=await sb.from('contacts')
+    .select('contact_id,ad_soyad,gorev_unvani,telefon,email,aranmak_istemiyor,aktif')
+    .eq('ncst',k.ncst).limit(50);
+  const kontaklar=(ks||[]).filter(x=>x.aktif!==false);
+  const ilk=kontaklar.find(x=>x.telefon&&x.aranmak_istemiyor!==true)||kontaklar[0]||null;
+  window._lduz={kayitId:kayitId, ncst:k.ncst, musteri:c||{ncst:k.ncst,unvan:k.unvan},
+                kontaklar:kontaklar, secili:ilk?ilk.contact_id:null};
+  _leadKontakDuzenleRender();
+}
+
+function leadKontakDuzenleSec(id){
+  const D=window._lduz; if(!D) return;
+  D.secili=(id===null||id==='')?null:id;
+  _leadKontakDuzenleRender();
+}
+
+function leadKontakDuzenleKapat(){
+  window._lduz=null;
+  _leadAgentKuyruk();
+}
+
+function _leadKontakDuzenleRender(){
+  const el=document.getElementById('leadListesi'); if(!el) return;
+  const D=window._lduz; if(!D) return;
+  const m=D.musteri;
+  const kn=D.kontaklar.find(x=>String(x.contact_id)===String(D.secili))||null;
+  const yeni=!kn;
+  // Hiç kontak yoksa ve müşteri kartında telefon varsa yeni forma önceden doldurulur.
+  const onTel=(yeni && !D.kontaklar.length)?(m.telefon||''):'';
+  const v=(x)=>escapeHTML(x==null?'':String(x));
+
+  const cipler=D.kontaklar.map(x=>{
+    const sec=String(x.contact_id)===String(D.secili);
+    return '<div class="chip-btn'+(sec?' selected':'')+'" style="padding:6px 11px;font-size:12px;'+
+      (sec?'background:var(--blue);border-color:var(--blue);color:#fff;':'')+'" '+
+      'onclick="leadKontakDuzenleSec(\''+String(x.contact_id).replace(/'/g,"\\'")+'\')">'+
+      escapeHTML(x.ad_soyad||x.telefon||'Kontak')+(x.aranmak_istemiyor===true?' ⛔':'')+'</div>';
+  }).join('')+
+  '<div class="chip-btn'+(yeni?' selected':'')+'" style="padding:6px 11px;font-size:12px;'+
+    (yeni?'background:var(--blue);border-color:var(--blue);color:#fff;':'')+'" '+
+    'onclick="leadKontakDuzenleSec(null)">+ Yeni kontak</div>';
+
+  el.innerHTML=
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">'+
+      '<button class="topbar-back" onclick="leadKontakDuzenleKapat()" style="position:relative;width:auto;padding:6px 12px;font-size:13px;">← Geri</button>'+
+      '<div style="font-size:14px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+
+        escapeHTML(m.unvan||m.ncst)+'</div>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">NCST: <b>'+escapeHTML(m.ncst)+'</b>'+
+      (m.il?' · '+escapeHTML(m.il):'')+(m.adres?'<br>'+escapeHTML(m.adres):'')+'</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">'+cipler+'</div>'+
+    (kn&&kn.aranmak_istemiyor===true
+      ? '<div style="font-size:12px;font-weight:800;color:var(--red);margin-bottom:10px;">Bu kontak aranmak istemiyor olarak işaretli.</div>'
+      : '')+
+    '<div class="form-section">'+
+      '<div class="field"><label>Yetkili adı soyadı *</label>'+
+        '<input type="text" id="lkdAd" value="'+v(kn&&kn.ad_soyad)+'" style="'+_LEAD_INP+'"></div>'+
+      '<div class="field"><label>Görev / unvan</label>'+
+        '<input type="text" id="lkdGorev" value="'+v(kn&&kn.gorev_unvani)+'" placeholder="Örn: Satın Alma Müdürü" style="'+_LEAD_INP+'"></div>'+
+      '<div class="field"><label>Telefon *</label>'+
+        '<input type="tel" id="lkdTel" value="'+v(kn?kn.telefon:onTel)+'" placeholder="5XXXXXXXXX" style="'+_LEAD_INP+'"></div>'+
+      '<div class="field"><label>E-posta</label>'+
+        '<input type="email" id="lkdEmail" value="'+v(kn&&kn.email)+'" style="'+_LEAD_INP+'"></div>'+
+      '<button class="btn" style="width:100%;background:var(--green);color:#04301f;" onclick="leadKontakDuzenleKaydet()">💾 '+
+        (yeni?'Kaydet ve Aramaya Geç':'Kaydet')+'</button>'+
+      '<button class="btn-iptal" style="margin-top:8px;" onclick="leadKontakDuzenleKapat()">✕ Vazgeç</button>'+
+    '</div>';
+}
+
+async function leadKontakDuzenleKaydet(){
+  const D=window._lduz; if(!D) return;
+  const ad=_leadDeger('lkdAd'), telHam=_leadDeger('lkdTel');
+  if(!ad){ toast('Yetkili adı zorunlu','error'); return; }
+  if(!telHam){ toast('Telefon zorunlu','error'); return; }
+  const tel=(typeof vyTel==='function')?vyTel(telHam):telHam;
+  if(!tel){ toast('Telefon numarası geçersiz — 5XXXXXXXXX biçiminde girin','error'); return; }
+
+  const alanlar={ad_soyad:ad, gorev_unvani:_leadDeger('lkdGorev')||null, telefon:tel, email:_leadDeger('lkdEmail')||null};
+  const kn=D.kontaklar.find(x=>String(x.contact_id)===String(D.secili))||null;
+
+  if(kn){
+    const {error}=await sb.from('contacts').update(alanlar).eq('contact_id',kn.contact_id);
+    if(error){ toast('Kontak güncellenemedi: '+error.message,'error'); return; }
+    await addLog('contacts', kn.contact_id, 'Kontak Düzenlendi (Lead)', D.ncst+' — '+ad);
+    toast('Kontak güncellendi','success');
+    window._lduz=null;
+    return _leadAgentKuyruk();
+  }
+
+  const payload=Object.assign({ncst:D.ncst, musteri_unvani:D.musteri.unvan||null,
+                               kontak_tipi:'Lead', dogrulandi:false}, alanlar);
+  const {data:yeni, error}=await sb.from('contacts').insert(payload).select('contact_id').single();
+  if(error){ toast('Kontak kaydedilemedi: '+error.message,'error'); return; }
+  await addLog('contacts', yeni.contact_id, 'Kontak Eklendi (Lead)', D.ncst+' — '+ad);
+  toast('Kontak kaydedildi','success');
+  const kayitId=D.kayitId;
+  window._lduz=null;
+  leadKayitAc(kayitId);   // yeni kontak → doğrudan arama ekranı (bugünkü davranış)
 }
 
 /* ============================================================
@@ -2642,9 +2843,9 @@ function _leadUrunSec(deger){
    Ayrıca açık fırsat ve portföy sahibi bilgisi — agent körü körüne aramasın. */
 async function _leadGecmisTopla(ncst){
   const ozet={ziyaretler:[], teyitler:[], firsatlar:[], acikFirsat:0, acikCiro:0,
-              sonZiyaret:null, sonTeyit:null, istemiyorKayit:false};
+              sonZiyaret:null, sonTeyit:null, istemiyorKayit:false, leadIstemiyor:false};
   try{
-    const [{data:vs}, {data:ts}, {data:os}] = await Promise.all([
+    const [{data:vs}, {data:ts}, {data:os}, {data:ls}] = await Promise.all([
       sb.from('visits')
         .select('visit_id,tarih_saat,planlanan_tarih,durum,ziyaret_amaci,ziyaret_amaci_detay,urun_gruplari,ziyaret_sonucu,my_id')
         .eq('ncst',ncst).order('tarih_saat',{ascending:false,nullsFirst:false}).limit(10),
@@ -2652,8 +2853,12 @@ async function _leadGecmisTopla(ncst){
         .select('created_at,ulasildi,ulasilamama_neden,memnuniyet,memnuniyet_ret,sikayet_var,kayit_turu,sikayet_metni,agent_notu,sonra_aranmak_istedi')
         .eq('ncst',ncst).order('created_at',{ascending:false}).limit(10),
       sb.from('opportunities').select('opp_id,adim,durum,beklenen_ciro,olusturma_tarihi,my_id')
-        .eq('ncst',ncst).order('olusturma_tarihi',{ascending:false}).limit(20)
+        .eq('ncst',ncst).order('olusturma_tarihi',{ascending:false}).limit(20),
+      // V31.192: onceki lead aramasinda "aranmak istemiyor" kapanisi var mi
+      sb.from(LEAD_TABLO_ARAMA).select('durum').eq('ncst',ncst)
+        .in('durum',['g_aranmak_istemiyor','k_istemiyor']).limit(1)
     ]);
+    ozet.leadIstemiyor=(ls||[]).length>0;
     ozet.ziyaretler=vs||[];
     ozet.teyitler=ts||[];
     ozet.firsatlar=os||[];
@@ -2682,6 +2887,16 @@ function _leadMusteriOzetHTML(){
   const st=G.sonTeyit;
 
   let uyarilar='';
+  // V31.192 (Oktay): aranmak istemiyor izi varsa kırmızı kalın uyarı
+  const istKaynak=[];
+  if((A.kontaklar||[]).some(x=>x.aranmak_istemiyor===true)) istKaynak.push('kontak işareti');
+  if(G.istemiyorKayit) istKaynak.push('teyit araması');
+  if(G.leadIstemiyor) istKaynak.push('çağrı merkezi araması');
+  if(istKaynak.length){
+    uyarilar+='<div style="background:rgba(224,4,42,.12);border:1px solid rgba(224,4,42,.45);border-radius:8px;'+
+      'padding:8px 10px;font-size:13px;font-weight:800;color:var(--red);margin-bottom:6px;">'+
+      'Müşteri aranmak istemiyor <span style="font-size:11px;font-weight:600;">('+escapeHTML(istKaynak.join(' · '))+')</span></div>';
+  }
   if(G.acikFirsat>0){
     uyarilar+='<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);border-radius:8px;'+
       'padding:8px 10px;font-size:12px;color:var(--amber);margin-bottom:6px;">'+
@@ -2834,4 +3049,4 @@ async function _leadAgentPanoHTML(){
   }catch(e){ return ''; }
 }
 
-// v1.9.0 lead loaded (coklu secim filtreleri)
+// v1.10.0 lead loaded (kuyruk karti: iletisim anahtari + bolunmus Ara/Duzenle tusu)

@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.4.33
-// Son güncelleme: 2026-10-15
+// config.js — v1.4.34
+// Son güncelleme: 2026-10-16
 // Değişiklikler:
+//   v1.4.34 — APP_VERSION → V31.192. lead.js v1.10.0: Cagri Merkezi kuyruk kartinda
+//     "Sadece iletisimi olanlar" anahtari, bolunmus Ara / Iletisim Ekle-Duzenle tusu,
+//     "musteri aranmak istemiyor" uyarisi.
 //   v1.4.33 — APP_VERSION → V31.191. YENI: js/gorev_toplu.js v1.0.0, Veri Yonetimi > Toplu Gorev
 //     (Excel ile toplu gorev atamasi). veriyonetimi.js v1.7.0, yetki.js v1.3.4 (gorev_toplu_ata).
 //   v1.4.32 — APP_VERSION → V31.190. dashboard.js v1.1.0: MY/FMY siralama tablosu + genel skor.
@@ -1110,7 +1113,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.191';
+const APP_VERSION = 'V31.192';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
