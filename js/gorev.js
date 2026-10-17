@@ -1,7 +1,10 @@
 // ============================================================
-// gorev.js — v1.2.23
+// gorev.js — v1.2.24
 // Son güncelleme: 2026-10-17
 // Değişiklikler:
+//   v1.2.24 — (V31.195) Görev "Yönlendir": kart ve detaya buton, kartta toplu seçim kutusu, liste
+//     üstünde toplu seçim çubuğu (#gorevYonlendirBar). Tüm mantık js/gorev_yonlendir.js içinde;
+//     burada yalnız o dosyanın HTML parçalarını çağıran 4 kanca var.
 //   v1.2.23 — (V31.194) Yetim gorev duzeltmesi: yeni 'gorev_kcm_tumunu_gor' izni olan kullanici
 //     (Satis Muduru / Takim Lideri), tasks.kcm_id uzerinden kendi KCM'indeki TUM gorevleri gorur.
 //     Sahibi 'MY TANIMSIZ' (sanal) kullanici olan musterilerin gorevleri de dahildir. Mevcut
@@ -817,6 +820,8 @@ function renderGorevListesi() {
   const listEl = document.getElementById('gorevListesi');
   if (!listEl) return;
 
+  gorevYonlendirBarGuncelle(); // V31.195: toplu seçim çubuğu
+
   const list = filteredGorevler();
   if (!list.length) {
     listEl.innerHTML = '<div class="empty">Görev bulunamadı.</div>';
@@ -912,6 +917,8 @@ function renderGorevKarti(t) {
   if ((benimatadim || ystRoller.includes(r2)) && !['Tamamlandı','İptal'].includes(t.durum)) {
     aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openGorevEdit(' + t.task_id + ')">✏️</button> ';
   }
+  // V31.195: Yönlendir (yetki + açık görev kontrolü gorev_yonlendir.js içinde)
+  aksiyonlar += gorevYonlendirKartButon(t);
   // Bağlı ziyaret/fırsat butonu
   if (t.visit_id) aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevZiyaretAc(' + t.task_id + ')">📍 Temas Düzenle</button> ';
   if (t.opp_id)   aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openEditOppModal(' + t.opp_id + ')">💼 Fırsat</button> ';
@@ -926,6 +933,7 @@ function renderGorevKarti(t) {
   return '<div class="visit-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid ' + renk + ';' + (gecikti ? 'background:rgba(248,113,113,.05);' : '') + '">' +
     '<div onclick="openGorevDetay(' + t.task_id + ')" style="flex:1;">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+        gorevYonlendirKartCheckbox(t) +
         '<span style="font-size:12px;padding:3px 9px;border-radius:12px;background:' + renk + '22;color:' + renk + ';font-weight:600;">' + escapeHTML(t.durum) + '</span>' +
         '<span style="font-size:12px;color:var(--text3);">' + escapeHTML(tip) + '</span>' +
         (t.onay_tarihi ? '<span style="font-size:11px;color:var(--green);">✓ Onaylandı</span>' : '') +
@@ -1047,6 +1055,8 @@ async function openGorevDetay(taskId) {
     aksiyonHTML += '<button class="btn" style="background:var(--green);color:#04301f;padding:6px 12px;" onclick="gorevOnayla(' + taskId + ');closeModal(\'gorevDetayModal\')">✓ Tamamlandı Onayla</button>';
     aksiyonHTML += '<button class="btn btn-sm" style="padding:6px 12px;background:#000;border:2px solid var(--red);color:var(--red);" onclick="gorevReddet(' + taskId + ');closeModal(\'gorevDetayModal\')">✗ Reddet</button>';
   }
+  // V31.195: Yönlendir
+  aksiyonHTML += gorevYonlendirDetayButon(t);
   // v1.2.6: Admin için görev silme — durum/sahiplik farketmez, her zaman görünür
   const isAdmin = (currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';
   if (isAdmin) {
@@ -1731,4 +1741,4 @@ async function gorevZiyaretKaydedildi(visitId) {
   await loadGorevler();
 }
 
-console.log('Görev modülü yüklendi ✓');
+console.log('Görev modülü yüklendi ✓');

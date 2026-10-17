@@ -3608,6 +3608,7 @@
       </div>
     </div>
     <button class="btn btn-blue" style="width:100%;margin-bottom:14px;" onclick="openYeniGorev()">+ Yeni Görev Oluştur</button>
+    <div id="gorevYonlendirBar"></div>
     <div id="gorevListesi"><div class="loader"><div class="spinner"></div></div></div>
   </div>
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Görev Yönetimi</div>
@@ -3689,6 +3690,15 @@
   </div>
 </div>
 
+<!-- ===== GÖREV YÖNLENDİR MODAL (V31.195, js/gorev_yonlendir.js) ===== -->
+<div class="modal-overlay" id="gorevYonlendirModal" onclick="if(event.target===this)closeModal('gorevYonlendirModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Görevi Yönlendir</div>
+    <div id="gorevYonlendirIcerik" class="scroll" style="max-height:70vh;"></div>
+  </div>
+</div>
+
 <!-- ===== GÖREV FORM MODAL ===== -->
 <div class="modal-overlay" id="gorevFormModal" onclick="if(event.target===this)closeModal('gorevFormModal')">
   <div class="modal">
@@ -3728,7 +3738,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.194"></script>
+<script src="js/config.js?v=v31.195"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3736,13 +3746,15 @@
      ALTYAPI modulu — kendisini cagiran rapor/admin/veriyonetimi/donanim/
      firsat/temas/auth dosyalarindan ONCE yuklenmeli. -->
 <script src="js/denetim.js?v=v31.175"></script>
-<script src="js/yetki.js?v=v31.194"></script>
+<script src="js/yetki.js?v=v31.195"></script>
 <script src="js/veri_kalitesi.js?v=v31.50"></script>
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
 <script src="js/donanim.js?v=v31.171"></script>
 <script src="js/utils.js?v=v31.189"></script>
 <script src="js/auth.js?v=v31.189"></script>
-<script src="js/gorev.js?v=v31.194"></script>
+<script src="js/gorev.js?v=v31.195"></script>
+<!-- gorev_yonlendir.js: Gorev Yonlendir (V31.195). gorev.js ve bildirim.js sonrasi yuklenir. -->
+<script src="js/gorev_yonlendir.js?v=v31.195"></script>
 <script src="js/talep.js?v=v31.34"></script>
 <script src="js/temas.js?v=v31.189"></script>
 <script src="js/arama.js?v=v31.185"></script>
