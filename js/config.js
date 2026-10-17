@@ -1,7 +1,12 @@
 // ============================================================
-// config.js — v1.4.34
-// Son güncelleme: 2026-10-16
+// config.js — v1.4.36
+// Son güncelleme: 2026-10-17
 // Değişiklikler:
+//   v1.4.36 — APP_VERSION → V31.194. gorev.js v1.2.23 + yetki.js v1.3.5: yeni izin
+//     gorev_kcm_tumunu_gor (KCM'deki tum gorevler, tasks.kcm_id). DB: tasks.kcm_id kolonu + indeks +
+//     trg_tasks_kcm_doldur tetikleyicisi. Yetim (sahipsiz portfoy) gorev duzeltmesi, 1. asama.
+//   v1.4.35 — APP_VERSION → V31.193. lead.js v1.11.0: arama ekraninda "Iletisim Bilgisi Ekle"
+//     tusu (Kopyala'nin yaninda); kuyruk kartindaki Iletisim Ekle/Duzenle ile ayni form.
 //   v1.4.34 — APP_VERSION → V31.192. lead.js v1.10.0: Cagri Merkezi kuyruk kartinda
 //     "Sadece iletisimi olanlar" anahtari, bolunmus Ara / Iletisim Ekle-Duzenle tusu,
 //     "musteri aranmak istemiyor" uyarisi.
@@ -1113,7 +1118,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.192';
+const APP_VERSION = 'V31.194';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

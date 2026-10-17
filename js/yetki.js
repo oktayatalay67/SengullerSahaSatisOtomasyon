@@ -1,5 +1,6 @@
 // ============================================================
-// yetki.js — v1.3.4
+// yetki.js — v1.3.5
+//   v1.3.5 — (V31.194) Yeni izin: gorev_kcm_tumunu_gor (kendi KCM'indeki TUM gorevleri gorur). Otomatik atanmadi.
 //   v1.3.4 — (V31.191) Yeni izin: gorev_toplu_ata (Veri Yonetimi > Toplu Gorev). Otomatik atanmadi.
 //   v1.3.3 — (V31.189) Yeni izin: dashboard_gor + dashboard modulu (KCM karsilastirmali Dashboard).
 //     Otomatik atanmadi: Rol&Yetki ekranindan elle verilmeli; yoneticiler icin kapsam TUM, MY/FMY icin KCM.
@@ -109,6 +110,7 @@ const YETKI_ACTION_GRUP = [
       talep_yonet:'Talepleri yönetir',
       yonetici_tam:'Tam yönetici işlemleri (Admin/Direktör)',
       gorev_tumunu_gor:'Tüm görevleri görür',
+      gorev_kcm_tumunu_gor:'Kendi KÇM\'indeki tüm görevleri görür (sahipsiz portföy görevleri dahil) — Satış Müdürü / Takım Lideri',
       veri_yonetimi:'Veri Yönetimi ekranını kullanır (toplu güncelleme/yükleme)',
       gorev_toplu_ata:'Veri Yönetimi > Toplu Görev: Excel ile toplu görev atar ve kendi yüklemesini iptal eder',
       veri_kalite_gor:'Veri Kalitesi Denetim ekranını görüntüler',

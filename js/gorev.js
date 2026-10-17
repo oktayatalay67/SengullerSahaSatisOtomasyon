@@ -1,7 +1,11 @@
 // ============================================================
-// gorev.js — v1.2.22
-// Son güncelleme: 2026-09-28
+// gorev.js — v1.2.23
+// Son güncelleme: 2026-10-17
 // Değişiklikler:
+//   v1.2.23 — (V31.194) Yetim gorev duzeltmesi: yeni 'gorev_kcm_tumunu_gor' izni olan kullanici
+//     (Satis Muduru / Takim Lideri), tasks.kcm_id uzerinden kendi KCM'indeki TUM gorevleri gorur.
+//     Sahibi 'MY TANIMSIZ' (sanal) kullanici olan musterilerin gorevleri de dahildir. Mevcut
+//     gorunurluk kurallari (kendi gorevi, kcmMyIds, kendi musterileri) aynen korunur; yenisi ustune eklenir.
 //   v1.2.22 — (V31.166) Görev kartındaki durum/tip rozetleri okunamayacak kadar
 //     küçüktü (font-size:10px) — 12px'e büyütüldü. Aynı satırdaki "✓ Onaylandı"
 //     ve "⚠ Gecikmiş" etiketleri de görsel tutarlılık için 11px'e büyütüldü.
@@ -360,7 +364,13 @@ async function loadGorevler(silent) {
 
   const SELECT_KOLONLAR =
     'task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,' +
-    'onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,parent_task_id,olusturma_tarihi,guncelleme_tarihi';
+    'onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,parent_task_id,olusturma_tarihi,guncelleme_tarihi,kcm_id';
+
+  // v1.2.23 (V31.194): 'gorev_kcm_tumunu_gor' izni — kendi KCM'indeki tum gorevler (tasks.kcm_id).
+  // 'gorev_tumunu_gor' (kapsamsiz) olan ve KCM kapsami secili olmayan kullanici zaten her seyi
+  // gorur; onun icin bu dal devreye girmez.
+  const _kcmTumGorevAktif = hasPerm('gorev_kcm_tumunu_gor') && !!currentUser.kcm_id &&
+    !(hasPerm('gorev_tumunu_gor') && !_kcmScopeAktif);
 
   // v1.2.11 (V31.48): Sorguyu her sayfa icin yeniden kurar.
   // ÖNEMLİ — eski hali `.order('deadline',{ascending:true}).limit(200)` idi ve iki
@@ -380,6 +390,18 @@ async function loadGorevler(silent) {
       .order('olusturma_tarihi', { ascending: false });
 
     if (teyitTip) q = q.neq('type_id', teyitTip.type_id);
+
+    // v1.2.23 (V31.194): KCM'deki tum gorevler + mevcut kurallarin birlesimi.
+    if (_kcmTumGorevAktif) {
+      const _parcalar = ['kcm_id.eq.' + Number(currentUser.kcm_id), 'atayan_id.eq.' + mid, 'atanan_id.eq.' + mid];
+      if (typeof kcmMyIds !== 'undefined' && kcmMyIds && kcmMyIds.length) {
+        _parcalar.push('atayan_id.in.(' + kcmMyIds.join(',') + ')', 'atanan_id.in.(' + kcmMyIds.join(',') + ')');
+      }
+      if (_ownNcstList && _ownNcstList.length) {
+        _parcalar.push('ncst.in.(' + _ownNcstList.map(n => '"' + String(n).replace(/"/g,'') + '"').join(',') + ')');
+      }
+      return q.or(_parcalar.join(','));
+    }
 
     // v1.2.13: KÇM kapsamı — 'gorev_tumunu_gor' izninden ÖNCE kontrol edilir.
     // Rol ekranında bu modül için kapsam=KÇM seçiliyse, yönetici "tüm görevleri

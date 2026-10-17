@@ -1,5 +1,5 @@
 // ============================================================
-// lead.js — v1.10.0
+// lead.js — v1.11.0
 // Son güncelleme: 2026-10-16
 //
 // ÇAĞRI MERKEZİ / LEAD ARAMALARI
@@ -29,6 +29,12 @@
 //   hasPerm/getScope → js/config.js · yetki katmanı
 //
 // SÜRÜM NOTLARI
+//   v1.11.0 (V31.193) — ARAMA EKRANINDA "➕ İletişim Bilgisi Ekle" (Kopyala'nın
+//           yanında). Agent mevcut numaralardan ulaşamazsa yeni numara ekler.
+//           Kuyruk kartındaki İletişim Ekle/Düzenle ile AYNI form; fark yalnız
+//           dönüş: arama ekranından açılınca anket cevapları/süre sayacı korunur,
+//           kayıttan sonra aynı arama ekranına dönülür ve yeni numara seçili gelir
+//           (leadAramadanKontakAc, window._lduz.donus='arama').
 //   v1.10.0 (V31.192) — KUYRUK KARTI: İLETİŞİM. (1) Filtre satırına "Sadece
 //           iletişimi olanlar" anahtarı (LEAD.sadeceIletisim; sekme değişince
 //           sıfırlanmaz). Açıkken 1000 kayıt çekilip süzülür, ilk 300 gösterilir.
@@ -1916,7 +1922,18 @@ async function leadKontakDuzenleAc(kayitId){
   const kontaklar=(ks||[]).filter(x=>x.aktif!==false);
   const ilk=kontaklar.find(x=>x.telefon&&x.aranmak_istemiyor!==true)||kontaklar[0]||null;
   window._lduz={kayitId:kayitId, ncst:k.ncst, musteri:c||{ncst:k.ncst,unvan:k.unvan},
-                kontaklar:kontaklar, secili:ilk?ilk.contact_id:null};
+                kontaklar:kontaklar, secili:ilk?ilk.contact_id:null, donus:'kuyruk'};
+  _leadKontakDuzenleRender();
+}
+
+/* V31.193 — ARAMA EKRANINDAN açılış. Aynı form, ama arama durumu (A.c: anket
+   cevapları, süre sayacı, kilit) KORUNUR: veritabanından yeniden yüklenmez,
+   kayıttan sonra aynı arama ekranına dönülür. Varsayılan sekme "+ Yeni kontak"
+   (agent yeni numara arıyor). Kontak nesneleri A.kontaklar ile PAYLAŞILIR. */
+function leadAramadanKontakAc(){
+  const A=window._lanket; if(!A||!A.kayit) return;
+  window._lduz={kayitId:A.kayit.kayit_id, ncst:A.kayit.ncst, musteri:A.musteri,
+                kontaklar:(A.kontaklar||[]).slice(), secili:null, donus:'arama'};
   _leadKontakDuzenleRender();
 }
 
@@ -1927,7 +1944,9 @@ function leadKontakDuzenleSec(id){
 }
 
 function leadKontakDuzenleKapat(){
+  const D=window._lduz;
   window._lduz=null;
+  if(D && D.donus==='arama' && window._lanket) return _leadAramaEkraniRender();
   _leadAgentKuyruk();
 }
 
@@ -1974,7 +1993,7 @@ function _leadKontakDuzenleRender(){
       '<div class="field"><label>E-posta</label>'+
         '<input type="email" id="lkdEmail" value="'+v(kn&&kn.email)+'" style="'+_LEAD_INP+'"></div>'+
       '<button class="btn" style="width:100%;background:var(--green);color:#04301f;" onclick="leadKontakDuzenleKaydet()">💾 '+
-        (yeni?'Kaydet ve Aramaya Geç':'Kaydet')+'</button>'+
+        ((yeni && D.donus!=='arama')?'Kaydet ve Aramaya Geç':'Kaydet')+'</button>'+
       '<button class="btn-iptal" style="margin-top:8px;" onclick="leadKontakDuzenleKapat()">✕ Vazgeç</button>'+
     '</div>';
 }
@@ -1996,6 +2015,13 @@ async function leadKontakDuzenleKaydet(){
     await addLog('contacts', kn.contact_id, 'Kontak Düzenlendi (Lead)', D.ncst+' — '+ad);
     toast('Kontak güncellendi','success');
     window._lduz=null;
+    if(D.donus==='arama' && window._lanket){
+      // kn nesnesi A.kontaklar ile paylaşıldığı için ekrandaki bilgi de güncellenir
+      Object.assign(kn, alanlar);
+      const A=window._lanket;
+      if(A.kontak && String(A.kontak.contact_id)===String(kn.contact_id)){ A.kontak=kn; A.telefon=tel; }
+      return _leadAramaEkraniRender();
+    }
     return _leadAgentKuyruk();
   }
 
@@ -2007,7 +2033,15 @@ async function leadKontakDuzenleKaydet(){
   toast('Kontak kaydedildi','success');
   const kayitId=D.kayitId;
   window._lduz=null;
-  leadKayitAc(kayitId);   // yeni kontak → doğrudan arama ekranı (bugünkü davranış)
+  if(D.donus==='arama' && window._lanket){
+    // arama ekranından: durum korunur, yeni numara seçili gelir
+    const A=window._lanket;
+    const yeniKontak=Object.assign({contact_id:yeni.contact_id, ncst:D.ncst, aranmak_istemiyor:false, aktif:true}, alanlar);
+    A.kontaklar=(A.kontaklar||[]).concat([yeniKontak]);
+    A.kontak=yeniKontak; A.telefon=tel;
+    return _leadAramaEkraniRender();
+  }
+  leadKayitAc(kayitId);   // kuyruktan: yeni kontak → doğrudan arama ekranı (bugünkü davranış)
 }
 
 /* ============================================================
@@ -2185,7 +2219,13 @@ function _leadAramaEkraniRender(){
         escapeHTML((A.kontak&&A.kontak.ad_soyad)||'Kontak')+
         ((A.kontak&&A.kontak.gorev_unvani)?' · '+escapeHTML(A.kontak.gorev_unvani):'')+'</div>'+
       '<div style="font-size:24px;font-weight:800;letter-spacing:1px;color:var(--text);">'+escapeHTML(telGosterim||'—')+'</div>'+
-      '<button class="btn btn-sm btn-ghost" style="width:auto;padding:6px 14px;margin-top:8px;" onclick="leadTelKopyala()">📋 Kopyala</button>'+
+      // V31.193 (Oktay): agent mevcut numaralardan ulasamazsa yeni numara bulup
+      // buradan ekleyebilsin. Kuyruk kartindaki "Iletisim Ekle/Duzenle" ile AYNI form.
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px;">'+
+        '<button class="btn btn-sm btn-ghost" style="width:auto;padding:6px 14px;margin-top:0;" onclick="leadTelKopyala()">📋 Kopyala</button>'+
+        '<button class="btn btn-sm" style="width:auto;padding:6px 14px;margin-top:0;background:var(--blue);border:1.5px solid var(--blue);color:#fff;" '+
+          'onclick="leadAramadanKontakAc()">➕ İletişim Bilgisi Ekle</button>'+
+      '</div>'+
       (A.kontaklar&&A.kontaklar.length>1
         ? '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center;">'+
           A.kontaklar.filter(x=>x.telefon).map((x,i)=>
@@ -3049,4 +3089,4 @@ async function _leadAgentPanoHTML(){
   }catch(e){ return ''; }
 }
 
-// v1.10.0 lead loaded (kuyruk karti: iletisim anahtari + bolunmus Ara/Duzenle tusu)
+// v1.11.0 lead loaded (arama ekraninda iletisim bilgisi ekle)
