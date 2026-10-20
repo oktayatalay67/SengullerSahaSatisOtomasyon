@@ -1,7 +1,10 @@
 // ============================================================
-// dashboard.js — v1.2.0
+// dashboard.js — v1.2.1
 // Son guncelleme: 2026-10-20
 // Degisiklikler:
+//   v1.2.1 — (V31.197) HATA DUZELTME: yer tutucu (sanal) kullanici listesi dashboard'a hic ulasmiyordu
+//     (window.sanalMyIds yok; auth.js te `let sanalMyIds` global ama window ozelligi degil). Bu yuzden
+//     Global portfoy (~135 bin musteri) odak portfoy paydasina giriyordu. Artik dogrudan sanalMyIds kullanilir.
 //   v1.2.0 — (V31.196) PORTFOY SEGMENTASYONU + AYRILAN MY KURALI.
 //     - Ziyaret = temas turu "Ziyaret" VE "Fiziksel Ziyaret" (ikisi de saha ziyareti).
 //       Onceden yalniz "Ziyaret" sayiliyordu, ~19 bin Fiziksel Ziyaret disarida kaliyordu.
@@ -843,7 +846,8 @@ async function dkmYukle() {
     g.ziyaretTum = sonuclar[3]; g.firsat = sonuclar[4]; tatil = sonuclar[5];
     g.ayrilanIds = (sonuclar[7] || []).map(function (u) { return u.my_id; });
     g.sanalIds = g.kadro.filter(function (u) { return u.is_sanal; }).map(function (u) { return u.my_id; });
-    if (Array.isArray(window.sanalMyIds)) g.sanalIds = g.sanalIds.concat(window.sanalMyIds);
+    // sanalMyIds auth.js te `let` ile tanimli global: window.sanalMyIds YOKTUR (V31.197 duzeltme)
+    g.sanalIds = g.sanalIds.concat(sanalMyIds);
     g.isGunu = dkmIsGunu(bas, hedefBit, tatil.map);
 
     // 2. asama: ziyaret ve firsat sonuclarina bagli yuklemeler

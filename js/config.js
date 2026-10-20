@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.4.38
+// config.js — v1.4.39
 // Son güncelleme: 2026-10-20
 // Değişiklikler:
+//   v1.4.39 — APP_VERSION → V31.197. Dashboard (dashboard.js v1.2.1) hata düzeltme: yer tutucu (sanal) kullanıcı
+//     listesi dashboard'a ulaşmıyordu (window.sanalMyIds yok), Global portföy paydaya giriyordu. Düzeltildi.
 //   v1.4.38 — APP_VERSION → V31.196. Dashboard (dashboard.js v1.2.0): portföy segmentasyonu + ayrılan MY kuralı.
 //     Ziyaret = "Ziyaret" + "Fiziksel Ziyaret". KÇM penetrasyonunda ziyareti yapan müşterinin güncel sahibi olma
 //     şartı kaldırıldı (KÇM kadrosundan herkes; ayrılmış dahil). Odak portföy = aktif MY/FMY + ayrılan MY;
@@ -1126,7 +1128,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.196';
+const APP_VERSION = 'V31.197';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
