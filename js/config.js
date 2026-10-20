@@ -1,7 +1,11 @@
 // ============================================================
-// config.js — v1.4.37
-// Son güncelleme: 2026-10-17
+// config.js — v1.4.38
+// Son güncelleme: 2026-10-20
 // Değişiklikler:
+//   v1.4.38 — APP_VERSION → V31.196. Dashboard (dashboard.js v1.2.0): portföy segmentasyonu + ayrılan MY kuralı.
+//     Ziyaret = "Ziyaret" + "Fiziksel Ziyaret". KÇM penetrasyonunda ziyareti yapan müşterinin güncel sahibi olma
+//     şartı kaldırıldı (KÇM kadrosundan herkes; ayrılmış dahil). Odak portföy = aktif MY/FMY + ayrılan MY;
+//     Global (yer tutucu), sahipsiz ve potansiyeli-yok payda dışı. Yeni satırlar: Ayrılan MY portföyü, Global, Potansiyeli yok.
 //   v1.4.37 — APP_VERSION → V31.195. YENİ: js/gorev_yonlendir.js v1.0.0 — Görev "Yönlendir" (tek + toplu).
 //     Yeni izin gorev_yonlendir (yetki.js v1.3.6, otomatik atanmadi). Not zorunlu; parametrik not sablonlari
 //     gorev_yonlendirme_notlari tablosundan. Kayit mevcut task_logs'a (aksiyon='Yönlendirildi'). Yeni sorumluya
@@ -1122,7 +1126,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.195';
+const APP_VERSION = 'V31.196';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

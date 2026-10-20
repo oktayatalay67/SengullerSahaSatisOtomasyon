@@ -1,7 +1,18 @@
 // ============================================================
-// dashboard.js — v1.1.0
-// Son guncelleme: 2026-10-15
+// dashboard.js — v1.2.0
+// Son guncelleme: 2026-10-20
 // Degisiklikler:
+//   v1.2.0 — (V31.196) PORTFOY SEGMENTASYONU + AYRILAN MY KURALI.
+//     - Ziyaret = temas turu "Ziyaret" VE "Fiziksel Ziyaret" (ikisi de saha ziyareti).
+//       Onceden yalniz "Ziyaret" sayiliyordu, ~19 bin Fiziksel Ziyaret disarida kaliyordu.
+//     - KCM penetrasyonu: musteri, KCM kadrosundan HERKESIN (ayrilmis dahil) gerceklesen
+//       ziyaretini aldiysa temas almis sayilir. Ziyaret kaydi ziyareti yapanda kalir; eski
+//       "ziyareti yapan = musterinin guncel sahibi" sarti KCM gorunumunden kaldirildi.
+//       Kisi (MY/FMY) siralamasi degismedi: yalniz kendi musterisine yaptigi ziyaret.
+//     - Odak portfoy (payda) = sahibi aktif MY/FMY + sahibi ayrilmis MY. Yer tutucu (sanal)
+//       sahipli = Global portfoy -> payda DISI. my_id bos = siniflandirilmamis -> payda disi,
+//       uyari satiri. ziyaret_potansiyeli_yok=true -> payda disi, KCM basina sayisi gorunur.
+//     - Yeni satirlar: Ayrilan MY portfoyu (+ temas alan %), Global portfoy, Potansiyeli yok.
 //   v1.1.0 — (V31.190) MY/FMY SIRALAMASI: KCM tablolarinin altina kisi bazli tablo.
 //     Satir = kisi; basliga tiklayinca siralanir; KCM ve rol filtresi; sutunda en
 //     iyi yesil / en kotu kirmizi. GENEL SKOR sutunu: 4 bolum skorunun agirlikli
@@ -221,6 +232,17 @@ async function _dkmAyarYukle() {
   if (!DKM.ayar.slaGun) DKM.ayar.slaGun = 7;
 }
 
+// Saha ziyareti = bu iki temas turu (ziyaret ziyarettir; Online Toplantı ayri tur)
+const DKM_ZIYARET_TURLERI = ['Ziyaret', 'Fiziksel Ziyaret'];
+
+// Isten ayrilmis (aktif=false) kullanicilar — portfoy segmentasyonu icin (sanal olanlar haric)
+async function _dkmAyrilanYukle() {
+  const satirlar = await _dkmSayfala(function () {
+    return sb.from('users').select('my_id,is_sanal').eq('aktif', false).order('my_id');
+  });
+  return satirlar.filter(function (u) { return !u.is_sanal; });
+}
+
 async function _dkmKadroYukle(k) {
   const satirlar = await _dkmSayfala(function () {
     let q = sb.from('users').select('my_id,ad_soyad,kcm_id,kcm_adi,yetki_seviyesi,is_sanal')
@@ -246,20 +268,20 @@ async function _dkmTatilYukle(bas, bit) {
 
 async function _dkmZiyaretYukle(k, basIso, bitIso) {
   return _dkmTumSatirlar('visits', 'visit_id,ncst,my_id,kcm_id,contact_id,tarih_saat', function (q) {
-    q = q.eq('temas_turu', 'Ziyaret').eq('durum', 'Gerçekleşti').gte('tarih_saat', basIso).lt('tarih_saat', bitIso);
+    q = q.in('temas_turu', DKM_ZIYARET_TURLERI).eq('durum', 'Gerçekleşti').gte('tarih_saat', basIso).lt('tarih_saat', bitIso);
     if (!k.tum) q = q.eq('kcm_id', k.kcmId);
     return q;
   }, 'visit_id');
 }
 
 async function _dkmZiyaretTumYukle() {
-  return _dkmTumSatirlar('visits', 'visit_id,ncst,my_id', function (q) {
-    return q.eq('temas_turu', 'Ziyaret').eq('durum', 'Gerçekleşti');
+  return _dkmTumSatirlar('visits', 'visit_id,ncst,my_id,kcm_id', function (q) {
+    return q.in('temas_turu', DKM_ZIYARET_TURLERI).eq('durum', 'Gerçekleşti');
   }, 'visit_id');
 }
 
 async function _dkmMusteriYukle(k) {
-  return _dkmTumSatirlar('customers', 'ncst,my_id,kcm_id', function (q) {
+  return _dkmTumSatirlar('customers', 'ncst,my_id,kcm_id,ziyaret_potansiyeli_yok', function (q) {
     if (!k.tum) q = q.eq('kcm_id', k.kcmId);
     return q;
   }, 'ncst');
@@ -323,6 +345,7 @@ function _dkmKova(kcmId, kcmAd) {
     // 1) Ziyaret
     kadroMY: 0, kadroFMY: 0, kisiSifir: 0, ziyaret: 0, hedef: 0,
     portfoy: 0, penDonem: 0, penTum: 0, hicZiyaretsiz: 0,
+    ayrilanPortfoy: 0, ayrilanPenDonem: 0, ayrilanPenTum: 0, globalPortfoy: 0, potYok: 0,
     // 2) Firsat
     donemOlusan: 0, donemCiroDolu: 0, donemZiyaretli: 0,
     adimSay: { 'Fırsat': 0, 'Teklif': 0, 'Beyan': 0, 'Evrak': 0 },
@@ -375,7 +398,7 @@ function _dkmHesaplaGrup(g, kisiMod) {
     if (u.yetki_seviyesi === 'FMY') kovalar[kid].kadroFMY++; else kovalar[kid].kadroMY++;
     kadroMap[_dkmAnahtar(u.my_id)] = u;
   });
-  const notlar = { kcmsizZiyaret: 0, kcmUyumsuz: 0, kcmsizMusteri: 0 };
+  const notlar = { kcmsizZiyaret: 0, kcmUyumsuz: 0, kcmsizMusteri: 0, sahipsiz: 0 };
 
   // --- 1) ZIYARET ---
   const ziyaretKisi = {};
@@ -397,7 +420,14 @@ function _dkmHesaplaGrup(g, kisiMod) {
     b.hedef = (b.kadroMY * g.ayar.hedefMY + b.kadroFMY * g.ayar.hedefFMY) * g.isGunu;
   });
 
-  // Penetrasyon ve hic ziyaret edilmeyen: portfoy ici = ziyareti yapan MY musterinin guncel sahibi
+  // Penetrasyon ve hic ziyaret edilmeyen (V31.196):
+  //   Odak portfoy (payda) = sahibi aktif MY/FMY veya AYRILMIS MY olan musteriler.
+  //   Disinda: yer tutucu (sanal) sahipli = Global portfoy; my_id bos = siniflandirilmamis;
+  //   ziyaret_potansiyeli_yok=true. KCM gorunumunde ziyareti kimin yaptigi onemli degil
+  //   (KCM kadrosundan biri dokunduysa temas almis sayilir); kisi gorunumunde yalniz
+  //   musterinin guncel sahibinin kendi ziyareti sayilir.
+  const ayrilan = {};
+  (g.ayrilanIds || []).forEach(function (x) { ayrilan[_dkmAnahtar(x)] = true; });
   const musteriMap = {};
   g.musteri.forEach(function (m) { musteriMap[_dkmAnahtar(m.ncst)] = m; });
   const kimseZiyaretEtmedi = {};
@@ -405,23 +435,35 @@ function _dkmHesaplaGrup(g, kisiMod) {
   const donemSet = {}, tumSet = {};
   g.musteri.forEach(function (m) {
     if (m.kcm_id === null || m.kcm_id === undefined) { if (!kisiMod) notlar.kcmsizMusteri++; return; }
-    if (m.my_id === null || m.my_id === undefined) return;
+    if (m.my_id === null || m.my_id === undefined) { if (!kisiMod) notlar.sahipsiz++; return; }
     const kid = _dkmAnahtar(kisiMod ? m.my_id : m.kcm_id);
     if (!kovalar[kid]) return;
+    if (m.ziyaret_potansiyeli_yok === true) { kovalar[kid].potYok++; return; }
+    if (sanal[_dkmAnahtar(m.my_id)]) { kovalar[kid].globalPortfoy++; return; }
     kovalar[kid].portfoy++;
+    if (ayrilan[_dkmAnahtar(m.my_id)]) kovalar[kid].ayrilanPortfoy++;
     if (!kimseZiyaretEtmedi[_dkmAnahtar(m.ncst)]) kovalar[kid].hicZiyaretsiz++;
   });
   function portfoyIciIsle(liste, set, alan) {
     liste.forEach(function (v) {
       const m = musteriMap[_dkmAnahtar(v.ncst)];
       if (!m || m.kcm_id === null || m.kcm_id === undefined) return;
-      if (_dkmAnahtar(m.my_id) !== _dkmAnahtar(v.my_id)) return;
+      if (m.my_id === null || m.my_id === undefined) return;
+      if (m.ziyaret_potansiyeli_yok === true) return;
+      const sahip = _dkmAnahtar(m.my_id);
+      if (sanal[sahip]) return;
+      if (kisiMod) {
+        if (sahip !== _dkmAnahtar(v.my_id)) return;
+      } else if (v.kcm_id !== null && v.kcm_id !== undefined && _dkmAnahtar(v.kcm_id) !== _dkmAnahtar(m.kcm_id)) {
+        return;   // baska KCM nin kadrosu dokunmus: bu KCM nin temasi degil
+      }
       const kid = _dkmAnahtar(kisiMod ? m.my_id : m.kcm_id);
       if (!kovalar[kid]) return;
       const anahtar = kid + '|' + _dkmAnahtar(v.ncst);
       if (set[anahtar]) return;
       set[anahtar] = true;
       kovalar[kid][alan]++;
+      if (!kisiMod && ayrilan[sahip]) kovalar[kid][alan === 'penDonem' ? 'ayrilanPenDonem' : 'ayrilanPenTum']++;
     });
   }
   portfoyIciIsle(ziyaretler, donemSet, 'penDonem');
@@ -585,7 +627,12 @@ const DKM_BOLUMLER = [
     { e: 'Hedef', v: function (b) { return b.hedef; }, f: function (x) { return _dkmFmt(x, 0); } },
     { e: 'Hedef gerçekleşme', v: function (b) { return _dkmOran(b.ziyaret, b.hedef); }, f: _dkmPct, iyi: 'yuksek', bar: true },
     { e: 'Ziyaret girmeyen kişi', v: function (b) { return b.kisiSifir; }, f: function (x, b) { return _dkmFmt(x, 0) + ' / ' + _dkmKisi(b); }, iyi: 'dusuk' },
-    { e: 'Portföy müşteri', v: function (b) { return b.portfoy; }, f: function (x) { return _dkmFmt(x, 0); } },
+    { e: 'Odak portföy müşteri (MY/FMY + ayrılan MY)', v: function (b) { return b.portfoy; }, f: function (x) { return _dkmFmt(x, 0); } },
+    { e: 'Ayrılan MY portföyü', v: function (b) { return b.ayrilanPortfoy; }, f: function (x, b) { return _dkmFmt(x, 0) + ' (' + _dkmPct(_dkmOran(x, b.portfoy)) + ')'; } },
+    { e: 'Ayrılan MY portföyü: temas alan (dönem)', v: function (b) { return _dkmOran(b.ayrilanPenDonem, b.ayrilanPortfoy); }, f: function (x, b) { return _dkmPct(x) + ' (' + b.ayrilanPenDonem + '/' + b.ayrilanPortfoy + ')'; }, iyi: 'yuksek' },
+    { e: 'Ayrılan MY portföyü: temas alan (tüm zamanlar)', v: function (b) { return _dkmOran(b.ayrilanPenTum, b.ayrilanPortfoy); }, f: function (x, b) { return _dkmPct(x) + ' (' + b.ayrilanPenTum + '/' + b.ayrilanPortfoy + ')'; }, iyi: 'yuksek' },
+    { e: 'Portföy dışı: Global yönetim', v: function (b) { return b.globalPortfoy; }, f: function (x) { return _dkmFmt(x, 0); } },
+    { e: 'Potansiyeli yok işaretli (payda dışı)', v: function (b) { return b.potYok; }, f: function (x, b) { return _dkmFmt(x, 0) + ' (' + _dkmPct(_dkmOran(x, b.portfoy + x)) + ')'; }, iyi: 'dusuk' },
     { e: 'Penetrasyon (dönem)', v: function (b) { return _dkmOran(b.penDonem, b.portfoy); }, f: _dkmPct, iyi: 'yuksek', bar: true },
     { e: 'Penetrasyon (tüm zamanlar)', v: function (b) { return _dkmOran(b.penTum, b.portfoy); }, f: _dkmPct, iyi: 'yuksek', bar: true },
     { e: 'Hiç ziyaret edilmeyen müşteri', v: function (b) { return _dkmOran(b.hicZiyaretsiz, b.portfoy); }, f: function (x, b) { return _dkmFmt(b.hicZiyaretsiz, 0) + ' (' + _dkmPct(x) + ')'; }, iyi: 'dusuk' }
@@ -644,10 +691,11 @@ const DKM_KISI_SUTUN = [
 
 const DKM_TANIMLAR = [
   ['Genel skor (kişi)', 'Dört bölüm skorunun ağırlıklı ortalaması (0-100). Ziyaret: hedef gerçekleşme (en çok 100). Fırsat: dönemde açtığı fırsatın listedeki en yüksek değere oranı ile (100 - dokunulmamış %) ortalaması. Teyit: ziyaret teyit "Evet" % ile numara doğruluğunun ortalaması. Temiz veri: kontak puanı. Verisi olmayan bölüm atlanır, ağırlıklar kalanlara oranlanır. Ağırlıklar Admin Panel > Dashboard Ayarları\'ndan değişir. Evrak aşaması skora girmez.'],
-  ['Kişi bazı', 'Ziyaret ve teyit ziyareti giren kişiye, fırsat fırsatı açan kişiye, portföy müşterinin güncel MY sine göre hesaplanır.'],
-  ['Ziyaret', 'Temas türü "Ziyaret", durumu "Gerçekleşti", sanal kullanıcılar hariç. KÇM = ziyaret kaydındaki KÇM.'],
+  ['Kişi bazı', 'Ziyaret ve teyit ziyareti giren kişiye, fırsat fırsatı açan kişiye, portföy müşterinin güncel MY sine göre hesaplanır. Kişi penetrasyonunda yalnız o MY nin kendi müşterisine yaptığı ziyaret sayılır.'],
+  ['Ziyaret', 'Temas türü "Ziyaret" veya "Fiziksel Ziyaret", durumu "Gerçekleşti", sanal kullanıcılar hariç. Ayrılmış MY nin ziyaretleri de sayılır. KÇM = ziyaret kaydındaki KÇM.'],
   ['Hedef', '(MY sayısı x MY günlük hedefi + FMY sayısı x FMY günlük hedefi) x iş günü. İş günü: hafta sonu ve resmi tatil hariç, yarım gün 0,5. Dönem bugünü aşıyorsa bugüne kadar sayılır. Tüm aktif MY/FMY kadrosu dahildir.'],
-  ['Penetrasyon', 'Portföy içi ziyaret edilen tekil müşteri / portföy müşteri sayısı. Portföy içi: ziyareti yapan MY, müşterinin güncel sahibi olmalı.'],
+  ['Odak portföy', 'Sahibi aktif MY/FMY veya işten ayrılmış MY olan müşteriler. Dışarıda: Global yönetim (yer tutucu sahip), sahibi boş (sınıflandırılmamış) ve "ziyaret potansiyeli yok" işaretli müşteriler. Bu müşterilere yapılan ziyaretler ziyaret sayısında yine görünür.'],
+  ['Penetrasyon', 'Odak portföyde, KÇM kadrosundan (ayrılmış dahil) biri tarafından en az bir kez ziyaret edilen tekil müşteri / odak portföy müşteri sayısı. Ziyareti kimin yaptığı önemli değil, ziyaret kaydı yapanın adıyla kalır. Hedef %100.'],
   ['Açık pipeline', 'Fırsat, Teklif ve Beyan aşamaları. Evrak aşaması onay/süreç bekleyen kabul edilir, yaş ve dokunulmamış hesabına girmez, ayrı gösterilir.'],
   ['Evrak bekleme', 'Giriş tarihi: ilk "Evrak" kaydı (fırsat geçmişi); kayıt yoksa oluşturma tarihi.'],
   ['Dokunulmamış', 'Son 14 günde güncelleme, not veya aşama değişikliği olmayan açık fırsat.'],
@@ -768,6 +816,7 @@ async function dkmYukle() {
   const g = {
     kadro: [], ziyaret: [], ziyaretTum: [], musteri: [], firsat: [], evrakLog: {},
     gorevler: [], aramalar: [], kontaklar: [], sanalIds: [],
+    ayrilanIds: [],
     ayar: DKM.ayar, isGunu: 0, simdi: new Date(),
     basMs: new Date(basIso).getTime(), bitMs: new Date(bitIso).getTime(),
     kontakKontrol: dkmKontakKontrol
@@ -786,11 +835,13 @@ async function dkmYukle() {
       _dkmFirsatYukle(kap).catch(function (e) { hatalar.firsat = e; return []; }),
       _dkmTatilYukle(bas, hedefBit).catch(function (e) { hatalar.tatil = e; return { map: {}, takvimSonu: null }; }),
       (typeof loadVeriKalitesiAyar === 'function' && !(window.VKAYAR && (window.VKAYAR.kontak_tipleri || []).length))
-        ? loadVeriKalitesiAyar().catch(function () { return false; }) : Promise.resolve(true)
+        ? loadVeriKalitesiAyar().catch(function () { return false; }) : Promise.resolve(true),
+      _dkmAyrilanYukle().catch(function (e) { hatalar.ayrilan = e; return []; })
     ]);
     if (istek !== DKM.istek) return;   // arada baska bir istek baslatildi
     g.kadro = sonuclar[0]; g.ziyaret = sonuclar[1]; g.musteri = sonuclar[2];
     g.ziyaretTum = sonuclar[3]; g.firsat = sonuclar[4]; tatil = sonuclar[5];
+    g.ayrilanIds = (sonuclar[7] || []).map(function (u) { return u.my_id; });
     g.sanalIds = g.kadro.filter(function (u) { return u.is_sanal; }).map(function (u) { return u.my_id; });
     if (Array.isArray(window.sanalMyIds)) g.sanalIds = g.sanalIds.concat(window.sanalMyIds);
     g.isGunu = dkmIsGunu(bas, hedefBit, tatil.map);
@@ -845,9 +896,10 @@ function _dkmCiz(sonuc, kap, ctx) {
   if (sonuc.notlar.kcmsizZiyaret > 0) uyar.push('KÇM bilgisi boş ' + sonuc.notlar.kcmsizZiyaret + ' ziyaret karşılaştırmaya dahil edilmedi.');
   if (sonuc.notlar.kcmUyumsuz > 0) uyar.push(sonuc.notlar.kcmUyumsuz + ' ziyaret, ziyareti giren kişinin kadrosundan farklı bir KÇM ye yazılmış (müşterinin KÇM si esas alındı).');
   if (sonuc.notlar.kcmsizMusteri > 0) uyar.push('KÇM bilgisi boş ' + sonuc.notlar.kcmsizMusteri + ' müşteri portföy hesabına girmiyor.');
+  if (sonuc.notlar.sahipsiz > 0) uyar.push('Sınıflandırılmamış (sahibi boş) ' + sonuc.notlar.sahipsiz + ' müşteri hiçbir portföye sayılmıyor. Veri Yönetimi\'nden bir MY\'ye veya Global (yer tutucu) sahibine atayın.');
   html += '<div class="dkm-not">' + uyar.map(escapeHTML).join('<br>') + '</div>';
 
-  const hataAd = { kadro: 'Kadro', ziyaret: 'Ziyaret', musteri: 'Müşteri', ziyaretTum: 'Tüm zamanlar ziyaret', firsat: 'Fırsat', tatil: 'Resmi tatil takvimi', evrakLog: 'Evrak geçmişi', teyit: 'Teyit', teyitTip: 'Teyit görev tipi', kontak: 'Kontak' };
+  const hataAd = { kadro: 'Kadro', ziyaret: 'Ziyaret', musteri: 'Müşteri', ziyaretTum: 'Tüm zamanlar ziyaret', firsat: 'Fırsat', tatil: 'Resmi tatil takvimi', evrakLog: 'Evrak geçmişi', teyit: 'Teyit', teyitTip: 'Teyit görev tipi', kontak: 'Kontak', ayrilan: 'Ayrılan personel listesi' };
   const hk = Object.keys(ctx.hatalar);
   if (hk.length) {
     html += '<div class="dkm-hata"><b>Bazı veriler yüklenemedi, ilgili göstergeler eksik veya hatalı olabilir:</b><br>' +
