@@ -1,7 +1,10 @@
 // ============================================================
-// config.js — v1.4.41
-// Son güncelleme: 2026-10-20
+// config.js — v1.4.42
+// Son güncelleme: 2026-10-21
 // Değişiklikler:
+//   v1.4.42 — APP_VERSION → V31.200. VERİTABANI YÜKÜ: temas.js v2.10.53 Temas Dashboard 5 dk önbellek
+//     (navTo/goBack önbellekten; kayıt ve filtre tıklaması yeniden hesaplar); musteri.js v1.2.3 müşteri
+//     arama 3 harf + 500 ms. pg_stat_statements: en ağır 4 sorgunun kaynağı bunlardı.
 //   v1.4.41 — APP_VERSION → V31.199. YENİ js/surum.js v1.0.0 + version.json: kullanıcı sürüm takibi
 //     (tablo kullanici_surum), Admin Panel > Kullanıcı Sürümleri, 15 dk'da bir statik version.json
 //     kontrolü ile "Yeni sürüm var" bandı. auth.js initApp'ten surumKontrolBaslat(); admin.js yeni sekme.
@@ -1134,7 +1137,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.199';
+const APP_VERSION = 'V31.200';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,7 +1,10 @@
 // ============================================================
-// musteri.js — v1.2.2
-// Son güncelleme: 2026-10-08
+// musteri.js — v1.2.3
+// Son güncelleme: 2026-10-21
 // Değişiklikler:
+//   v1.2.3 — (V31.200) VERITABANI YUKU: musteri arama en az 3 harfle baslar (eskiden 2) ve 500 ms
+//     bekler (eskiden 300). Arama her harfte customers tablosunu ilike ile tarıyordu (günde ~18 bin
+//     sorgu, ort. 270 ms). Hem searchMusteri (ortak) hem onMusteriSearch icin.
 //   v1.2.2 — (V31.170) BUG: Müşteri ekranına ilk girişte, varsayılan liste
 //            yüklenirken bir müşteri seçilirse, geç biten loadMusteriDefault
 //            listeyi seçili kartın ALTINA geri yazıyordu (ikinci girişte veri
@@ -64,7 +67,7 @@ async function searchMusteri(val, opts){
   const r = document.getElementById(opts.resultsId);
   if(!r) return;
   const prompt = opts.promptId ? document.getElementById(opts.promptId) : null;
-  if(val.length < 2){
+  if(val.length < 3){
     opts.useShowClass ? r.classList.remove('show') : (r.style.display='none');
     if(prompt) prompt.classList.add('hide');
     return;
@@ -104,7 +107,7 @@ async function searchMusteri(val, opts){
       r.appendChild(div);
     });
     opts.useShowClass ? r.classList.add('show') : (r.style.display='');
-  }, 300);
+  }, 500);
 }
 
 function searchPrMusteri(val){ searchMusteri(val,{timerId:'pr',resultsId:'prMusteriResults',onSelect:c=>selectPrMusteri(c.ncst,c.unvan||c.ncst)}); }
@@ -855,7 +858,7 @@ async function loadMoreMusteri(){
 async function onMusteriSearch(val){
   clearTimeout(musteriSearchTimer);
   const r = document.getElementById('musteriSearchResults');
-  if(val.length < 2){
+  if(val.length < 3){
     r.classList.remove('show');
     musteriPage=0; musteriAllLoaded=false;
     await loadMusteriDefault();
@@ -878,7 +881,7 @@ async function onMusteriSearch(val){
       <div class="search-item" onclick='selectMusteri(${JSON.stringify(c.ncst)})'>${escapeHTML(c.unvan)}<span style="font-size:11px;color:var(--text2);margin-left:8px;">${c.ncst}</span></div>
     `).join('');
     r.classList.add('show');
-  }, 300);
+  }, 500);
 }
 
 async function selectMusteri(ncst){

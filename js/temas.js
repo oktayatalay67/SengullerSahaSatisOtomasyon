@@ -1,5 +1,11 @@
 // ============================================================
-// temas.js — v2.10.52
+// temas.js — v2.10.53
+//   v2.10.53 — V31.200: VERITABANI YUKU. Temas Dashboard her Temas menusune girisde/geri donuste
+//     (utils.js navTo + goBack) ve her filtre degisiminde bastan hesaplaniyordu: tum ziyaretler
+//     1000'erlik sayfalarla + portfoy sayimi + ziyaret edilen musteriler 500'luk parcalarla (onlarca
+//     sorgu). Simdi sonuc 5 dakika onbellekte tutulur (anahtar: kullanici + zaman filtresi + gun +
+//     KCM/takim/MY filtreleri). Navigasyon (navTo/goBack) onbellekten calisir; kayit/guncelleme ve
+//     kullanicinin kendi filtre tiklamasi (loadTemasDashboardDebounced) HER ZAMAN yeniden hesaplar.
 //   v2.10.52 — V31.188: ZIYARET FORMUNDAN ACILAN FIRSAT ARTIK activity_logs YAZIYOR.
 //     Onceden saveTemas icindeki opportunities.insert sonrasi firsat icin log
 //     yazilmiyordu (yalnizca visits logu vardi); bu yolla giren firsatlarin zaman
@@ -1726,12 +1732,29 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
 let _temasDashboardGen = 0;
 let _temasDashboardTimer = null;
 
-function loadTemasDashboardDebounced(){
-  clearTimeout(_temasDashboardTimer);
-  _temasDashboardTimer = setTimeout(()=>loadTemasDashboard(), 150);
+// V31.200: Dashboard onbellegi. Rakamlar DOM'da kalir; gecerli onbellek varsa yalniz liste tazelenir.
+var _temasDashCache = { anahtar: null, zaman: 0 };
+var TEMAS_DASH_TTL_MS = 5 * 60 * 1000;
+function temasDashboardCacheSifirla(){ _temasDashCache.anahtar = null; }
+function _temasDashAnahtar(){
+  const v = function(id){ return document.getElementById(id)?.value || ''; };
+  return [currentUser.my_id, listTimeFilter || 'tumu', trDateStr(new Date()),
+          v('temasMyFilter'), v('temasKcmTakimFilter'), v('temasKcmFilter')].join('|');
 }
 
-async function loadTemasDashboard(){
+// Kullanici eylemi (kayit, filtre tiklamasi) sonrasi: HER ZAMAN yeniden hesapla.
+function loadTemasDashboardDebounced(){
+  clearTimeout(_temasDashboardTimer);
+  _temasDashboardTimer = setTimeout(()=>loadTemasDashboard(true), 150);
+}
+
+async function loadTemasDashboard(zorla){
+  const anahtar = _temasDashAnahtar();
+  if(zorla !== true && _temasDashCache.anahtar === anahtar && Date.now() - _temasDashCache.zaman < TEMAS_DASH_TTL_MS){
+    renderTemasList();   // rakamlar onbellekten (ekranda duruyor); liste kendi hafif sorgusunu yapar
+    return;
+  }
+  _temasDashCache.anahtar = null;   // hesap bitene kadar onbellek gecersiz
   const myGen = ++_temasDashboardGen;
 
   const setCard=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
@@ -2055,6 +2078,7 @@ async function loadTemasDashboard(){
       setCard('tmsRatioFMY',    '—');
     }
 
+    if(myGen===_temasDashboardGen){ _temasDashCache.anahtar = anahtar; _temasDashCache.zaman = Date.now(); }
   }catch(err){console.error(err);toast('Ozet yuklenemedi','error');}
 }
 
@@ -2617,6 +2641,7 @@ async function updateVisit(){
     await addLog('visits',window.currentEditingVisitId,'Güncellendi','Temas düzenlendi');
     toast('Temas güncellendi','success');
     closeModal('editVisitModal');
+    temasDashboardCacheSifirla();   // V31.200: duzenleme rakamlari degistirebilir
     renderTemasList();
   }
 }
