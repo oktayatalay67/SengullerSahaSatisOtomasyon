@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.4.42
+// config.js — v1.4.43
 // Son güncelleme: 2026-10-21
 // Değişiklikler:
+//   v1.4.43 — APP_VERSION → V31.201. gorev.js v1.2.26 + YENİ js/gorev_tamamla.js v1.0.0: "Tamamla" artık Temas/ziyaret
+//     planlama formunu açmaz; görev tipinin alanları varsa "Görevi Tamamla" penceresinde gösterilir, yoksa direkt tamamlanır.
 //   v1.4.42 — APP_VERSION → V31.200. VERİTABANI YÜKÜ: temas.js v2.10.53 Temas Dashboard 5 dk önbellek
 //     (navTo/goBack önbellekten; kayıt ve filtre tıklaması yeniden hesaplar); musteri.js v1.2.3 müşteri
 //     arama 3 harf + 500 ms. pg_stat_statements: en ağır 4 sorgunun kaynağı bunlardı.
@@ -1137,7 +1139,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.200';
+const APP_VERSION = 'V31.201';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -3321,6 +3321,32 @@
   </div>
 </div>
 
+<!-- ===== GÖREVİ TAMAMLA MODAL (V31.201, js/gorev_tamamla.js) — oppModal'ın ÜSTÜNDE kalması için ondan ÖNCE tanımlı ===== -->
+<div class="modal-overlay" id="gorevTamamlaModal" onclick="if(event.target===this)gtKapat()">
+  <div class="modal" style="max-height:90vh;">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="gtBaslik">Görevi Tamamla</div>
+    <div id="gtBilgi" style="font-size:13px;margin-bottom:10px;"></div>
+    <div class="scroll" style="max-height:60vh;">
+      <div id="gtSoruAlani"></div>
+      <div id="gtSonucAlani"></div>
+      <div id="gtFirsatBlok" style="display:none;margin-bottom:10px;">
+        <div class="form-section-title" style="margin-bottom:8px;">💼 Fırsat</div>
+        <div id="gtFirsatListe"></div>
+        <button class="btn btn-ghost" style="width:100%;" onclick="gtFirsatAc()">➕ Fırsat Ekle</button>
+      </div>
+      <div class="field">
+        <label>Not</label>
+        <textarea id="gtNot" placeholder="Ek notlar..."></textarea>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0 0;">
+      <button class="btn-iptal" onclick="gtKapat()">✕ İptal</button>
+      <button class="btn-kaydet" id="gtKaydetBtn" onclick="gtKaydet()">✓ Tamamla</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== FIRSAT MODAL (oppModal) ===== -->
 <div class="modal-overlay" id="oppModal" onclick="if(event.target===this)closeModal('oppModal')">
   <div class="modal" style="max-height:90vh;">
@@ -3744,7 +3770,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.200"></script>
+<script src="js/config.js?v=v31.201"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3758,7 +3784,9 @@
 <script src="js/donanim.js?v=v31.171"></script>
 <script src="js/utils.js?v=v31.189"></script>
 <script src="js/auth.js?v=v31.199"></script>
-<script src="js/gorev.js?v=v31.199"></script>
+<script src="js/gorev.js?v=v31.201"></script>
+<!-- gorev_tamamla.js: Gorevi Tamamla penceresi (V31.201). gorev.js ve temas.js fonksiyonlarini calisma aninda kullanir. -->
+<script src="js/gorev_tamamla.js?v=v31.201"></script>
 <!-- gorev_yonlendir.js: Gorev Yonlendir (V31.195). gorev.js ve bildirim.js sonrasi yuklenir. -->
 <script src="js/gorev_yonlendir.js?v=v31.195"></script>
 <!-- surum.js: Surum takibi + eski surum uyarisi (V31.199). auth.js ve admin.js tarafindan cagrilir. -->

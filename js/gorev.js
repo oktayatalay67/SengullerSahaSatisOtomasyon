@@ -1,7 +1,11 @@
 // ============================================================
-// gorev.js — v1.2.25
-// Son güncelleme: 2026-10-20
+// gorev.js — v1.2.26
+// Son güncelleme: 2026-10-21
 // Değişiklikler:
+//   v1.2.26 — (V31.201) "Tamamla" (liste) ve "Tamamlandı" (detay) ARTIK Temas/ziyaret planlama formunu
+//     açmıyor, ziyaret kaydı da oluşturmuyor: gorevDurumGuncelle('Tamamlandı') js/gorev_tamamla.js'teki
+//     gorevTamamlaPencereAc'a yönlendirildi (alan yoksa direkt tamamlar, varsa alanları pencerede gösterir).
+//     _gorevTamamlaFormAkisi artık çağrılmıyor (kodda kaldı).
 //   v1.2.25 — (V31.198) VERITABANI YUKU: otomatik yenileme zamanlayicisi duzeltildi. Eskiden Gorev
 //     sayfasi bir kez acilinca HER 60 SANIYEDE tam yenileme calisiyordu (tum gorevler + gorevlerdeki
 //     tum kullanici/musteriler 200'luk parcalarla = yenileme basina onlarca istek) ve sayfadan cikilsa,
@@ -1420,9 +1424,11 @@ async function gorevDurumGuncelle(taskId, yeniDurum) {
   // geçiyor (bkz. gorevZiyaretKaydedildi). Formsuz görevlerde (bağlı form yok/'genel')
   // veya form açılamayan durumlarda (müşteri yok, portföy dışı vb.) eskisi gibi
   // direkt tamamlanmaya devam eder — _gorevTamamlaFormAkisi false döner.
+  // V31.201: Tamamla ARTIK Temas formu açmaz — görev tipine ait alanlar (varsa) küçük
+  // "Görevi Tamamla" penceresinde gösterilir (js/gorev_tamamla.js).
   if (yeniDurum === 'Tamamlandı') {
-    const formAcildi = await _gorevTamamlaFormAkisi(taskId);
-    if (formAcildi) return; // form açıldı — durum güncellemesi form kaydedilince yapılacak
+    await gorevTamamlaPencereAc(taskId);
+    return;
   }
 
   const { error } = await sb.from('tasks')
