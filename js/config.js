@@ -1,7 +1,13 @@
 // ============================================================
-// config.js — v1.4.39
+// config.js — v1.4.41
 // Son güncelleme: 2026-10-20
 // Değişiklikler:
+//   v1.4.41 — APP_VERSION → V31.199. YENİ js/surum.js v1.0.0 + version.json: kullanıcı sürüm takibi
+//     (tablo kullanici_surum), Admin Panel > Kullanıcı Sürümleri, 15 dk'da bir statik version.json
+//     kontrolü ile "Yeni sürüm var" bandı. auth.js initApp'ten surumKontrolBaslat(); admin.js yeni sekme.
+//     NOT: Her teslimatta version.json, APP_VERSION ile birlikte güncellenmelidir.
+//   v1.4.40 — APP_VERSION → V31.198. gorev.js v1.2.25: Görev otomatik yenilemesi 60 sn tam yenilemeden
+//     5 dk hafif-kontrol + gerekirse yenileme düzenine alındı; sekme/sayfa görünmüyorsa istek yok (veritabanı Disk IO yükü).
 //   v1.4.39 — APP_VERSION → V31.197. Dashboard (dashboard.js v1.2.1) hata düzeltme: yer tutucu (sanal) kullanıcı
 //     listesi dashboard'a ulaşmıyordu (window.sanalMyIds yok), Global portföy paydaya giriyordu. Düzeltildi.
 //   v1.4.38 — APP_VERSION → V31.196. Dashboard (dashboard.js v1.2.0): portföy segmentasyonu + ayrılan MY kuralı.
@@ -1128,7 +1134,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.197';
+const APP_VERSION = 'V31.199';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

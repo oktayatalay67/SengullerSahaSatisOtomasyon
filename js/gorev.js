@@ -1,7 +1,13 @@
 // ============================================================
-// gorev.js — v1.2.24
-// Son güncelleme: 2026-10-17
+// gorev.js — v1.2.25
+// Son güncelleme: 2026-10-20
 // Değişiklikler:
+//   v1.2.25 — (V31.198) VERITABANI YUKU: otomatik yenileme zamanlayicisi duzeltildi. Eskiden Gorev
+//     sayfasi bir kez acilinca HER 60 SANIYEDE tam yenileme calisiyordu (tum gorevler + gorevlerdeki
+//     tum kullanici/musteriler 200'luk parcalarla = yenileme basina onlarca istek) ve sayfadan cikilsa,
+//     sekme arka planda kalsa bile durmuyordu. Simdi: 5 dakikada bir tur; sekme gorunmuyorsa veya
+//     Gorev sayfasi acik degilse HICBIR istek yok; once tek hafif kontrol (en son guncelleme tarihi),
+//     degisiklik varsa tam yenileme; degisiklik olmasa da her 3. turda (15 dk) tam yenileme (emniyet).
 //   v1.2.24 — (V31.195) Görev "Yönlendir": kart ve detaya buton, kartta toplu seçim kutusu, liste
 //     üstünde toplu seçim çubuğu (#gorevYonlendirBar). Tüm mantık js/gorev_yonlendir.js içinde;
 //     burada yalnız o dosyanın HTML parçalarını çağıran 4 kanca var.
@@ -201,11 +207,28 @@ async function initGorevModulu() {
   startGorevTimer();
 }
 
+var GOREV_YENILE_MS = 5 * 60 * 1000;   // tur araligi
+var GOREV_TAM_YENILE_TUR = 3;          // her 3. turda degisiklik olmasa da tam yenile (emniyet)
+
 function startGorevTimer() {
   if (GOREV.timer) clearInterval(GOREV.timer);
-  GOREV.timer = setInterval(function() {
-    loadGorevler(true); // sessiz yenile
-  }, 60000);
+  GOREV.tur = 0;
+  GOREV.sonGuncelleme = undefined;
+  GOREV.timer = setInterval(gorevZamanlayiciTur, GOREV_YENILE_MS);
+}
+
+async function gorevZamanlayiciTur() {
+  const sayfa = document.getElementById('pageGorev');
+  if (document.hidden || !sayfa || !sayfa.classList.contains('active')) return;   // gorunmuyorsa istek yok
+  GOREV.tur++;
+  // Tek hafif kontrol: tablodaki en son guncelleme tarihi (NULL'lar DESC sirada basa gelir, elenir)
+  const { data, error } = await sb.from('tasks').select('guncelleme_tarihi')
+    .not('guncelleme_tarihi', 'is', null).order('guncelleme_tarihi', { ascending: false }).limit(1);
+  if (error) return;
+  const son = (data && data.length) ? data[0].guncelleme_tarihi : null;
+  const degisti = son !== GOREV.sonGuncelleme;
+  GOREV.sonGuncelleme = son;
+  if (degisti || GOREV.tur % GOREV_TAM_YENILE_TUR === 0) loadGorevler(true); // sessiz yenile
 }
 
 // ============================================================

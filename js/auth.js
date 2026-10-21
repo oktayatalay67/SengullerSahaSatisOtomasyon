@@ -255,6 +255,8 @@ async function initApp(){
   await loadKcmMyIds();
   await loadBagliMyIds();
   loadDashboard();
+  // V31.199: sürüm kaydı + eski sürüm uyarısı (js/surum.js). await EDİLMEZ, girişi bekletmez.
+  surumKontrolBaslat();
   // v31.26: Donanım Takip menü rozeti — kullanıcı ekranı hiç açmasa da girişte
   // onaylanmış siparişleri varsa ana menüde görünsün (tedarik akışı bildirimi).
   if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();

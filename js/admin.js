@@ -868,9 +868,10 @@ var _adminTabAdlar = {
   'ziyaretOpt':'Ziyaret Seçenekleri','gorevTipleri':'Görev Tipleri',
   'yetki':'Rol & Yetki Yönetimi','aramaAyarlari':'Uygulama Ayarları',
   'veriKalite':'Veri Kalitesi Denetim',
-  'veriGuvenlik':'Veri Güvenliği'
+  'veriGuvenlik':'Veri Güvenliği',
+  'surumler':'Kullanıcı Sürümleri'
 };
-var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','gorevTipleri','yetki','aramaAyarlari','veriKalite','veriGuvenlik'];
+var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','gorevTipleri','yetki','aramaAyarlari','veriKalite','veriGuvenlik','surumler'];
 
 function adminSayfaAc(tab){
   // Kutu menüyü gizle, nav bar'ı göster
@@ -896,6 +897,7 @@ function adminSayfaAc(tab){
   if(tab==='aramaAyarlari')uygulamaAyarlariSekmeAc('arama');
   if(tab==='veriKalite')   initVeriKaliteDenetim();
   if(tab==='veriGuvenlik') initVeriGuvenlik();   // V31.172 — js/denetim.js
+  if(tab==='surumler')     surumListeAc();       // V31.199 — js/surum.js
 }
 
 function adminMenueGeri(){

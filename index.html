@@ -2473,6 +2473,7 @@
       <div class="menu-box" onclick="adminSayfaAc('aramaAyarlari')"><div class="menu-box-icon">⏱️</div><div class="menu-box-title">Uygulama Ayarları</div></div>
       <div class="menu-box" onclick="adminSayfaAc('yetki')" style="border-color:rgba(96,165,250,.35);"><div class="menu-box-icon">🔐</div><div class="menu-box-title">Rol & Yetki</div></div>
       <div class="menu-box" onclick="adminSayfaAc('veriGuvenlik')" style="border-color:rgba(239,68,68,.3);"><div class="menu-box-icon">🛡️</div><div class="menu-box-title">Veri Güvenliği</div></div>
+      <div class="menu-box" onclick="adminSayfaAc('surumler')"><div class="menu-box-icon">🧭</div><div class="menu-box-title">Kullanıcı Sürümleri</div></div>
       <div class="menu-box" onclick="openImpersonateModal()" style="border-color:rgba(255,180,0,.3);"><div class="menu-box-icon">👁</div><div class="menu-box-title">Profil Görüntüle</div></div>
     </div>
   </div>
@@ -2624,6 +2625,11 @@
       otomatik değiştirmez — sadece tespit eder ve raporlar.
     </div>
     <div id="veriKaliteSonuc"></div>
+  </div>
+
+  <!-- V31.199: Kullanici Surumleri — icerik js/surum.js (surumListeAc). -->
+  <div id="adminTabSurumler" class="scroll" style="display:none;padding:16px;">
+    <div id="surumListesi"></div>
   </div>
 
   <!-- V31.172: Veri Guvenligi — veri_cikis_log izinin okundugu ekran.
@@ -3738,7 +3744,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.197"></script>
+<script src="js/config.js?v=v31.199"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3751,10 +3757,12 @@
 <script src="js/veri_kalite_denetim.js?v=v31.91"></script>
 <script src="js/donanim.js?v=v31.171"></script>
 <script src="js/utils.js?v=v31.189"></script>
-<script src="js/auth.js?v=v31.189"></script>
-<script src="js/gorev.js?v=v31.195"></script>
+<script src="js/auth.js?v=v31.199"></script>
+<script src="js/gorev.js?v=v31.199"></script>
 <!-- gorev_yonlendir.js: Gorev Yonlendir (V31.195). gorev.js ve bildirim.js sonrasi yuklenir. -->
 <script src="js/gorev_yonlendir.js?v=v31.195"></script>
+<!-- surum.js: Surum takibi + eski surum uyarisi (V31.199). auth.js ve admin.js tarafindan cagrilir. -->
+<script src="js/surum.js?v=v31.199"></script>
 <script src="js/talep.js?v=v31.34"></script>
 <script src="js/temas.js?v=v31.189"></script>
 <script src="js/arama.js?v=v31.185"></script>
@@ -3764,7 +3772,7 @@
 <script src="js/duyuru.js?v=v31.102"></script>
 <script src="js/musteri.js?v=v31.170"></script>
 <script src="js/hedef.js?v=v31.150"></script>
-<script src="js/admin.js?v=v31.189"></script>
+<script src="js/admin.js?v=v31.199"></script>
 <script src="js/veriyonetimi.js?v=v31.191"></script>
 <!-- gorev_toplu.js: Veri Yonetimi > Toplu Gorev (V31.191). veriyonetimi.js ve rapor.js (ensureXLSX) ile birlikte calisir. -->
 <script src="js/gorev_toplu.js?v=v31.191"></script>
