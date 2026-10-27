@@ -1,5 +1,6 @@
 // ============================================================
-// firsat.js — v1.2.6
+// firsat.js — v1.2.7
+//   v1.2.7 — V31.203: saveOpp ve saveFirsatForm cift tiklama korumasina alindi (utils.js tekSeferCalistir).
 //   v1.2.6 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
 //     (js/denetim.js, veri_cikis_log tablosu). Nokta: fetchPipelineReport
 //     (ekran goruntuleme; Excel cikisi admin.js:downloadPipelineExcel).
@@ -397,7 +398,10 @@ function selectOppCust(ncst,unvan){
   loadOppMusteriOzet(ncst);
   loadOppKontaklar(ncst);
 }
-﻿async function saveOpp(context='modal'){
+﻿function saveOpp(context){
+  return tekSeferCalistir('saveOpp', function(){ return _saveOppIc(context); }, {btn:'#oppSaveBtn, button[onclick="saveFirsatForm()"]'});
+}
+async function _saveOppIc(context='modal'){
   // context: 'modal' = oppModal, 'form' = bağımsız fırsat formu
 
   // === Validasyon ===
@@ -596,7 +600,10 @@ function selectOppCust(ncst,unvan){
 }
 
 
-async function saveFirsatForm(){
+function saveFirsatForm(){
+  return tekSeferCalistir('saveFirsatForm', _saveFirsatFormIc, {btn:'button[onclick="saveFirsatForm()"]'});
+}
+async function _saveFirsatFormIc(){
   // Bağımsız fırsat formu — state'i oppModal state'ine kopyalayıp saveOpp çağırır
   if(!firsatSelectedMusteri){toast('M\u00fc\u015fteri se\u00e7in','error');return;}
   if(firsatSecilenKontaklar.size===0){toast('En az bir ki\u015fi se\u00e7in','error');return;}

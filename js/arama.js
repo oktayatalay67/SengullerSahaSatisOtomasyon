@@ -1,5 +1,6 @@
 // ============================================================
-// arama.js — v1.1.18
+// arama.js — v1.1.19
+//   v1.1.19 (V31.203): araAnketKaydet ve aramadanKapatKaydet cift tiklama korumasina alindi (utils.js tekSeferCalistir).
 //   v1.1.17 (05.10.2026, V31.168): Sikayet bildirim e-postasi kendi
 //     fetch i yerine js/bildirim.js icindeki bildirimGonder() ile
 //     gonderiliyor. Donus sozlesmesi ayni ('ok'|'adres_yok'|'hata').
@@ -1316,7 +1317,10 @@ function _aramadanKapatSec(el,neden){
   el.classList.add('selected');
   window._aramadanKapatNeden=neden;
 }
-async function aramadanKapatKaydet(){
+function aramadanKapatKaydet(){
+  return tekSeferCalistir('aramadanKapatKaydet', _aramadanKapatKaydetIc, {btn:'button[onclick="aramadanKapatKaydet()"]'});
+}
+async function _aramadanKapatKaydetIc(){
   if(!_aramaKapatTaskId) return;
   const neden=window._aramadanKapatNeden;
   if(!neden){ toast('Bir neden seçin','error'); return; }
@@ -1961,7 +1965,10 @@ function _isGunuEkle(gunSayisi){
   return d.getFullYear()+'-'+ay+'-'+gn;
 }
 
-async function araAnketKaydet(){
+function araAnketKaydet(){
+  return tekSeferCalistir('araAnketKaydet', _araAnketKaydetIc, {btn:'#aramaAnketModal button[onclick="araAnketKaydet()"]'});
+}
+async function _araAnketKaydetIc(){
   const st=window._anket, c=st.c;
   if(!c.ulasildi){ toast('Ulaşıldı mı? seçin','error'); return; }
   // V31.160: Turkcell/Fiyat şikayetinde görev sorusu cevaplanmadan kayıt yapılmaz.

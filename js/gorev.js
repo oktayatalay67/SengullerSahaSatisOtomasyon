@@ -1,7 +1,9 @@
 // ============================================================
-// gorev.js — v1.2.26
-// Son güncelleme: 2026-10-21
+// gorev.js — v1.2.27
+// Son güncelleme: 2026-10-27
 // Değişiklikler:
+//   v1.2.27 — (V31.203) saveGorev ve gorevDurumGuncelle çift tıklama korumasına alındı (utils.js tekSeferCalistir):
+//     yavaş bağlantıda 2./3. basış ikinci görev/log üretmez; aynı içerikle tekrar basış 30 sn içinde yok sayılır.
 //   v1.2.26 — (V31.201) "Tamamla" (liste) ve "Tamamlandı" (detay) ARTIK Temas/ziyaret planlama formunu
 //     açmıyor, ziyaret kaydı da oluşturmuyor: gorevDurumGuncelle('Tamamlandı') js/gorev_tamamla.js'teki
 //     gorevTamamlaPencereAc'a yönlendirildi (alan yoksa direkt tamamlar, varsa alanları pencerede gösterir).
@@ -1257,7 +1259,17 @@ function gorevMusteriSec(ncst, unvan) {
 // ============================================================
 // GÖREV KAYDET
 // ============================================================
-async function saveGorev() {
+function saveGorev() {
+  return tekSeferCalistir('saveGorev', _saveGorevIc, {
+    btn: '#gorevFormModal .btn-kaydet',
+    imza: function () {
+      return ['gfTip','gfBaslik','gfAciklama','gfAtanan','gfMusteriNcst','gfDeadline'].map(function (id) {
+        const e = document.getElementById(id); return e ? e.value : '';
+      }).join('|');
+    }
+  });
+}
+async function _saveGorevIc() {
   const tipId   = parseInt(document.getElementById('gfTip').value);
   const baslik  = (document.getElementById('gfBaslik').value||'').trim();
   const aciklama= (document.getElementById('gfAciklama').value||'').trim();
@@ -1305,6 +1317,7 @@ async function saveGorev() {
   });
 
   closeModal('gorevFormModal');
+  tekSeferBasarili('saveGorev');
   toast('Görev oluşturuldu ✅','success');
   await loadGorevler();
   // v1.2.2: Otomatik ziyaret artık buradan değil — atanan 'Başladı'ya çekince açılır
@@ -1417,7 +1430,13 @@ async function _gorevTamamlaFormAkisi(taskId) {
 // ============================================================
 // DURUM GÜNCELLEME
 // ============================================================
-async function gorevDurumGuncelle(taskId, yeniDurum) {
+function gorevDurumGuncelle(taskId, yeniDurum) {
+  // V31.203: ayni gorev + ayni durum icin cift tiklama korumasi
+  return tekSeferCalistir('gd:' + taskId + ':' + yeniDurum,
+    function () { return _gorevDurumGuncelleIc(taskId, yeniDurum); },
+    { imza: function () { return taskId + '|' + yeniDurum; }, pencereMs: 4000 });
+}
+async function _gorevDurumGuncelleIc(taskId, yeniDurum) {
   // V31.100: Liste/detay ekranından direkt "Tamamlandı"ya çekilirken, görev tipine
   // bağlı bir form varsa (ziyaret/şikayet/fırsat/potansiyel) durumu hemen değiştirmek
   // yerine önce o formu açıyoruz — form kaydedilince görev otomatik Tamamlandı'ya
@@ -1435,6 +1454,7 @@ async function gorevDurumGuncelle(taskId, yeniDurum) {
     .update({ durum: yeniDurum, guncelleme_tarihi: new Date().toISOString() })
     .eq('task_id', taskId);
   if (error) { toast('Hata: '+error.message,'error'); return; }
+  tekSeferBasarili('gd:' + taskId + ':' + yeniDurum);
 
   await sb.from('task_logs').insert({
     task_id: taskId,

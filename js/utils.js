@@ -1,6 +1,7 @@
 // ============================================================
-// utils.js — v1.0.8
+// utils.js — v1.0.9
 // Değişiklikler:
+//   v1.0.9 (V31.203) — tekSeferCalistir/tekSeferBasarili: tüm Kaydet/Tamam tuşları için merkezi çift tıklama koruması.
 //   v1.0.8 (V31.189) — navTo: pageDashboardKcm -> initDashboardKcm() (js/dashboard.js).
 //   v1.0.6 (V31.176) — Çağrı Merkezi ara menüsü: navTo içine pageCagriMerkezi
 //            ve pageLead kayıtları, initCagriMerkezi() (iki kutunun yetkiye
@@ -257,5 +258,40 @@ function closeModal(id){document.getElementById(id).classList.remove('show');}
 function openModal(id){document.getElementById(id).classList.add('show');}
 function toast(msg,type='info'){const c=document.getElementById('toastContainer');const t=document.createElement('div');t.className='toast '+type;t.innerHTML=msg;c.appendChild(t);setTimeout(()=>t.remove(),3800);}
 
+
+/* ============================================================
+   V31.203 — CIFT TIKLAMA KORUMASI (tek merkez)
+   Kayit/gorev/firsat ureten tum Kaydet/Tamam tuslari bu fonksiyondan gecer.
+   - Ayni anahtar calisirken 2./3. basis YOK SAYILIR (internet yavassa cift kayit olmaz).
+   - Tus calisirken pasif olur, bitince (hata olsa bile) eski haline doner.
+   - Basarili kayittan sonra AYNI icerikle (imza) tekrar basilirsa ikinci kayit yapilmaz.
+   Kullanim: function kaydet(){ return tekSeferCalistir('anahtar', _kaydetIc, {btn:'#id', imza:()=>'...'}); }
+   Ic fonksiyon basarida tekSeferBasarili('anahtar') cagirir (imza yalniz o zaman yazilir).
+   ============================================================ */
+const _TS={calisan:{},imza:{},basari:{}};
+function tekSeferBasarili(anahtar){ _TS.basari[anahtar]=true; }
+async function tekSeferCalistir(anahtar, fn, opt){
+  opt=opt||{};
+  if(_TS.calisan[anahtar]) return;                       // islem suruyor: sessizce yok say
+  let imza=null;
+  if(typeof opt.imza==='function'){ try{ imza=String(opt.imza()); }catch(e){ imza=null; } }
+  const son=_TS.imza[anahtar];
+  if(imza!==null && son && son.imza===imza && (Date.now()-son.zaman)<(opt.pencereMs||30000)){
+    toast('Bu kayıt zaten alındı — değişiklik yok, tekrar kaydedilmedi','info');
+    return;
+  }
+  _TS.calisan[anahtar]=true; _TS.basari[anahtar]=false;
+  let tuslar=[];
+  try{ tuslar=opt.btn?Array.from(document.querySelectorAll(opt.btn)):[]; }catch(e){ tuslar=[]; }
+  const eski=tuslar.map(b=>({b:b,html:b.innerHTML,dis:b.disabled}));
+  tuslar.forEach(b=>{ b.disabled=true; b.innerHTML='⏳ Kaydediliyor...'; });
+  try{
+    return await fn();
+  } finally{
+    eski.forEach(e=>{ try{ e.b.innerHTML=e.html; e.b.disabled=e.dis; }catch(x){} });
+    if(_TS.basari[anahtar] && imza!==null) _TS.imza[anahtar]={imza:imza,zaman:Date.now()};
+    _TS.basari[anahtar]=false; _TS.calisan[anahtar]=false;
+  }
+}
 
 // v30.41 utils loaded

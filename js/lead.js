@@ -1,6 +1,6 @@
 // ============================================================
-// lead.js — v1.11.0
-// Son güncelleme: 2026-10-16
+// lead.js — v1.11.2
+// Son güncelleme: 2026-10-27
 //
 // ÇAĞRI MERKEZİ / LEAD ARAMALARI
 //   Satış odaklı çağrı modülü. Ziyaret Teyit (js/arama.js) ile EKRAN ve AKIŞ
@@ -29,6 +29,19 @@
 //   hasPerm/getScope → js/config.js · yetki katmanı
 //
 // SÜRÜM NOTLARI
+//   v1.11.2 (V31.203) — (1) DÖNGÜ HATASI: _leadSupur'daki "rakip sözleşme bitişine 60 gün kala
+//           kaydı Çağrı Merkezi kuyruğuna geri al" kuralı KALDIRILDI. Sözleşme yenileme takibi MY'nin
+//           işidir (Oktay, 27.10.2026). Kural, bitiş tarihi geçmiş/yakın kayıtları kapatılır kapatılmaz
+//           geri açıp deneme sayacını sıfırlıyor, her kapatmada yeni görev doğuruyordu. Tarih
+//           lead_arama/lead_kayit'ta saklanmaya devam eder (MY takibi sonraki sürümde).
+//           (2) leadAramaKaydet / leadAramadanTamamlaKaydet çift tıklama korumasında (tekSeferCalistir)
+//           ve yeniden denemede aynı görev/arama satırı/kontak ikinci kez üretilmez (A._gorevId vb.).
+//   v1.11.1 (V31.202) — VERİTABANI YÜKÜ. Davranış/kural DEĞİŞMEDİ, yalnızca sorgu
+//           biçimi: (1) _leadSupur: iki okuma paralel, kayıt başına update döngüsü
+//           yerine tek toplu update (.in kayit_id). (2) Sekme sayaçları (yeni/tekrar/
+//           ulasilamadi/tamam) ve liste seçim sayaçları paralel. (3) Kuyruk
+//           zenginleştirme: her parçadaki 4 sorgu paralel. Süpürme zaman sınırı
+//           KONMADI: deneme limiti kuralı arama biter bitmez uygulanmalı.
 //   v1.11.0 (V31.193) — ARAMA EKRANINDA "➕ İletişim Bilgisi Ekle" (Kopyala'nın
 //           yanında). Agent mevcut numaralardan ulaşamazsa yeni numara ekler.
 //           Kuyruk kartındaki İletişim Ekle/Düzenle ile AYNI form; fark yalnız
@@ -1582,11 +1595,11 @@ async function _leadAgentListeSec(){
 
   // sayaçlar
   const kalanlar={};
-  for(const l of akt){
-    const {count}=await sb.from(LEAD_TABLO_KAYIT).select('*',{count:'exact',head:true})
-      .eq('liste_id',l.liste_id).in('durum_grubu',['yeni','tekrar']);
-    kalanlar[l.liste_id]=count||0;
-  }
+  // V31.202: liste başına sayımlar paralel
+  const _kr=await Promise.all(akt.map(l=>
+    sb.from(LEAD_TABLO_KAYIT).select('*',{count:'exact',head:true})
+      .eq('liste_id',l.liste_id).in('durum_grubu',['yeni','tekrar'])));
+  akt.forEach((l,i)=>{ kalanlar[l.liste_id]=_kr[i].count||0; });
   let h=_leadModBariHTML()+'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Çalışacağın listeyi seç:</div>';
   akt.forEach(l=>{
     h+='<div class="visit-card" style="margin-bottom:8px;cursor:pointer;" onclick="leadAgentListeAc(\''+l.liste_id+'\')">'+
@@ -1620,15 +1633,16 @@ async function _leadAgentKuyruk(){
 
   // FIRSATÇI SÜPÜRME (Bölüm 9 — zamanlayıcı yok):
   //  1) deneme limiti dolmuş kayıtları kapat
-  //  2) rakip sözleşmesi bitişe 60 gün kalanları tekrar kuyruğa al
+  //  (V31.203: rakip sözleşme geri-alma kuralı kaldırıldı — MY takibi)
   await _leadSupur(l);
 
   const sayac={};
-  for(const g of ['yeni','tekrar','ulasilamadi','tamam']){
-    const {count}=await sb.from(LEAD_TABLO_KAYIT).select('*',{count:'exact',head:true})
-      .eq('liste_id',l.liste_id).eq('durum_grubu',g);
-    sayac[g]=count||0;
-  }
+  // V31.202: 4 sayım paralel
+  const _sg=['yeni','tekrar','ulasilamadi','tamam'];
+  const _sr=await Promise.all(_sg.map(g=>
+    sb.from(LEAD_TABLO_KAYIT).select('*',{count:'exact',head:true})
+      .eq('liste_id',l.liste_id).eq('durum_grubu',g)));
+  _sg.forEach((g,i)=>{ sayac[g]=_sr[i].count||0; });
 
   let h=_leadModBariHTML();
   h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'+
@@ -1667,30 +1681,23 @@ function leadSekmeAc(g){
   _leadAgentKuyruk();
 }
 
-/* Deneme limiti + rakip sözleşme süpürmesi. Hatası akışı kesmez. */
+/* Deneme limiti süpürmesi. Hatası akışı kesmez. */
 async function _leadSupur(l){
   try{
     const limit=l.deneme_limiti||4;
+    // Deneme limiti dolmuş kayıtları kapat (tek toplu update).
+    // V31.203: "rakip sözleşme bitişine 60 gün kala Çağrı Merkezi kuyruğuna geri al" kuralı
+    // KALDIRILDI — sözleşme yenileme takibi MY'nin işidir; kuralın kapatılan kaydı hemen geri
+    // açıp deneme sayacını sıfırlaması görev/arama döngüsü üretiyordu.
     const {data:dolanlar}=await sb.from(LEAD_TABLO_KAYIT)
-      .select('kayit_id,deneme_sayisi').eq('liste_id',l.liste_id)
+      .select('kayit_id').eq('liste_id',l.liste_id)
       .in('durum_grubu',['yeni','tekrar']).gte('deneme_sayisi',limit).limit(500);
-    for(const k of (dolanlar||[])){
+    const ids=(dolanlar||[]).map(k=>k.kayit_id);
+    if(ids.length){
       await sb.from(LEAD_TABLO_KAYIT).update({
         durum:'ul_cevapsiz', durum_grubu:'ulasilamadi', sonraki_arama:null,
         guncelleme:new Date().toISOString()
-      }).eq('kayit_id',k.kayit_id);
-    }
-
-    // rakip sözleşme bitişine 60 gün kalanlar → tekrar kuyruğa
-    const esik=new Date(Date.now()+60*86400000).toISOString().slice(0,10);
-    const {data:sozlesmeliler}=await sb.from(LEAD_TABLO_KAYIT)
-      .select('kayit_id').eq('liste_id',l.liste_id).eq('durum_grubu','tamam')
-      .not('rakip_sozlesme_bitis','is',null).lte('rakip_sozlesme_bitis',esik).limit(500);
-    for(const k of (sozlesmeliler||[])){
-      await sb.from(LEAD_TABLO_KAYIT).update({
-        durum_grubu:'tekrar', sonraki_arama:new Date().toISOString(),
-        deneme_sayisi:0, guncelleme:new Date().toISOString()
-      }).eq('kayit_id',k.kayit_id);
+      }).in('kayit_id',ids);
     }
   }catch(e){ console.warn('[lead] supurme atlandi:', e); }
 }
@@ -1760,23 +1767,26 @@ async function _leadKuyrukYukle(){
   const _ist=(n,s)=>{ const a=(istemiyorKaynak[n]=istemiyorKaynak[n]||[]); if(a.indexOf(s)<0) a.push(s); };
   for(const parca of _leadParcali(ncstler, LEAD_PARCA)){
     if(!parca.length) continue;
-    const {data:cs}=await sb.from('customers').select('ncst,unvan,il,ilce,telefon,my_id,toplam_hat')
-      .in('ncst',parca).limit(100000);
-    (cs||[]).forEach(c=>{ custMap[c.ncst]=c; });
-    const {data:ks}=await sb.from('contacts').select('ncst,telefon,aktif,aranmak_istemiyor')
-      .in('ncst',parca).limit(100000);
-    (ks||[]).forEach(k=>{
+    // V31.202: 4 sorgu paralel (sonuç işleme aynı)
+    const [rc,rk,rt,rl]=await Promise.all([
+      sb.from('customers').select('ncst,unvan,il,ilce,telefon,my_id,toplam_hat')
+        .in('ncst',parca).limit(100000),
+      sb.from('contacts').select('ncst,telefon,aktif,aranmak_istemiyor')
+        .in('ncst',parca).limit(100000),
+      // V31.192: "aranmak istemiyor" izi — teyit aramasi ve onceki lead aramasi
+      sb.from('arama_sonuclari').select('ncst')
+        .in('ncst',parca).eq('sonra_aranmak_istedi',false).limit(100000),
+      sb.from(LEAD_TABLO_ARAMA).select('ncst')
+        .in('ncst',parca).in('durum',['g_aranmak_istemiyor','k_istemiyor']).limit(100000)
+    ]);
+    (rc.data||[]).forEach(c=>{ custMap[c.ncst]=c; });
+    (rk.data||[]).forEach(k=>{
       if(k.aktif===false) return;
       (kisiMap[k.ncst]=kisiMap[k.ncst]||[]).push(k);
       if(k.aranmak_istemiyor===true) _ist(k.ncst,'kontak işareti');
     });
-    // V31.192: "aranmak istemiyor" izi — teyit aramasi ve onceki lead aramasi
-    const {data:ts}=await sb.from('arama_sonuclari').select('ncst')
-      .in('ncst',parca).eq('sonra_aranmak_istedi',false).limit(100000);
-    (ts||[]).forEach(t=>_ist(t.ncst,'teyit araması'));
-    const {data:ls}=await sb.from(LEAD_TABLO_ARAMA).select('ncst')
-      .in('ncst',parca).in('durum',['g_aranmak_istemiyor','k_istemiyor']).limit(100000);
-    (ls||[]).forEach(l=>_ist(l.ncst,'çağrı merkezi araması'));
+    (rt.data||[]).forEach(t=>_ist(t.ncst,'teyit araması'));
+    (rl.data||[]).forEach(l=>_ist(l.ncst,'çağrı merkezi araması'));
   }
 
   // V31.192: "Sadece iletisimi olanlar" — aranabilir telefonu olanlar.
@@ -2512,7 +2522,10 @@ function _leadAramasizSec(el, kod){
   if(lbl) lbl.textContent=(kod==='k_diger') ? 'Alt açıklama *' : 'Alt açıklama (opsiyonel)';
 }
 
-async function leadAramadanTamamlaKaydet(){
+function leadAramadanTamamlaKaydet(){
+  return tekSeferCalistir('leadAramadanTamamlaKaydet', _leadAramadanTamamlaKaydetIc, {btn:'button[onclick="leadAramadanTamamlaKaydet()"]'});
+}
+async function _leadAramadanTamamlaKaydetIc(){
   const A=window._leadAramasizHedef; if(!A || !A.kayit) return;
   const kod=window._leadAramasizNeden;
   if(!kod){ toast('Bir neden seçin','error'); return; }
@@ -2523,7 +2536,8 @@ async function leadAramadanTamamlaKaydet(){
   const k=A.kayit, simdi=new Date().toISOString();
 
   // 1) ARAMA İZİ — görüşme yok ama kapatma kaydı var
-  const {error:aErr}=await sb.from(LEAD_TABLO_ARAMA).insert({
+  let aErr=null;
+  if(!A._aramaYazildi){ ({error:aErr}=await sb.from(LEAD_TABLO_ARAMA).insert({
     kayit_id:k.kayit_id, liste_id:k.liste_id, ncst:k.ncst,
     liste_adi:(A.liste&&A.liste.ad)||null,
     agent_id:currentUser.my_id, deneme_no:(k.deneme_sayisi||0)+1,
@@ -2532,8 +2546,9 @@ async function leadAramadanTamamlaKaydet(){
     durum:kod, ulasildi:false,
     ulasilamama_neden:d.et,
     agent_notu:not||null
-  });
+  })); }
   if(aErr){ toast('Kaydedilemedi: '+aErr.message,'error'); return; }
+  A._aramaYazildi=true;
 
   // 2) KAYIT KAPANIR — tekrar kuyruğa düşmez
   const {error:kErr}=await sb.from(LEAD_TABLO_KAYIT).update({
@@ -2571,7 +2586,10 @@ async function leadAramadanTamamlaKaydet(){
 }
 
 /* ---------------------------------------------------------------- kaydet */
-async function leadAramaKaydet(){
+function leadAramaKaydet(){
+  return tekSeferCalistir('leadAramaKaydet', _leadAramaKaydetIc, {btn:'button[onclick="leadAramaKaydet()"]'});
+}
+async function _leadAramaKaydetIc(){
   const A=window._lanket; if(!A) return;
   // V31.182: ekranda gosterilen kodun AYNISI kaydedilir (_leadDurumCoz).
   const c=A.c, etkinDurum=_leadDurumCoz(c), d=LEAD_DURUM[etkinDurum];
@@ -2610,29 +2628,37 @@ async function leadAramaKaydet(){
   };
 
   // 2) GÖREV KARTI (fırsat kaydı DEĞİL)
+  // V31.203: kayit yarida kalirsa (arama satiri/kayit guncelleme hatasi) tekrar basista
+  // ayni gorev yeniden acilmaz — id ekran durumunda (A) saklanir.
   let gorevId=null;
   if(d.gorev){
-    gorevId=await _leadGorevAc(A, d);
+    if(!A._gorevId) A._gorevId=await _leadGorevAc(A, d);
+    gorevId=A._gorevId;
     arama.olusan_task_id=gorevId;
   }
   if(d.sikayet||d.talep){
-    const sid=await _leadGorevAc(A, d, d.gorevTipi);
+    if(!A._sikayetGorevId) A._sikayetGorevId=await _leadGorevAc(A, d, d.gorevTipi);
+    const sid=A._sikayetGorevId;
     if(sid) arama.olusan_task_id=sid;
   }
 
   // 3) yeni kontak (yönlendirme)
-  if(d.yeniKontak){
+  if(d.yeniKontak && !A._yeniKontakId){
     const tel=(typeof vyTel==='function')?vyTel(c.yeniTel||''):(c.yeniTel||'');
     const {data:yk, error:ykErr}=await sb.from('contacts').insert({
       ncst:k.ncst, ad_soyad:(c.yeniAd||'').trim(), telefon:tel||null,
       musteri_unvani:m.unvan||null, kontak_tipi:'Lead', dogrulandi:false
     }).select('contact_id').single();
     if(ykErr) console.warn('[lead] yeni kontak yazilamadi:', ykErr);
-    else arama.yeni_contact_id=yk.contact_id;
+    else A._yeniKontakId=yk.contact_id;
   }
+  if(A._yeniKontakId) arama.yeni_contact_id=A._yeniKontakId;
 
-  const {error:aErr}=await sb.from(LEAD_TABLO_ARAMA).insert(arama);
-  if(aErr){ toast('Arama kaydedilemedi: '+aErr.message,'error'); return; }
+  if(!A._aramaYazildi){
+    const {error:aErr}=await sb.from(LEAD_TABLO_ARAMA).insert(arama);
+    if(aErr){ toast('Arama kaydedilemedi: '+aErr.message,'error'); return; }
+    A._aramaYazildi=true;
+  }
 
   // 4) KAYIT GÜNCELLE
   const guncel={
@@ -3089,4 +3115,4 @@ async function _leadAgentPanoHTML(){
   }catch(e){ return ''; }
 }
 
-// v1.11.0 lead loaded (arama ekraninda iletisim bilgisi ekle)
+// v1.11.2 lead loaded (V31.203 dongu + cift tiklama)

@@ -1,7 +1,13 @@
 // ============================================================
-// config.js — v1.4.43
-// Son güncelleme: 2026-10-21
+// config.js — v1.4.45
+// Son güncelleme: 2026-10-27
 // Değişiklikler:
+//   v1.4.45 — APP_VERSION → V31.203. ÇAĞRI MERKEZİ DÖNGÜ HATASI: lead.js v1.11.2 — rakip sözleşme bitişine yakın
+//     kayıtları kuyruğa geri alan süpürme kuralı kaldırıldı (kapatılan kayıt hemen geri açılıyor, her kapatmada
+//     yeni görev doğuyordu). ÇİFT TIKLAMA: utils.js v1.0.9 tekSeferCalistir; gorev.js v1.2.27, arama.js v1.1.19,
+//     firsat.js v1.2.7, lead.js — Kaydet/Tamam tuşları ikinci/üçüncü basışta tekrar kayıt üretmez.
+//   v1.4.44 — APP_VERSION → V31.202. lead.js v1.11.1: Çağrı Merkezi kuyruk açılışında sorgu yükü azaltıldı
+//     (süpürme toplu update + paralel okuma, sekme sayaçları ve zenginleştirme sorguları paralel). Kural değişmedi.
 //   v1.4.43 — APP_VERSION → V31.201. gorev.js v1.2.26 + YENİ js/gorev_tamamla.js v1.0.0: "Tamamla" artık Temas/ziyaret
 //     planlama formunu açmaz; görev tipinin alanları varsa "Görevi Tamamla" penceresinde gösterilir, yoksa direkt tamamlanır.
 //   v1.4.42 — APP_VERSION → V31.200. VERİTABANI YÜKÜ: temas.js v2.10.53 Temas Dashboard 5 dk önbellek
@@ -1139,7 +1145,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.201';
+const APP_VERSION = 'V31.203';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);
