@@ -1,7 +1,9 @@
 // ============================================================
-// config.js — v1.4.45
-// Son güncelleme: 2026-10-27
+// config.js — v1.4.46
+// Son güncelleme: 2026-11-07
 // Değişiklikler:
+//   v1.4.46 — APP_VERSION → V31.204. gorev.js v1.2.28 (liste Temas Düzenle kapalı görevde gizli; durum butonları
+//     gorev_ilerlet kapsamına bağlı), yetki.js v1.3.7 (Görevi İlerletme kapsam satırı).
 //   v1.4.45 — APP_VERSION → V31.203. ÇAĞRI MERKEZİ DÖNGÜ HATASI: lead.js v1.11.2 — rakip sözleşme bitişine yakın
 //     kayıtları kuyruğa geri alan süpürme kuralı kaldırıldı (kapatılan kayıt hemen geri açılıyor, her kapatmada
 //     yeni görev doğuyordu). ÇİFT TIKLAMA: utils.js v1.0.9 tekSeferCalistir; gorev.js v1.2.27, arama.js v1.1.19,
@@ -1145,7 +1147,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.203';
+const APP_VERSION = 'V31.204';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

@@ -1,5 +1,6 @@
 // ============================================================
-// yetki.js — v1.3.6
+// yetki.js — v1.3.7
+//   v1.3.7 — (V31.204) Yeni kapsam modülü: gorev_ilerlet (Görevi İlerletme) — TÜM/KÇM/BAĞLI; satır yoksa yalnız atanan.
 //   v1.3.6 — (V31.195) Yeni izin: gorev_yonlendir (gorevleri baska kisiye yonlendirir; gorev_tumunu_gor yoksa yalniz kendi KCM'i). Otomatik atanmadi.
 //   v1.3.5 — (V31.194) Yeni izin: gorev_kcm_tumunu_gor (kendi KCM'indeki TUM gorevleri gorur). Otomatik atanmadi.
 //   v1.3.4 — (V31.191) Yeni izin: gorev_toplu_ata (Veri Yonetimi > Toplu Gorev). Otomatik atanmadi.
@@ -71,7 +72,7 @@ const YETKI_SCOPE_TANIM = [
 
 const YETKI_MODUL_ADLARI = {
   musteri:'Müşteri', temas:'Temas / Ziyaret', firsat:'Fırsat',
-  gorev:'Görev', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
+  gorev:'Görev', gorev_ilerlet:'Görevi İlerletme (durum değiştirme / tamamlama)', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
   donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)',
   arama:'Ziyaret Teyit (Arama)', // v1.2.6 (V31.7x): kritik guvenlik fix — daha once bu modulun HIC scope kisiti yoktu
   lead:'Lead Aramaları (Çağrı Merkezi)', // V31.176: agent/raporcu hangi KÇM'nin listelerini görür

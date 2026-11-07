@@ -1,7 +1,13 @@
 // ============================================================
-// gorev.js — v1.2.27
-// Son güncelleme: 2026-10-27
+// gorev.js — v1.2.28
+// Son güncelleme: 2026-11-07
 // Değişiklikler:
+//   v1.2.28 — (V31.204) (1) Görev LİSTESİNDE tamamlanmış/reddedilmiş/iptal görevde "Temas Düzenle" artık
+//     çıkmıyor (detay kartında kalır). (2) Durum butonları (Başla/Tamamla/Beklet ve detaydaki durum
+//     düğmeleri) artık yalnız atanana değil, YETKİ TABLOSUNA bağlı gorevIlerletebilir(t) kuralına göre
+//     çıkıyor: atanan her zaman; ADMIN (kapsam TÜM) her görev; KÇM MÜDÜRÜ (KÇM) kendi KÇM'si; TAKIM LİDERİ
+//     (BAĞLI) kendi ve takımının görevleri. Kapsam Rol&Yetki ekranındaki "Görevi İlerletme"
+//     (perm_key gorev_ilerlet, perm_tip scope) satırından yönetilir; satır yoksa yalnız atanan ilerletir.
 //   v1.2.27 — (V31.203) saveGorev ve gorevDurumGuncelle çift tıklama korumasına alındı (utils.js tekSeferCalistir):
 //     yavaş bağlantıda 2./3. basış ikinci görev/log üretmez; aynı içerikle tekrar basış 30 sn içinde yok sayılır.
 //   v1.2.26 — (V31.201) "Tamamla" (liste) ve "Tamamlandı" (detay) ARTIK Temas/ziyaret planlama formunu
@@ -923,6 +929,7 @@ function renderGorevKarti(t) {
 
   const benimGorevim = t.atanan_id === mid;
   const benimatadim  = t.atayan_id === mid;
+  const ilerletebilir = gorevIlerletebilir(t); // V31.204: yetki tablosundan (gorev_ilerlet kapsamı)
   const r2 = (currentUser.yetki_seviyesi||'').toUpperCase();
   const ystRoller = ['KÇM MÜDÜRÜ','TAKIM LİDERİ','ADMIN','SATIŞ DİREKTÖRÜ','ÇÖZÜM SATIŞ MÜDÜRÜ','OPERASYON MÜDÜRÜ'];
 
@@ -930,11 +937,11 @@ function renderGorevKarti(t) {
   let aksiyonlar = '';
 
   // v1.2.2: Atandı → Başla butonu (atanan + yöneticisi)
-  if (t.durum === 'Atandı' && (benimGorevim || ystRoller.includes(r2))) {
+  if (t.durum === 'Atandı' && ilerletebilir) {
     aksiyonlar += '<button class="btn btn-sm" style="padding:5px 10px;font-size:11px;background:var(--green);color:#04301f;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Başladı\')">✓ Başla</button> ';
   }
 
-  if (benimGorevim && !['Atandı','Tamamlandı','Reddedildi','İptal'].includes(t.durum)) {
+  if (ilerletebilir && !['Atandı','Tamamlandı','Reddedildi','İptal'].includes(t.durum)) {
     aksiyonlar += '<button class="btn btn-sm" style="padding:5px 10px;font-size:11px;background:var(--green);color:#04301f;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Tamamlandı\')">✓ Tamamla</button> ';
     if (t.durum !== 'Beklemede')
       aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Beklemede\')">⏸ Beklet</button> ';
@@ -949,7 +956,8 @@ function renderGorevKarti(t) {
   // V31.195: Yönlendir (yetki + açık görev kontrolü gorev_yonlendir.js içinde)
   aksiyonlar += gorevYonlendirKartButon(t);
   // Bağlı ziyaret/fırsat butonu
-  if (t.visit_id) aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevZiyaretAc(' + t.task_id + ')">📍 Temas Düzenle</button> ';
+  // V31.204: kapalı görevde listede gizli (detay kartında kalır)
+  if (t.visit_id && !['Tamamlandı','Reddedildi','İptal'].includes(t.durum)) aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevZiyaretAc(' + t.task_id + ')">📍 Temas Düzenle</button> ';
   if (t.opp_id)   aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openEditOppModal(' + t.opp_id + ')">💼 Fırsat</button> ';
   // V31.164: Ziyaret/temas oluşmadıysa TEK buton — "📝 Temas Oluştur" ve
   // "📅 Ziyaret Planla" birlikte gösterilip kafa karıştırıyordu (ikisi de aynı
@@ -990,7 +998,7 @@ async function openGorevDetay(taskId) {
   // sağlamlaştırmasıyla aynı yöntem.
   if (!t) {
     const { data: raw, error } = await sb.from('tasks')
-      .select('task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,parent_task_id,olusturma_tarihi,guncelleme_tarihi')
+      .select('task_id,type_id,baslik,aciklama,ncst,durum,baslama_tarihi,deadline,tamamlanma_tarihi,onay_tarihi,atayan_id,atanan_id,onaylayan_id,visit_id,opp_id,parent_task_id,olusturma_tarihi,guncelleme_tarihi,kcm_id')
       .eq('task_id', taskId).maybeSingle();
     if (error || !raw) { toast('Görev bulunamadı', 'error'); return; }
     const [{ data: tt }, { data: users }, { data: cust }] = await Promise.all([
@@ -1073,7 +1081,7 @@ async function openGorevDetay(taskId) {
   if (temasPlanlaYetkisi && t.visit_id) {
     aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;" onclick="gorevZiyaretAc(' + taskId + ')">📍 Temas Düzenle</button>';
   }
-  if (benimGorevim && !kapali) {
+  if (gorevIlerletebilir(t) && !kapali) { // V31.204: yetki tablosundan
     GOREV_DURUMLAR.filter(function(d) { return d !== t.durum && !['Reddedildi'].includes(d); })
     .forEach(function(d) {
       const r = d === 'Tamamlandı' ? 'var(--green)' : d === 'İptal' ? 'var(--red)' : 'var(--blue)';
@@ -1790,4 +1798,20 @@ async function gorevZiyaretKaydedildi(visitId) {
   await loadGorevler();
 }
 
-console.log('Görev modülü yüklendi ✓');
+console.log('Görev modülü yüklendi ✓');
+
+// ============================================================
+// V31.204: GÖREVİ İLERLETME YETKİSİ — yetki tablosundan (perm_key 'gorev_ilerlet', perm_tip 'scope')
+//   Atanan: her zaman. Diğerleri kapsama göre: TÜM = her görev, KÇM = görevin kcm_id'si kendi KÇM'si,
+//   BAĞLI = görevin atananı kendi ekibinde (bagliMyIds: kendisi + takımı). Satır yoksa getScope 'PRT'
+//   döner -> yalnız atanan. Atayan ve ilgili MY (portföy sahibi) bu kuralla İLERLETEMEZ; yalnız not ekler.
+// ============================================================
+function gorevIlerletebilir(t) {
+  if (!t || !currentUser) return false;
+  if (t.atanan_id === currentUser.my_id) return true;
+  const kapsam = getScope('gorev_ilerlet');
+  if (kapsam === 'TÜM') return true;
+  if (kapsam === 'KÇM') return !!t.kcm_id && Number(t.kcm_id) === Number(currentUser.kcm_id);
+  if (kapsam === 'BAĞLI') return Array.isArray(bagliMyIds) && bagliMyIds.includes(t.atanan_id);
+  return false;
+}
