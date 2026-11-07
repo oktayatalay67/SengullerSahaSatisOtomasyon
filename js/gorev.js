@@ -1,7 +1,11 @@
 // ============================================================
-// gorev.js — v1.2.28
+// gorev.js — v1.2.29
 // Son güncelleme: 2026-11-07
 // Değişiklikler:
+//   v1.2.29 — (V31.205) (1) ATAYAN artık açık görevde (liste + detay) "İptal" butonu görür (tamamlanmış/kapalı
+//     görevde çıkmaz); ilerletme yetkisi olan kişiler detayda İptal'i durum düğmesi olarak görmeye devam eder
+//     (çift buton yok). (2) Onayla/Reddet yalnız atayana değil ADMIN'e de açıldı: gorevOnaylayabilir(t) =
+//     atayan VEYA gorev_ilerlet kapsamı TÜM (Rol&Yetki tablosu). Atayanın düzenle (kalem) butonu aynen kaldı.
 //   v1.2.28 — (V31.204) (1) Görev LİSTESİNDE tamamlanmış/reddedilmiş/iptal görevde "Temas Düzenle" artık
 //     çıkmıyor (detay kartında kalır). (2) Durum butonları (Başla/Tamamla/Beklet ve detaydaki durum
 //     düğmeleri) artık yalnız atanana değil, YETKİ TABLOSUNA bağlı gorevIlerletebilir(t) kuralına göre
@@ -946,9 +950,13 @@ function renderGorevKarti(t) {
     if (t.durum !== 'Beklemede')
       aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="gorevDurumGuncelle(' + t.task_id + ',\'Beklemede\')">⏸ Beklet</button> ';
   }
-  if (benimatadim && t.durum === 'Tamamlandı' && !t.onay_tarihi) {
+  if (gorevOnaylayabilir(t) && t.durum === 'Tamamlandı' && !t.onay_tarihi) { // V31.205: atayan VEYA Admin
     aksiyonlar += '<button class="btn btn-sm" style="padding:5px 10px;font-size:11px;background:var(--green);color:#04301f;" onclick="gorevOnayla(' + t.task_id + ')">✓ Onayla</button> ';
     aksiyonlar += '<button class="btn btn-sm" style="padding:5px 10px;font-size:11px;background:#000;border:2px solid var(--red);color:var(--red);" onclick="gorevReddet(' + t.task_id + ')">✗ Reddet</button> ';
+  }
+  // V31.205: atayan açık görevi iptal edebilir (kapalı görevde çıkmaz)
+  if (benimatadim && !['Tamamlandı','Reddedildi','İptal'].includes(t.durum)) {
+    aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;border-color:var(--red);color:var(--red);" onclick="gorevDurumGuncelle(' + t.task_id + ',\'İptal\')">İptal</button> ';
   }
   if ((benimatadim || ystRoller.includes(r2)) && !['Tamamlandı','İptal'].includes(t.durum)) {
     aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openGorevEdit(' + t.task_id + ')">✏️</button> ';
@@ -1088,7 +1096,11 @@ async function openGorevDetay(taskId) {
       aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;border-color:' + r + ';color:' + r + ';" onclick="gorevDurumGuncelle(' + taskId + ',\'' + d + '\');closeModal(\'gorevDetayModal\')">' + d + '</button>';
     });
   }
-  if (benimatadim && t.durum === 'Tamamlandı' && !t.onay_tarihi) {
+  // V31.205: atayan, ilerletme yetkisi yoksa da açık görevi iptal edebilir (yetkisi varsa İptal zaten durum düğmelerinde)
+  if (benimatadim && !kapali && !gorevIlerletebilir(t)) {
+    aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;border-color:var(--red);color:var(--red);" onclick="gorevDurumGuncelle(' + taskId + ',\'İptal\');closeModal(\'gorevDetayModal\')">İptal</button>';
+  }
+  if (gorevOnaylayabilir(t) && t.durum === 'Tamamlandı' && !t.onay_tarihi) { // V31.205: atayan VEYA Admin
     aksiyonHTML += '<button class="btn" style="background:var(--green);color:#04301f;padding:6px 12px;" onclick="gorevOnayla(' + taskId + ');closeModal(\'gorevDetayModal\')">✓ Tamamlandı Onayla</button>';
     aksiyonHTML += '<button class="btn btn-sm" style="padding:6px 12px;background:#000;border:2px solid var(--red);color:var(--red);" onclick="gorevReddet(' + taskId + ');closeModal(\'gorevDetayModal\')">✗ Reddet</button>';
   }
@@ -1814,4 +1826,10 @@ function gorevIlerletebilir(t) {
   if (kapsam === 'KÇM') return !!t.kcm_id && Number(t.kcm_id) === Number(currentUser.kcm_id);
   if (kapsam === 'BAĞLI') return Array.isArray(bagliMyIds) && bagliMyIds.includes(t.atanan_id);
   return false;
+}
+
+// V31.205: Tamamlandı onayı / reddi — atayan VEYA Admin (Rol&Yetki: gorev_ilerlet kapsamı TÜM).
+function gorevOnaylayabilir(t) {
+  if (!t || !currentUser) return false;
+  return t.atayan_id === currentUser.my_id || getScope('gorev_ilerlet') === 'TÜM';
 }
