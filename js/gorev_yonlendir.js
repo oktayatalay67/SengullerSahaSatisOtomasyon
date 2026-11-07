@@ -1,6 +1,8 @@
 // ============================================================
-// gorev_yonlendir.js — v1.0.0 (V31.195)
-// Son guncelleme: 17.10.2026
+// gorev_yonlendir.js — v1.0.1 (V31.206)
+// Son guncelleme: 07.11.2026
+//   v1.0.1 — (V31.206) Durumu 'Geri Cevrildi' olan gorev yonlendirilince durum 'Atandi'ya doner
+//     (gorev.js Geri Cevir akisi). Diger durumlarda durum degismez.
 //
 // AMAC: Gorevleri baska bir kisiye YONLENDIRMEK (tek gorev + toplu).
 //   Sahipsiz portfoy gorevleri, isten ayrilan personelin gorevleri ve is yuku
@@ -299,7 +301,9 @@ async function _gyTekYonlendir(taskId, aday, not) {
 
   // 2) Atamayi degistir. Baskasi arada degistirdiyse (eski atanan farkli) 0 satir doner.
   let upd = sb.from('tasks')
-    .update({ atanan_id: aday.my_id, guncelleme_tarihi: new Date().toISOString() })
+    .update(g.durum === 'Geri Çevrildi'
+      ? { atanan_id: aday.my_id, durum: 'Atandı', guncelleme_tarihi: new Date().toISOString() }
+      : { atanan_id: aday.my_id, guncelleme_tarihi: new Date().toISOString() })
     .eq('task_id', taskId);
   upd = (g.atanan_id == null) ? upd.is('atanan_id', null) : upd.eq('atanan_id', g.atanan_id);
   const { data: guncel, error: e2 } = await upd.select('task_id');
