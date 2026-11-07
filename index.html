@@ -2590,6 +2590,7 @@
       <button class="btn btn-ghost" id="zoptBtn_sikayet_kategori" onclick="zoptTipSec('sikayet_kategori',this)" style="flex:1;font-size:12px;">🔴 Şikayet Kategori</button>
       <button class="btn btn-ghost" id="zoptBtn_sikayet_cozum_yontemi" onclick="zoptTipSec('sikayet_cozum_yontemi',this)" style="flex:1;font-size:12px;">🔴 Şikayet Çözüm</button>
       <button class="btn btn-ghost" id="zoptBtn_sikayet_kapalis_durumu" onclick="zoptTipSec('sikayet_kapalis_durumu',this)" style="flex:1;font-size:12px;">🔴 Şikayet Kapanış</button>
+      <button class="btn btn-ghost" id="zoptBtn_gorev_geri_cevir_neden" onclick="zoptTipSec('gorev_geri_cevir_neden',this)" style="flex:1;font-size:12px;">↩ Görev Geri Çevirme Nedeni</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
       <button class="btn btn-ghost" id="zoptBtn_firsat_sonuc_ust" onclick="zoptTipSec('firsat_sonuc_ust',this)" style="flex:1;font-size:12px;">💰 Fırsat Sonucu (Üst)</button>
@@ -3609,6 +3610,7 @@
         <option value="Tamamlandı">Tamamlandı</option>
         <option value="Reddedildi">Reddedildi</option>
         <option value="İptal">İptal</option>
+        <option value="Geri Çevrildi">Geri Çevrildi</option>
       </select>
       <select id="gorevTipFilter" onchange="gorevTipFilterDegisti(this.value)" style="flex:1 1 140px;min-width:0;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
         <option value="">Tüm Görev Tipleri</option>
@@ -3731,6 +3733,19 @@
   </div>
 </div>
 
+<!-- ===== GÖREV GERİ ÇEVİR MODAL (V31.206) ===== -->
+<div class="modal-overlay" id="gorevGeriCevirModal" onclick="if(event.target===this)closeModal('gorevGeriCevirModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Görevi Geri Çevir</div>
+    <div id="gorevGeriCevirIcerik" class="scroll" style="max-height:65vh;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0 0;">
+      <button class="btn-iptal" onclick="closeModal('gorevGeriCevirModal')">✕ Vazgeç</button>
+      <button class="btn-kaydet" id="ggcKaydetBtn" onclick="gorevGeriCevirKaydet()">↩ Geri Çevir</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== GÖREV FORM MODAL ===== -->
 <div class="modal-overlay" id="gorevFormModal" onclick="if(event.target===this)closeModal('gorevFormModal')">
   <div class="modal">
@@ -3770,7 +3785,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.205"></script>
+<script src="js/config.js?v=v31.206"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3784,11 +3799,11 @@
 <script src="js/donanim.js?v=v31.171"></script>
 <script src="js/utils.js?v=v31.203"></script>
 <script src="js/auth.js?v=v31.199"></script>
-<script src="js/gorev.js?v=v31.205"></script>
+<script src="js/gorev.js?v=v31.206"></script>
 <!-- gorev_tamamla.js: Gorevi Tamamla penceresi (V31.201). gorev.js ve temas.js fonksiyonlarini calisma aninda kullanir. -->
 <script src="js/gorev_tamamla.js?v=v31.201"></script>
 <!-- gorev_yonlendir.js: Gorev Yonlendir (V31.195). gorev.js ve bildirim.js sonrasi yuklenir. -->
-<script src="js/gorev_yonlendir.js?v=v31.195"></script>
+<script src="js/gorev_yonlendir.js?v=v31.206"></script>
 <!-- surum.js: Surum takibi + eski surum uyarisi (V31.199). auth.js ve admin.js tarafindan cagrilir. -->
 <script src="js/surum.js?v=v31.199"></script>
 <script src="js/talep.js?v=v31.34"></script>

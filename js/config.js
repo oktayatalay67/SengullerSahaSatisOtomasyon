@@ -1,7 +1,8 @@
 // ============================================================
-// config.js — v1.4.47
+// config.js — v1.4.48
 // Son güncelleme: 2026-11-07
 // Değişiklikler:
+//   v1.4.48 — APP_VERSION → V31.206. gorev.js v1.2.30 (Görevi Geri Çevir), gorev_yonlendir.js v1.0.1 (Geri Çevrildi → Atandı).
 //   v1.4.47 — APP_VERSION → V31.205. gorev.js v1.2.29 (atayan İptal butonu; Onayla/Reddet atayan veya Admin).
 //   v1.4.46 — APP_VERSION → V31.204. gorev.js v1.2.28 (liste Temas Düzenle kapalı görevde gizli; durum butonları
 //     gorev_ilerlet kapsamına bağlı), yetki.js v1.3.7 (Görevi İlerletme kapsam satırı).
@@ -1148,7 +1149,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.205';
+const APP_VERSION = 'V31.206';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

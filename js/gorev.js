@@ -1,7 +1,13 @@
 // ============================================================
-// gorev.js — v1.2.29
+// gorev.js — v1.2.30
 // Son güncelleme: 2026-11-07
 // Değişiklikler:
+//   v1.2.30 — (V31.206) GÖREVİ GERİ ÇEVİR: açık görevde (liste + detay) "Geri Çevir" butonu — atanan ve
+//     ilerletme yetkisi olan TL/Müdür/Admin kullanır (gorevGeriCevirebilir); atayan = atanan olan görevde çıkmaz.
+//     Pencerede neden (visit_results tip 'gorev_geri_cevir_neden', Admin > Ziyaret Seçenekleri'nden yönetilir)
+//     ve açıklama ZORUNLU. Kayıt: durum 'Geri Çevrildi', atanan_id = atayan_id, görev geçmişine yazılır,
+//     atayana e-posta gider (bildirimGonder). Durum filtresine ve renk tablosuna 'Geri Çevrildi' eklendi.
+//     Yönlendirilince durum 'Atandı'ya döner (bkz. gorev_yonlendir.js v1.0.1).
 //   v1.2.29 — (V31.205) (1) ATAYAN artık açık görevde (liste + detay) "İptal" butonu görür (tamamlanmış/kapalı
 //     görevde çıkmaz); ilerletme yetkisi olan kişiler detayda İptal'i durum düğmesi olarak görmeye devam eder
 //     (çift buton yok). (2) Onayla/Reddet yalnız atayana değil ADMIN'e de açıldı: gorevOnaylayabilir(t) =
@@ -207,6 +213,7 @@ var GOREV_DURUM_RENK = {
   'Tamamlandı': '#10b981',
   'Reddedildi': '#f87171',
   'İptal':      '#6b7280',
+  'Geri Çevrildi': '#f59e0b',
 };
 
 // ============================================================
@@ -958,6 +965,10 @@ function renderGorevKarti(t) {
   if (benimatadim && !['Tamamlandı','Reddedildi','İptal'].includes(t.durum)) {
     aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;border-color:var(--red);color:var(--red);" onclick="gorevDurumGuncelle(' + t.task_id + ',\'İptal\')">İptal</button> ';
   }
+  // V31.206: Geri Çevir (atanan + ilerletme yetkisi olanlar; atayan = atanan ise çıkmaz)
+  if (gorevGeriCevirebilir(t)) {
+    aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;border-color:var(--amber);color:var(--amber);" onclick="gorevGeriCevirAc(' + t.task_id + ')">↩ Geri Çevir</button> ';
+  }
   if ((benimatadim || ystRoller.includes(r2)) && !['Tamamlandı','İptal'].includes(t.durum)) {
     aksiyonlar += '<button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px;" onclick="openGorevEdit(' + t.task_id + ')">✏️</button> ';
   }
@@ -1099,6 +1110,10 @@ async function openGorevDetay(taskId) {
   // V31.205: atayan, ilerletme yetkisi yoksa da açık görevi iptal edebilir (yetkisi varsa İptal zaten durum düğmelerinde)
   if (benimatadim && !kapali && !gorevIlerletebilir(t)) {
     aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;border-color:var(--red);color:var(--red);" onclick="gorevDurumGuncelle(' + taskId + ',\'İptal\');closeModal(\'gorevDetayModal\')">İptal</button>';
+  }
+  // V31.206: Geri Çevir (detay)
+  if (gorevGeriCevirebilir(t)) {
+    aksiyonHTML += '<button class="btn btn-ghost btn-sm" style="padding:6px 12px;border-color:var(--amber);color:var(--amber);" onclick="gorevGeriCevirAc(' + taskId + ')">↩ Geri Çevir</button>';
   }
   if (gorevOnaylayabilir(t) && t.durum === 'Tamamlandı' && !t.onay_tarihi) { // V31.205: atayan VEYA Admin
     aksiyonHTML += '<button class="btn" style="background:var(--green);color:#04301f;padding:6px 12px;" onclick="gorevOnayla(' + taskId + ');closeModal(\'gorevDetayModal\')">✓ Tamamlandı Onayla</button>';
@@ -1832,4 +1847,163 @@ function gorevIlerletebilir(t) {
 function gorevOnaylayabilir(t) {
   if (!t || !currentUser) return false;
   return t.atayan_id === currentUser.my_id || getScope('gorev_ilerlet') === 'TÜM';
+}
+
+// ============================================================
+// V31.206: GÖREVİ GERİ ÇEVİR
+//   Kim: atanan + ilerletme yetkisi olanlar (gorevIlerletebilir). Atayan = atanan ise çıkmaz.
+//   Sonuç: durum 'Geri Çevrildi', atanan_id = atayan_id (görev atayana döner, o yeniden yönlendirir).
+//   Neden listesi: visit_results.tip = 'gorev_geri_cevir_neden' (Admin > Ziyaret Seçenekleri).
+// ============================================================
+var GGC = { taskId: null, nedenler: [], neden: null, calisiyor: false };
+
+function gorevGeriCevirebilir(t) {
+  if (!t || !currentUser) return false;
+  if (['Tamamlandı', 'Reddedildi', 'İptal'].includes(t.durum)) return false;
+  if (!t.atayan_id || t.atayan_id === t.atanan_id) return false;
+  return gorevIlerletebilir(t);
+}
+
+async function gorevGeriCevirAc(taskId) {
+  const t = GOREV.tasks.find(function (x) { return x.task_id === taskId; });
+  if (!t || !gorevGeriCevirebilir(t)) { toast('Bu görev geri çevrilemez', 'error'); return; }
+  const { data, error } = await sb.from('visit_results')
+    .select('result_id,sonuc_adi')
+    .eq('tip', 'gorev_geri_cevir_neden').eq('aktif', true).order('sira');
+  if (error) { toast('Neden listesi okunamadı: ' + error.message, 'error'); return; }
+  if (!data || !data.length) { toast('Neden listesi boş (Admin > Ziyaret Seçenekleri > Görev Geri Çevirme Nedeni)', 'error'); return; }
+  GGC.taskId = taskId; GGC.nedenler = data; GGC.neden = null;
+  const atayanAd = t.atayan ? t.atayan.ad_soyad : ('#' + t.atayan_id);
+  document.getElementById('gorevGeriCevirIcerik').innerHTML =
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Görev <b>' + escapeHTML(atayanAd) + '</b> kişisine geri dönecek; o yeniden yönlendirecek.</div>' +
+    '<div style="font-size:12px;font-weight:600;margin-bottom:6px;">Neden <span style="color:var(--red);">*</span></div>' +
+    '<div id="ggcNedenler" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">' +
+      data.map(function (n) {
+        return '<button type="button" class="btn btn-ghost" id="ggcN_' + n.result_id + '" onclick="gorevGeriCevirNedenSec(' + n.result_id + ')" style="text-align:left;font-size:13px;padding:8px 10px;">' + escapeHTML(n.sonuc_adi) + '</button>';
+      }).join('') +
+    '</div>' +
+    '<div style="font-size:12px;font-weight:600;margin-bottom:6px;">Açıklama <span style="color:var(--red);">*</span></div>' +
+    '<textarea id="ggcAciklama" placeholder="Neden geri çevirdiğinizi yazın..." style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;min-height:80px;resize:vertical;"></textarea>';
+  const btn = document.getElementById('ggcKaydetBtn');
+  if (btn) { btn.disabled = false; btn.textContent = '↩ Geri Çevir'; }
+  openModal('gorevGeriCevirModal');
+}
+
+function gorevGeriCevirNedenSec(id) {
+  GGC.neden = id;
+  GGC.nedenler.forEach(function (n) {
+    const b = document.getElementById('ggcN_' + n.result_id);
+    if (!b) return;
+    const secili = (n.result_id === id);
+    b.style.borderColor = secili ? 'var(--amber)' : '';
+    b.style.color = secili ? 'var(--amber)' : '';
+    b.style.background = secili ? 'rgba(245,158,11,.12)' : '';
+  });
+}
+
+function gorevGeriCevirKaydet() {
+  return tekSeferCalistir('ggc:' + GGC.taskId, _gorevGeriCevirKaydetIc,
+    { imza: function () { return GGC.taskId + '|' + GGC.neden + '|' + (document.getElementById('ggcAciklama').value || '').trim(); }, pencereMs: 4000 });
+}
+
+async function _gorevGeriCevirKaydetIc() {
+  if (GGC.calisiyor) return;
+  const taskId = GGC.taskId;
+  const t = GOREV.tasks.find(function (x) { return x.task_id === taskId; });
+  if (!t || !gorevGeriCevirebilir(t)) { toast('Bu görev geri çevrilemez', 'error'); return; }
+  const nedenKayit = GGC.nedenler.find(function (n) { return n.result_id === GGC.neden; });
+  if (!nedenKayit) { toast('Neden seçin', 'error'); return; }
+  const aciklama = (document.getElementById('ggcAciklama').value || '').trim();
+  if (!aciklama) { toast('Açıklama zorunlu', 'error'); return; }
+
+  GGC.calisiyor = true;
+  const btn = document.getElementById('ggcKaydetBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Kaydediliyor...'; }
+  try {
+    // 1) Güncel durumu DB'den doğrula (liste eskimiş olabilir)
+    const { data: g, error } = await sb.from('tasks')
+      .select('task_id,baslik,durum,atanan_id,atayan_id,ncst,deadline')
+      .eq('task_id', taskId).maybeSingle();
+    if (error || !g) { toast('Görev okunamadı', 'error'); return; }
+    if (['Tamamlandı', 'Reddedildi', 'İptal'].includes(g.durum)) { toast('Görev kapanmış, geri çevrilemez', 'error'); return; }
+    if (!g.atayan_id || g.atayan_id === g.atanan_id) { toast('Bu görev geri çevrilemez (atayan ve atanan aynı)', 'error'); return; }
+
+    // 2) Eski atanan ve atayan adı
+    const idler = [g.atanan_id, g.atayan_id].filter(Boolean);
+    const { data: us } = await sb.from('users').select('my_id,ad_soyad,email').in('my_id', idler);
+    const uMap = {}; (us || []).forEach(function (u) { uMap[u.my_id] = u; });
+    const eskiAd = g.atanan_id ? ((uMap[g.atanan_id] && uMap[g.atanan_id].ad_soyad) || ('#' + g.atanan_id)) : 'Atanmamış';
+    const atayan = uMap[g.atayan_id] || { ad_soyad: '#' + g.atayan_id, email: null };
+
+    // 3) Güncelle: atanan = atayan, durum = Geri Çevrildi. Başkası arada değiştirdiyse 0 satır döner.
+    let upd = sb.from('tasks')
+      .update({ atanan_id: g.atayan_id, durum: 'Geri Çevrildi', guncelleme_tarihi: new Date().toISOString() })
+      .eq('task_id', taskId);
+    upd = (g.atanan_id == null) ? upd.is('atanan_id', null) : upd.eq('atanan_id', g.atanan_id);
+    const { data: guncel, error: e2 } = await upd.select('task_id');
+    if (e2) { toast('Hata: ' + e2.message, 'error'); return; }
+    if (!guncel || !guncel.length) { toast('Görev arada değişti, listeyi yenileyip tekrar deneyin', 'error'); await loadGorevler(true); return; }
+    tekSeferBasarili('ggc:' + taskId);
+
+    // 4) Görev geçmişi
+    const { error: e3 } = await sb.from('task_logs').insert({
+      task_id: taskId, user_id: currentUser.my_id, user_ad: currentUser.ad_soyad,
+      aksiyon: 'Geri Çevrildi',
+      detay: eskiAd + ' → ' + atayan.ad_soyad + '. Neden: ' + nedenKayit.sonuc_adi + '. Açıklama: ' + aciklama
+    });
+    if (e3) console.error('[gorev] geri çevir log hatası:', e3.message);
+
+    // 5) Atayana e-posta (kendisi geri çeviriyorsa gerekmez)
+    let mail = 'gerekmedi';
+    if (g.atayan_id !== currentUser.my_id) mail = await _gorevGeriCevirMail(g, t, atayan, eskiAd, nedenKayit.sonuc_adi, aciklama);
+
+    closeModal('gorevGeriCevirModal');
+    closeModal('gorevDetayModal');
+    const parca = ['Görev ' + atayan.ad_soyad + ' kişisine geri çevrildi'];
+    if (mail === 'adres_yok') parca.push('e-posta gitmedi: atayanın adresi tanımlı değil');
+    else if (mail === 'hata') parca.push('e-posta gönderilemedi');
+    if (e3) parca.push('geçmiş kaydı yazılamadı');
+    toast(parca.join('. '), (mail === 'adres_yok' || mail === 'hata' || e3) ? 'error' : 'success');
+    await loadGorevler(true);
+  } finally {
+    GGC.calisiyor = false;
+    if (btn) { btn.disabled = false; btn.textContent = '↩ Geri Çevir'; }
+  }
+}
+
+// Dönüş: 'ok' | 'adres_yok' | 'hata'
+async function _gorevGeriCevirMail(g, t, atayan, eskiAd, neden, aciklama) {
+  try {
+    if (!atayan.email) return 'adres_yok';
+    const musteri = (t && t.musteri && t.musteri.unvan) || g.ncst || '-';
+    const tip = (t && t.task_types && t.task_types.tip_adi) || '-';
+    const konu = 'Görev Geri Çevrildi — ' + g.baslik;
+    const text = 'Aşağıdaki görev geri çevrildi ve size döndü. Yeniden yönlendirmeniz gerekiyor.\n\n' +
+      'Görev: ' + g.baslik + '\n' +
+      'Görev tipi: ' + tip + '\n' +
+      'Müşteri: ' + musteri + '\n' +
+      'Deadline: ' + (g.deadline || '-') + '\n' +
+      'Geri çeviren: ' + currentUser.ad_soyad + '\n' +
+      'Önceki sorumlu: ' + eskiAd + '\n' +
+      'Neden: ' + neden + '\n' +
+      'Açıklama: ' + aciklama + '\n' +
+      'Görev No: #' + g.task_id + '\n\n' +
+      'Bu e-posta Şengüller Saha Satış Uygulaması tarafından otomatik gönderilmiştir.';
+    const html = '<p>Aşağıdaki görev geri çevrildi ve size döndü. Yeniden yönlendirmeniz gerekiyor.</p>' +
+      '<p><b>Görev:</b> ' + escapeHTML(g.baslik) + '<br>' +
+      '<b>Görev tipi:</b> ' + escapeHTML(tip) + '<br>' +
+      '<b>Müşteri:</b> ' + escapeHTML(musteri) + '<br>' +
+      '<b>Deadline:</b> ' + escapeHTML(g.deadline || '-') + '<br>' +
+      '<b>Geri çeviren:</b> ' + escapeHTML(currentUser.ad_soyad) + '<br>' +
+      '<b>Önceki sorumlu:</b> ' + escapeHTML(eskiAd) + '<br>' +
+      '<b>Neden:</b> ' + escapeHTML(neden) + '<br>' +
+      '<b>Açıklama:</b> ' + escapeHTML(aciklama).replace(/\n/g, '<br>') + '<br>' +
+      '<b>Görev No:</b> #' + escapeHTML(String(g.task_id)) + '</p>' +
+      '<p style="color:#888;font-size:12px;">Bu e-posta Şengüller Saha Satış Uygulaması tarafından otomatik gönderilmiştir.</p>';
+    const ok = await bildirimGonder([atayan.email], konu, text, html, 'sifre');
+    return ok ? 'ok' : 'hata';
+  } catch (e) {
+    console.error('[gorev] geri çevir e-posta hatası:', e && e.message ? e.message : e);
+    return 'hata';
+  }
 }
