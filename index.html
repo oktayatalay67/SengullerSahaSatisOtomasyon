@@ -2612,6 +2612,16 @@
         <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;">Hangi üst seçeneğe bağlı?</label>
         <select id="zoptModalParentSelect" style="width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:13px;box-sizing:border-box;"></select>
       </div>
+      <div id="zoptModalKapatirWrap" style="display:none;margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="zoptModalKapatir"> Bu seçenek seçilince görev kapanır (Tamamlandı, atayan/Admin onayına düşer)
+        </label>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">İşaretli değilse görev "Devam" durumunda açık kalır.</div>
+      </div>
+      <div id="zoptModalKapanisWrap" style="display:none;margin-bottom:14px;">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;">Hangi kapanışlarda görünsün? (birden fazla seçilebilir)</label>
+        <div id="zoptModalKapanisList"></div>
+      </div>
       <div style="display:flex;gap:8px;">
         <button onclick="closeModal('zoptModal')" class="btn-iptal" style="flex:1;">✕ İptal</button>
         <button onclick="zoptModalKaydet()" class="btn-kaydet" style="flex:1;">💾 Kaydet</button>
@@ -3785,7 +3795,7 @@
   <div class="app-footer">© Saha Satış Otomasyonu | <span class="app-ver">V31.66</span> | Veri Yönetimi</div>
 </div>
 
-<script src="js/config.js?v=v31.206"></script>
+<script src="js/config.js?v=v31.207"></script>
 <!-- bildirim.js: tek bildirim gonderme noktasi. Kendisini cagiran
      donanim.js / auth.js / arama.js dosyalarindan ONCE yuklenmeli. -->
 <script src="js/bildirim.js?v=v31.168"></script>
@@ -3807,7 +3817,7 @@
 <!-- surum.js: Surum takibi + eski surum uyarisi (V31.199). auth.js ve admin.js tarafindan cagrilir. -->
 <script src="js/surum.js?v=v31.199"></script>
 <script src="js/talep.js?v=v31.34"></script>
-<script src="js/temas.js?v=v31.200"></script>
+<script src="js/temas.js?v=v31.207"></script>
 <script src="js/arama.js?v=v31.203"></script>
 <!-- lead.js: Cagri Merkezi > Lead Aramalari (lead_liste/lead_kayit/lead_arama) -->
 <script src="js/lead.js?v=v31.203"></script>
@@ -3815,7 +3825,7 @@
 <script src="js/duyuru.js?v=v31.102"></script>
 <script src="js/musteri.js?v=v31.200"></script>
 <script src="js/hedef.js?v=v31.150"></script>
-<script src="js/admin.js?v=v31.199"></script>
+<script src="js/admin.js?v=v31.207"></script>
 <script src="js/veriyonetimi.js?v=v31.191"></script>
 <!-- gorev_toplu.js: Veri Yonetimi > Toplu Gorev (V31.191). veriyonetimi.js ve rapor.js (ensureXLSX) ile birlikte calisir. -->
 <script src="js/gorev_toplu.js?v=v31.191"></script>

@@ -1,5 +1,8 @@
 // ============================================================
-// admin.js — v1.1.8
+// admin.js — v1.1.9
+//   v1.1.9 (V31.207) — Ziyaret Seçenekleri: Şikayet Kapanış listesinde her seçenek için "Görevi kapatır"
+//     (visit_results.kapatir); Şikayet Çözüm listesinde kategori yerine "Hangi kapanışlarda görünsün"
+//     çoklu seçimi (visit_results.kapanis_idleri). Çözüm satırında "Görünür: ..." etiketi.
 //   v1.1.8 (V31.189) — Uygulama Ayarlari: "Dashboard Ayarlari" sekmesi (renderDashboardAyarlari, js/dashboard.js).
 //   v1.1.7 (V31.172) — ADMIN kutu menusune "Veri Guvenligi" eklendi;
 //     ekranin kendisi js/denetim.js icinde (initVeriGuvenlik).
@@ -44,10 +47,13 @@ let _zoptAktifTip = 'amac';
 
 // v1.1.0: Hangi tip hangi tipin alt kademesi (parent) — child tip:parent tip
 const ZOPT_PARENT_MAP = {
-  'sikayet_cozum_yontemi': 'sikayet_kategori',
   'temas_sonuc_detay':     'temas_sonuc_ust',
   'firsat_sonuc_detay':    'firsat_sonuc_ust',
   'islem':                 'amac'
+};
+// V31.207: çözüm yöntemi artık bir kategoriye değil, görünür olacağı KAPANIŞ seçeneklerine bağlanır (çoklu)
+const ZOPT_KAPANIS_MAP = {
+  'sikayet_cozum_yontemi': 'sikayet_kapalis_durumu'
 };
 
 async function initZiyaretOpt(){
@@ -63,6 +69,26 @@ async function zoptTipSec(tip, btn){
   await zoptListeYukle();
 }
 
+let _zoptVeri = {};       // V31.207: result_id -> satır (düzenleme penceresi için)
+let _zoptKapanisAd = {};  // V31.207: kapanış result_id -> ad (çözüm etiketi için)
+
+function _zoptEkEtiket(r){
+  if(_zoptAktifTip==='sikayet_kapalis_durumu'){
+    return '<div style="font-size:10px;margin-top:2px;color:'+(r.kapatir?'var(--green)':'var(--text3)')+';">'+(r.kapatir?'🔒 Görevi kapatır (onaya düşer)':'↻ Görev açık kalır')+'</div>';
+  }
+  if(ZOPT_KAPANIS_MAP[_zoptAktifTip]){
+    const ids=Array.isArray(r.kapanis_idleri)?r.kapanis_idleri:[];
+    const adlar=ids.map(i=>_zoptKapanisAd[i]).filter(Boolean);
+    return adlar.length
+      ? '<div style="font-size:10px;color:var(--text3);margin-top:2px;">👁 Görünür: '+adlar.map(x=>escapeHTML(x)).join(', ')+'</div>'
+      : '<div style="font-size:10px;color:var(--amber);margin-top:2px;">👁 Hiçbir kapanışta görünmüyor</div>';
+  }
+  return '';
+}
+
+// V31.207: Seçenek listeleri değişince görev formu önbelleği (temas.js) yenilensin
+function _zoptOnbellekTemizle(){ _gorevSecenekCache = {}; }
+
 async function zoptListeYukle(){
   const el = document.getElementById('zoptList');
   el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
@@ -70,6 +96,14 @@ async function zoptListeYukle(){
     .select('*').eq('tip',_zoptAktifTip).order('sira');
   if(error){ el.innerHTML=`<div style="color:var(--red);">${escapeHTML(error.message)}</div>`; return; }
   if(!data?.length){ el.innerHTML='<div class="empty">Kayıt yok.</div>'; return; }
+
+  _zoptVeri = {};
+  data.forEach(r=>{ _zoptVeri[r.result_id]=r; });
+  if(ZOPT_KAPANIS_MAP[_zoptAktifTip]){
+    const{data:kp}=await sb.from('visit_results').select('result_id,sonuc_adi').eq('tip',ZOPT_KAPANIS_MAP[_zoptAktifTip]);
+    _zoptKapanisAd = {};
+    (kp||[]).forEach(k=>{ _zoptKapanisAd[k.result_id]=k.sonuc_adi; });
+  }
 
   // v1.1.0: Bu tip bir alt kademe mi? Üst seçeneklerin adını çek (gösterim için)
   const parentTip = ZOPT_PARENT_MAP[_zoptAktifTip];
@@ -89,6 +123,7 @@ async function zoptListeYukle(){
       <span style="color:var(--text3);font-size:16px;cursor:grab;">☰</span>
       <div style="flex:1;">
         <div style="font-size:13px;${r.aktif?'':'opacity:0.4;text-decoration:line-through;'}">${escapeHTML(r.sonuc_adi)}</div>
+        ${_zoptEkEtiket(r)}
         ${parentTip?`<div style="font-size:10px;color:var(--text3);margin-top:2px;">↳ ${r.parent_id&&parentNameMap[r.parent_id]?escapeHTML(parentNameMap[r.parent_id]):'<span style=\"color:var(--amber);\">Bağlı değil</span>'}</div>`:''}
       </div>
       <div style="display:flex;gap:4px;">
@@ -177,6 +212,23 @@ async function zoptAcModal(id, mevcutAd, mevcutParentId){
   } else {
     if(parentWrap) parentWrap.style.display='none';
   }
+
+  // V31.207: "Görevi kapatır" (şikayet kapanış) ve "Hangi kapanışlarda görünsün" (şikayet çözüm)
+  const satir = id ? (_zoptVeri[id]||{}) : {};
+  const kapatirWrap = document.getElementById('zoptModalKapatirWrap');
+  const kapatirChk = document.getElementById('zoptModalKapatir');
+  if(kapatirWrap) kapatirWrap.style.display = (_zoptAktifTip==='sikayet_kapalis_durumu') ? 'block' : 'none';
+  if(kapatirChk) kapatirChk.checked = !!satir.kapatir;
+  const kapTip = ZOPT_KAPANIS_MAP[_zoptAktifTip];
+  const kapWrap = document.getElementById('zoptModalKapanisWrap');
+  const kapList = document.getElementById('zoptModalKapanisList');
+  if(kapWrap) kapWrap.style.display = kapTip ? 'block' : 'none';
+  if(kapTip && kapList){
+    const{data:kaps}=await sb.from('visit_results').select('result_id,sonuc_adi').eq('tip',kapTip).eq('aktif',true).order('sira');
+    const secili = (Array.isArray(satir.kapanis_idleri)?satir.kapanis_idleri:[]).map(Number);
+    kapList.innerHTML = (kaps||[]).map(k=>'<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;cursor:pointer;"><input type="checkbox" class="zoptKapChk" value="'+k.result_id+'" '+(secili.includes(k.result_id)?'checked':'')+'> '+escapeHTML(k.sonuc_adi)+'</label>').join('')
+      || '<div style="font-size:11px;color:var(--amber);">Önce Şikayet Kapanış listesine seçenek ekleyin</div>';
+  }
   openModal('zoptModal');
 }
 
@@ -190,15 +242,28 @@ async function zoptModalKaydet(){
     if(!v){ toast('Üst seçenek seçmelisiniz','error'); return; }
     parentId = parseInt(v);
   }
-  await zoptKaydet(_zoptEditId, ad, null, parentId);
+  // V31.207: tipe özel ek alanlar
+  let ekstra = {};
+  if(_zoptAktifTip==='sikayet_kapalis_durumu'){
+    ekstra.kapatir = !!document.getElementById('zoptModalKapatir')?.checked;
+  }
+  if(ZOPT_KAPANIS_MAP[_zoptAktifTip]){
+    const idler = Array.from(document.querySelectorAll('#zoptModalKapanisList .zoptKapChk:checked')).map(c=>parseInt(c.value));
+    if(!idler.length){ toast('En az bir kapanış seçin','error'); return; }
+    ekstra.kapanis_idleri = idler;
+    parentId = undefined; // eski kategori bağlantısına (parent_id) dokunma
+  }
+  await zoptKaydet(_zoptEditId, ad, null, parentId, ekstra);
   closeModal('zoptModal');
 }
 
-async function zoptKaydet(id, ad, sira, parentId){
-  const payload = {sonuc_adi:ad, tip:_zoptAktifTip, parent_id: parentId ?? null};
+async function zoptKaydet(id, ad, sira, parentId, ekstra){
+  const payload = Object.assign({sonuc_adi:ad, tip:_zoptAktifTip, parent_id: parentId ?? null}, ekstra||{});
   let error;
   if(id){
-    const res = await sb.from('visit_results').update({sonuc_adi:ad, parent_id: parentId ?? null}).eq('result_id',id);
+    const upd = Object.assign({sonuc_adi:ad}, ekstra||{});
+    if(parentId!==undefined) upd.parent_id = parentId ?? null; // undefined = parent_id'ye dokunma (V31.207)
+    const res = await sb.from('visit_results').update(upd).eq('result_id',id);
     error = res.error;
   } else {
     payload.aktif = true;
@@ -210,6 +275,7 @@ async function zoptKaydet(id, ad, sira, parentId){
   }
   if(error){ toast('Hata: '+error.message,'error'); return; }
   toast(id?'Güncellendi':'Eklendi','success');
+  _zoptOnbellekTemizle();
   await zoptListeYukle();
   await buildTemasUI(); // Temas formunu güncelle
 }
@@ -217,6 +283,7 @@ async function zoptKaydet(id, ad, sira, parentId){
 async function zoptAktifToggle(id, yeniDurum){
   const {error} = await sb.from('visit_results').update({aktif:yeniDurum}).eq('result_id',id);
   if(error){ toast('Hata','error'); return; }
+  _zoptOnbellekTemizle();
   await zoptListeYukle();
   await buildTemasUI();
 }
@@ -226,6 +293,7 @@ async function zoptSil(id){
   const {error} = await sb.from('visit_results').delete().eq('result_id',id);
   if(error){ toast('Hata: '+error.message,'error'); return; }
   toast('Silindi','success');
+  _zoptOnbellekTemizle();
   await zoptListeYukle();
   await buildTemasUI();
 }

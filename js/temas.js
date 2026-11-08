@@ -1,5 +1,12 @@
 // ============================================================
-// temas.js — v2.10.53
+// temas.js — v2.10.54
+//   v2.10.54 — V31.207: ŞİKAYET KAPANIŞ ARTIK ADMIN'DEN YÖNETİLİR. (1) Görev kapanışı koddaki 'Çözüldü' adına
+//     değil, seçilen kapanış seçeneğinin visit_results.kapatir bayrağına bağlandı (kapatir=true -> Tamamlandı,
+//     onay bekler; değilse Devam). (2) Alan tanımında bagli_alan_kolon:'kapanis_idleri' varsa seçenekler,
+//     üst alanda seçilen kapanışı visit_results.kapanis_idleri listesinde taşıyanlarla sınırlanır
+//     (şikayet çözüm yöntemi <-> kapanış). Bu işaret yoksa eski davranış (parent_id) aynen çalışır.
+//     (3) Kapanış değişince, buna bağlı çözüm seçimi sıfırlanır. (4) Seçilen kapanış için hiç çözüm
+//     tanımlı değilse çözüm alanı zorunlu sayılmaz. GOREV_SIKAYET_KAPANIS_TETIK sabiti kaldırıldı.
 //   v2.10.53 — V31.200: VERITABANI YUKU. Temas Dashboard her Temas menusune girisde/geri donuste
 //     (utils.js navTo + goBack) ve her filtre degisiminde bastan hesaplaniyordu: tum ziyaretler
 //     1000'erlik sayfalarla + portfoy sayimi + ziyaret edilen musteriler 500'luk parcalarla (onlarca
@@ -637,7 +644,6 @@ let _gorevSecenekCache = {};    // secenek_kaynagi (visit_results.tip) -> [{resu
 // Belirli tiplerde, belirli bir sonuç seçilince fırsat ekleme UI'ı otomatik açılsın.
 // Yeni bir görev tipi için bu tetikleme isteniyorsa, buraya tek satır eklenir —
 // motor mantığına dokunulmaz.
-const GOREV_SIKAYET_KAPANIS_TETIK = 'Çözüldü'; // şikayet kapanış tetikleyici (visit_results.sonuc_adi)
 const _GOREV_FIRSAT_TETIKLEYICI = {
   21: 'Fırsat Olumlu Kapatıldı',   // Satış Gücü Fırsatı
   22: 'Satış Gerçekleşti'          // Müşteri Potansiyeli Belirleme
@@ -656,7 +662,7 @@ function hideGorevBloklar(){
 // Bir secenek_kaynagi (visit_results.tip) için seçenekleri çeker, cache'ler
 async function _gorevSecenekleriGetir(tip){
   if(_gorevSecenekCache[tip]) return _gorevSecenekCache[tip];
-  const{data}=await sb.from('visit_results').select('result_id,sonuc_adi,parent_id').eq('tip',tip).eq('aktif',true).order('sira');
+  const{data}=await sb.from('visit_results').select('result_id,sonuc_adi,parent_id,kapatir,kapanis_idleri').eq('tip',tip).eq('aktif',true).order('sira');
   _gorevSecenekCache[tip]=data||[];
   return _gorevSecenekCache[tip];
 }
@@ -737,28 +743,45 @@ async function _gorevAlanCiz(field, containerEl){
   containerEl.appendChild(wrap);
 }
 
-// tek_secim alanının chip listesini doldurur (bagli_alan varsa, üst seçime göre filtreler)
-async function _gorevSecimGridDoldur(field, grid){
+// V31.207: bir tek_secim alanının (üst seçime göre sınırlanmış) geçerli seçenekleri.
+//   bagli_alan + bagli_alan_kolon:'kapanis_idleri' -> seçenek, üst alanda seçilen result_id'yi kendi
+//     visit_results.kapanis_idleri listesinde taşıyorsa görünür (şikayet çözüm yöntemi <-> kapanış).
+//   bagli_alan (işaret yok)                       -> parent_id eşleşmesi (kademeli, eski davranış).
+//   bagli_alan yok                                -> tüm aktif seçenekler.
+async function _gorevFiltreliSecenekler(field){
   let options=await _gorevSecenekleriGetir(field.secenek_kaynagi);
   if(field.bagli_alan){
     const ustDeger=_gorevAlanDeger[field.bagli_alan]; // üst alanda seçilen result_id
-    options=options.filter(o=>o.parent_id===ustDeger);
+    if(field.bagli_alan_kolon==='kapanis_idleri'){
+      options = (ustDeger==null) ? [] : options.filter(o=>Array.isArray(o.kapanis_idleri) && o.kapanis_idleri.map(Number).includes(Number(ustDeger)));
+    } else {
+      options=options.filter(o=>o.parent_id===ustDeger);
+    }
   }
+  return options;
+}
+
+// tek_secim alanının chip listesini doldurur (bagli_alan varsa, üst seçime göre filtreler)
+async function _gorevSecimGridDoldur(field, grid){
+  const options=await _gorevFiltreliSecenekler(field);
   grid.innerHTML=options.map(o=>`<div class="product-chip" data-id="${o.result_id}" onclick="_gorevChipSec('${field.anahtar}',${o.result_id},this)">${escapeHTML(o.sonuc_adi)}</div>`).join('');
   if(!options.length && field.bagli_alan){
-    grid.innerHTML='<div style="font-size:11px;color:var(--text3);">Önce yukarıdaki alanı seçin</div>';
+    grid.innerHTML = (field.bagli_alan_kolon==='kapanis_idleri' && _gorevAlanDeger[field.bagli_alan]!=null)
+      ? '<div style="font-size:11px;color:var(--text3);">Bu kapanış için çözüm yöntemi tanımlı değil</div>'
+      : '<div style="font-size:11px;color:var(--text3);">Önce yukarıdaki alanı seçin</div>';
   }
 }
 
 function _gorevChipSec(anahtar, resultId, el){
+  const onceki=_gorevAlanDeger[anahtar];
   el.parentElement.querySelectorAll('.product-chip').forEach(c=>c.classList.remove('selected'));
   el.classList.add('selected');
   _gorevAlanDeger[anahtar]=resultId;
-  _gorevBagliAlanlariGuncelle(anahtar);
+  _gorevBagliAlanlariGuncelle(anahtar, onceki!==resultId);
 }
 
 // Bir alan değiştiğinde, ona bağlı (bagli_alan=bu anahtar) diğer alanları günceller
-function _gorevBagliAlanlariGuncelle(degisenAnahtar){
+function _gorevBagliAlanlariGuncelle(degisenAnahtar, degerDegisti){
   if(!_gorevAktifTask) return;
   const tumAlanlar=[...(_gorevAktifTask.soru_seti||[]), ...(_gorevAktifTask.sonuc_seti||[])];
   tumAlanlar.forEach(f=>{
@@ -767,6 +790,8 @@ function _gorevBagliAlanlariGuncelle(degisenAnahtar){
     if(!elWrap) return;
     if(f.tip==='tek_secim'){
       const grid=document.getElementById('gorevAlan_'+f.anahtar);
+      // V31.207: kapanış değişti -> önceki çözüm seçimi geçersiz, yeniden seçilmeli
+      if(f.bagli_alan_kolon==='kapanis_idleri' && degerDegisti!==false) _gorevAlanDeger[f.anahtar]=null;
       if(grid) _gorevSecimGridDoldur(f, grid);
       elWrap.style.display='';
     } else {
@@ -875,6 +900,11 @@ async function saveGorevSonuclari(visitId, taskId, ncst, isPlan=false){
       const wrap=document.querySelector('[data-anahtar="'+f.anahtar+'"]');
       const gorunur = !wrap || wrap.style.display!=='none';
       if(f.zorunlu && gorunur && (_gorevAlanDeger[f.anahtar]===undefined||_gorevAlanDeger[f.anahtar]===null||_gorevAlanDeger[f.anahtar]==='')){
+        // V31.207: kapanışa bağlı alanda (çözüm yöntemi), seçilen kapanış için hiç seçenek tanımlı değilse zorunlu sayılmaz
+        if(f.tip==='tek_secim' && f.bagli_alan_kolon==='kapanis_idleri' && _gorevAlanDeger[f.bagli_alan]!=null){
+          const secenekler=await _gorevFiltreliSecenekler(f);
+          if(!secenekler.length) continue;
+        }
         toast(f.etiket+' seçimi zorunlu','error');
         return false;
       }
@@ -941,7 +971,8 @@ async function saveGorevSonuclari(visitId, taskId, ncst, isPlan=false){
   }
 
   // Görev durumu — ŞİKAYET tipinde MY/FMY beyanıyla KAPANMAZ:
-  // kapanış "Çözüldü" ise Tamamlandı(onay bekliyor) → atayana düşer; değilse Devam (açık kalır).
+  // seçilen kapanışın visit_results.kapatir bayrağı true ise Tamamlandı(onay bekliyor) → atayana düşer;
+  // değilse Devam (açık kalır). (V31.207: eskiden 'Çözüldü' adına bağlıydı; artık Admin'den yönetilir.)
   let yeniDurum, yeniTamamlanma;
   if(isPlan){
     yeniDurum='Başladı'; yeniTamamlanma=null;
@@ -950,8 +981,7 @@ async function saveGorevSonuclari(visitId, taskId, ncst, isPlan=false){
     let kapandiMi=false;
     if(kapanisAlan){
       const opts=await _gorevSecenekleriGetir(kapanisAlan.secenek_kaynagi);
-      const seciliMetin=opts.find(o=>o.result_id===_gorevAlanDeger['kapanis'])?.sonuc_adi;
-      kapandiMi=(seciliMetin===GOREV_SIKAYET_KAPANIS_TETIK);
+      kapandiMi=(opts.find(o=>o.result_id===_gorevAlanDeger['kapanis'])?.kapatir===true);
     }
     yeniDurum=kapandiMi?'Tamamlandı':'Devam';
     yeniTamamlanma=kapandiMi?new Date().toISOString():null;
