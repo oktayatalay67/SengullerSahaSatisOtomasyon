@@ -1,4 +1,50 @@
 // ============================================================
+// temas.js — v2.10.54
+//   v2.10.54 — V31.207: ŞİKAYET KAPANIŞ ARTIK ADMIN'DEN YÖNETİLİR. (1) Görev kapanışı koddaki 'Çözüldü' adına
+//     değil, seçilen kapanış seçeneğinin visit_results.kapatir bayrağına bağlandı (kapatir=true -> Tamamlandı,
+//     onay bekler; değilse Devam). (2) Alan tanımında bagli_alan_kolon:'kapanis_idleri' varsa seçenekler,
+//     üst alanda seçilen kapanışı visit_results.kapanis_idleri listesinde taşıyanlarla sınırlanır
+//     (şikayet çözüm yöntemi <-> kapanış). Bu işaret yoksa eski davranış (parent_id) aynen çalışır.
+//     (3) Kapanış değişince, buna bağlı çözüm seçimi sıfırlanır. (4) Seçilen kapanış için hiç çözüm
+//     tanımlı değilse çözüm alanı zorunlu sayılmaz. GOREV_SIKAYET_KAPANIS_TETIK sabiti kaldırıldı.
+//   v2.10.53 — V31.200: VERITABANI YUKU. Temas Dashboard her Temas menusune girisde/geri donuste
+//     (utils.js navTo + goBack) ve her filtre degisiminde bastan hesaplaniyordu: tum ziyaretler
+//     1000'erlik sayfalarla + portfoy sayimi + ziyaret edilen musteriler 500'luk parcalarla (onlarca
+//     sorgu). Simdi sonuc 5 dakika onbellekte tutulur (anahtar: kullanici + zaman filtresi + gun +
+//     KCM/takim/MY filtreleri). Navigasyon (navTo/goBack) onbellekten calisir; kayit/guncelleme ve
+//     kullanicinin kendi filtre tiklamasi (loadTemasDashboardDebounced) HER ZAMAN yeniden hesaplar.
+//   v2.10.52 — V31.188: ZIYARET FORMUNDAN ACILAN FIRSAT ARTIK activity_logs YAZIYOR.
+//     Onceden saveTemas icindeki opportunities.insert sonrasi firsat icin log
+//     yazilmiyordu (yalnizca visits logu vardi); bu yolla giren firsatlarin zaman
+//     cizelgesinde Olusturuldu kaydi ve asama gecmisi yoktu. Simdi firsat.js ile
+//     ayni biçimde addLog('opportunities', opp_id, 'Oluşturuldu', 'Aşama | Ürün')
+//     ve aciklama varsa ayrica 'Not' yazilir. Gecmis kayitlar DEGISMEDI (geriye
+//     donuk log uretilmedi). Veri modeli degismedi.
+// temas.js — v2.10.51
+//   v2.10.51 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
+//     (js/denetim.js, veri_cikis_log tablosu). Nokta: fetchAdvancedReport
+//     (ekran goruntuleme; Excel cikisi rapor.js:downloadTemasExcel).
+//   v2.10.50 — (V31.104) "Satış Potansiyeli" (eski adı Ziyaret Potansiyeli):
+//     1) Ad değişti, Müşteri Düzenle modalında özel çerçeveli/renkli kutuya
+//        alınıp IT Ekibi'nin üstüne taşındı; IT/Sunucu/Şube/Firewall satırları
+//        artık soru-cevap aynı satırda (index.html).
+//     2) Neden seçimi ÇOKLU hale geldi — tek <select> yerine tıklanabilir
+//        kutucuklar (zpot-neden-chip), birden fazla seçilebiliyor. Ortak
+//        mantık genelleştirildi (ns parametreli: 'edit'=Müşteri Düzenle,
+//        'hm'=gorev.js'teki "Hangi Müşteriye Gidelim" hızlı modalı):
+//        _zpotAc/_zpotSetVal/_zpotRenderVal/_zpotRenderNedenChips/
+//        zpotNedenChipClick/zpotDigerMetinDegisti/_zpotKilidiUygula/
+//        _zpotNedenParse/_zpotNedenBuild. Eski _setZpotToggle/
+//        editZpotNedenChanged kaldırıldı (yerini _zpotAc/_zpotSetVal aldı).
+//     Veri modeli DEĞİŞMEDİ — customers.ziyaret_potansiyeli_yok_nedeni hâlâ
+//     tek TEXT kolonu, seçilen nedenler ' | ' ile birleştirilip yazılıyor.
+// temas.js — v2.10.49
+//   v2.10.49 — (V31.103) YENİ: "Ziyaret Potansiyeli Yok" işaretleme — Müşteri
+//     Düzenle modalına (custEditModal) eklendi. Batık/iflas, tabela firması,
+//     ulaşılamayan veya rakipte çok memnun olup değiştirilemeyen müşteriler
+//     için MY/FMY işaretleyebilir, ama SADECE KÇM MÜDÜRÜ/OPERASYON MÜDÜRÜ/
+//     ADMIN/SATIŞ DİREKTÖRÜ/TAKIM LİDERİ kaldırabilir (customers.
+//     ziyaret_potansiyeli_yok/_nedeni/_tarih/_kullanici — 4 yeni kolon).
 // temas.js — v2.10.48
 //   v2.10.48 — (V31.50) Temas formu kontak satirinda ham telefon yerine _telG().
 // temas.js — v2.10.47
@@ -561,9 +607,10 @@ function setOpportunityConfirm(val){
     xBtn.style.borderColor='';
     xBtn.style.color='';
   } else {
-    xBtn.style.background='rgba(224,4,42,.2)';
-    xBtn.style.borderColor='var(--red)';
-    xBtn.style.color='var(--red)';
+    xBtn.style.background='#350f18';
+    xBtn.style.borderWidth='1.5px';
+    xBtn.style.borderColor='#ed2345';
+    xBtn.style.color='#fff';
     okBtn.style.background='transparent';
     okBtn.style.borderColor='rgba(0,214,143,.4)';
     okBtn.style.color='var(--text2)';
@@ -597,7 +644,6 @@ let _gorevSecenekCache = {};    // secenek_kaynagi (visit_results.tip) -> [{resu
 // Belirli tiplerde, belirli bir sonuç seçilince fırsat ekleme UI'ı otomatik açılsın.
 // Yeni bir görev tipi için bu tetikleme isteniyorsa, buraya tek satır eklenir —
 // motor mantığına dokunulmaz.
-const GOREV_SIKAYET_KAPANIS_TETIK = 'Çözüldü'; // şikayet kapanış tetikleyici (visit_results.sonuc_adi)
 const _GOREV_FIRSAT_TETIKLEYICI = {
   21: 'Fırsat Olumlu Kapatıldı',   // Satış Gücü Fırsatı
   22: 'Satış Gerçekleşti'          // Müşteri Potansiyeli Belirleme
@@ -616,7 +662,7 @@ function hideGorevBloklar(){
 // Bir secenek_kaynagi (visit_results.tip) için seçenekleri çeker, cache'ler
 async function _gorevSecenekleriGetir(tip){
   if(_gorevSecenekCache[tip]) return _gorevSecenekCache[tip];
-  const{data}=await sb.from('visit_results').select('result_id,sonuc_adi,parent_id').eq('tip',tip).eq('aktif',true).order('sira');
+  const{data}=await sb.from('visit_results').select('result_id,sonuc_adi,parent_id,kapatir,kapanis_idleri').eq('tip',tip).eq('aktif',true).order('sira');
   _gorevSecenekCache[tip]=data||[];
   return _gorevSecenekCache[tip];
 }
@@ -697,28 +743,45 @@ async function _gorevAlanCiz(field, containerEl){
   containerEl.appendChild(wrap);
 }
 
-// tek_secim alanının chip listesini doldurur (bagli_alan varsa, üst seçime göre filtreler)
-async function _gorevSecimGridDoldur(field, grid){
+// V31.207: bir tek_secim alanının (üst seçime göre sınırlanmış) geçerli seçenekleri.
+//   bagli_alan + bagli_alan_kolon:'kapanis_idleri' -> seçenek, üst alanda seçilen result_id'yi kendi
+//     visit_results.kapanis_idleri listesinde taşıyorsa görünür (şikayet çözüm yöntemi <-> kapanış).
+//   bagli_alan (işaret yok)                       -> parent_id eşleşmesi (kademeli, eski davranış).
+//   bagli_alan yok                                -> tüm aktif seçenekler.
+async function _gorevFiltreliSecenekler(field){
   let options=await _gorevSecenekleriGetir(field.secenek_kaynagi);
   if(field.bagli_alan){
     const ustDeger=_gorevAlanDeger[field.bagli_alan]; // üst alanda seçilen result_id
-    options=options.filter(o=>o.parent_id===ustDeger);
+    if(field.bagli_alan_kolon==='kapanis_idleri'){
+      options = (ustDeger==null) ? [] : options.filter(o=>Array.isArray(o.kapanis_idleri) && o.kapanis_idleri.map(Number).includes(Number(ustDeger)));
+    } else {
+      options=options.filter(o=>o.parent_id===ustDeger);
+    }
   }
+  return options;
+}
+
+// tek_secim alanının chip listesini doldurur (bagli_alan varsa, üst seçime göre filtreler)
+async function _gorevSecimGridDoldur(field, grid){
+  const options=await _gorevFiltreliSecenekler(field);
   grid.innerHTML=options.map(o=>`<div class="product-chip" data-id="${o.result_id}" onclick="_gorevChipSec('${field.anahtar}',${o.result_id},this)">${escapeHTML(o.sonuc_adi)}</div>`).join('');
   if(!options.length && field.bagli_alan){
-    grid.innerHTML='<div style="font-size:11px;color:var(--text3);">Önce yukarıdaki alanı seçin</div>';
+    grid.innerHTML = (field.bagli_alan_kolon==='kapanis_idleri' && _gorevAlanDeger[field.bagli_alan]!=null)
+      ? '<div style="font-size:11px;color:var(--text3);">Bu kapanış için çözüm yöntemi tanımlı değil</div>'
+      : '<div style="font-size:11px;color:var(--text3);">Önce yukarıdaki alanı seçin</div>';
   }
 }
 
 function _gorevChipSec(anahtar, resultId, el){
+  const onceki=_gorevAlanDeger[anahtar];
   el.parentElement.querySelectorAll('.product-chip').forEach(c=>c.classList.remove('selected'));
   el.classList.add('selected');
   _gorevAlanDeger[anahtar]=resultId;
-  _gorevBagliAlanlariGuncelle(anahtar);
+  _gorevBagliAlanlariGuncelle(anahtar, onceki!==resultId);
 }
 
 // Bir alan değiştiğinde, ona bağlı (bagli_alan=bu anahtar) diğer alanları günceller
-function _gorevBagliAlanlariGuncelle(degisenAnahtar){
+function _gorevBagliAlanlariGuncelle(degisenAnahtar, degerDegisti){
   if(!_gorevAktifTask) return;
   const tumAlanlar=[...(_gorevAktifTask.soru_seti||[]), ...(_gorevAktifTask.sonuc_seti||[])];
   tumAlanlar.forEach(f=>{
@@ -727,6 +790,8 @@ function _gorevBagliAlanlariGuncelle(degisenAnahtar){
     if(!elWrap) return;
     if(f.tip==='tek_secim'){
       const grid=document.getElementById('gorevAlan_'+f.anahtar);
+      // V31.207: kapanış değişti -> önceki çözüm seçimi geçersiz, yeniden seçilmeli
+      if(f.bagli_alan_kolon==='kapanis_idleri' && degerDegisti!==false) _gorevAlanDeger[f.anahtar]=null;
       if(grid) _gorevSecimGridDoldur(f, grid);
       elWrap.style.display='';
     } else {
@@ -835,6 +900,11 @@ async function saveGorevSonuclari(visitId, taskId, ncst, isPlan=false){
       const wrap=document.querySelector('[data-anahtar="'+f.anahtar+'"]');
       const gorunur = !wrap || wrap.style.display!=='none';
       if(f.zorunlu && gorunur && (_gorevAlanDeger[f.anahtar]===undefined||_gorevAlanDeger[f.anahtar]===null||_gorevAlanDeger[f.anahtar]==='')){
+        // V31.207: kapanışa bağlı alanda (çözüm yöntemi), seçilen kapanış için hiç seçenek tanımlı değilse zorunlu sayılmaz
+        if(f.tip==='tek_secim' && f.bagli_alan_kolon==='kapanis_idleri' && _gorevAlanDeger[f.bagli_alan]!=null){
+          const secenekler=await _gorevFiltreliSecenekler(f);
+          if(!secenekler.length) continue;
+        }
         toast(f.etiket+' seçimi zorunlu','error');
         return false;
       }
@@ -901,7 +971,8 @@ async function saveGorevSonuclari(visitId, taskId, ncst, isPlan=false){
   }
 
   // Görev durumu — ŞİKAYET tipinde MY/FMY beyanıyla KAPANMAZ:
-  // kapanış "Çözüldü" ise Tamamlandı(onay bekliyor) → atayana düşer; değilse Devam (açık kalır).
+  // seçilen kapanışın visit_results.kapatir bayrağı true ise Tamamlandı(onay bekliyor) → atayana düşer;
+  // değilse Devam (açık kalır). (V31.207: eskiden 'Çözüldü' adına bağlıydı; artık Admin'den yönetilir.)
   let yeniDurum, yeniTamamlanma;
   if(isPlan){
     yeniDurum='Başladı'; yeniTamamlanma=null;
@@ -910,8 +981,7 @@ async function saveGorevSonuclari(visitId, taskId, ncst, isPlan=false){
     let kapandiMi=false;
     if(kapanisAlan){
       const opts=await _gorevSecenekleriGetir(kapanisAlan.secenek_kaynagi);
-      const seciliMetin=opts.find(o=>o.result_id===_gorevAlanDeger['kapanis'])?.sonuc_adi;
-      kapandiMi=(seciliMetin===GOREV_SIKAYET_KAPANIS_TETIK);
+      kapandiMi=(opts.find(o=>o.result_id===_gorevAlanDeger['kapanis'])?.kapatir===true);
     }
     yeniDurum=kapandiMi?'Tamamlandı':'Devam';
     yeniTamamlanma=kapandiMi?new Date().toISOString():null;
@@ -1006,6 +1076,96 @@ function removeTmsFirsat(i){
   }
 }
 
+/* ===== SATIŞ POTANSİYELİ YOK (V31.104, eski adı "Ziyaret Potansiyeli") =====
+   Batık/iflas, tabela firması, ulaşılamayan veya rakipte çok memnun olup
+   değiştirilemeyen müşteriler için: MY/FMY işaretleyebilir (yetkisi varsa),
+   ama SADECE KÇM MÜDÜRÜ ve üstü roller + TAKIM LİDERİ kaldırabilir. Bu sayede
+   ziyaret hedefi/penetrasyon hesaplarından bu müşteriler "Ziyaret Edilmeyen"
+   listesinden çıkarılıp ayrı "Potansiyel Değil" listesine taşınıyor (rapor.js).
+   V31.104: neden artık ÇOKLU seçilebiliyor (kutucuklara tıklayıp işaretleme).
+   Aynı mekanizma iki yerde kullanılıyor — Müşteri Düzenle modalı (ns='edit')
+   ve "Hangi Müşteriye Gidelim" ekranındaki küçük hızlı modal (ns='hm',
+   gorev.js). customers.ziyaret_potansiyeli_yok_nedeni hâlâ TEK bir TEXT
+   kolonu — seçilen nedenler ' | ' ile birleştirilip yazılıyor, "Diğer"
+   serbest metni varsa "Diğer: <metin>" şeklinde saklanıyor. Yeni SQL kolonu
+   GEREKMİYOR, mevcut kolon yeniden kullanılıyor. */
+const ZPOT_NEDEN_SABIT=['Batık/İflas','Faaliyeti Yok (Tabela Firması)','Hiçbir Koşulda Ulaşılamıyor','Rakipten Memnun/Değiştirilemiyor'];
+function _zpotKaldirmaYetkisiVarMi(){
+  const r=(currentUser.yetki_seviyesi||'').toUpperCase();
+  return ['ADMIN','SATIŞ DİREKTÖRÜ','OPERASYON MÜDÜRÜ','KÇM MÜDÜRÜ','TAKIM LİDERİ'].includes(r);
+}
+// nedenStr (DB'deki ham metin) → {set:Set<neden>, digerMetin:string}
+// Eski (V31.103) tek-seçim kayıtlarıyla da geriye dönük uyumlu: '|' yoksa ve
+// sabit listede değilse, tüm metin "Diğer" serbest metni sayılır.
+function _zpotNedenParse(nedenStr){
+  const set=new Set(); let digerMetin='';
+  (nedenStr||'').split('|').map(s=>s.trim()).filter(Boolean).forEach(tok=>{
+    if(/^Diğer:/i.test(tok)){ set.add('Diğer'); digerMetin=tok.replace(/^Diğer:\s*/i,''); }
+    else if(ZPOT_NEDEN_SABIT.includes(tok)){ set.add(tok); }
+    else if(tok==='Diğer'){ set.add('Diğer'); }
+    else { set.add('Diğer'); digerMetin=tok; } // eski tek-serbest-metin kaydı
+  });
+  return {set, digerMetin};
+}
+function _zpotNedenBuild(set, digerMetin){
+  const parts=[];
+  ZPOT_NEDEN_SABIT.forEach(n=>{ if(set.has(n)) parts.push(n); });
+  if(set.has('Diğer')){
+    const dt=(digerMetin||'').trim();
+    parts.push(dt?('Diğer: '+dt):'Diğer');
+  }
+  return parts.join(' | ');
+}
+// window._zpotState — o an açık olan TEK zpot bloğunun (edit ya da hm) canlı durumu.
+window._zpotState = {ns:null, val:false, set:new Set(), digerMetin:''};
+function _zpotRenderVal(ns, val){
+  document.getElementById(ns+'ZpotVar')?.classList.toggle('selected', val===false);
+  document.getElementById(ns+'ZpotYok')?.classList.toggle('selected', val===true);
+  document.getElementById(ns+'ZpotNedenBox')?.classList.toggle('hide', val!==true);
+}
+function _zpotRenderNedenChips(ns){
+  document.querySelectorAll('#'+ns+'ZpotNedenBox .zpot-neden-chip').forEach(el=>{
+    el.classList.toggle('selected', window._zpotState.set.has(el.dataset.neden));
+  });
+  document.getElementById(ns+'ZpotNedenDigerBox')?.classList.toggle('hide', !window._zpotState.set.has('Diğer'));
+}
+// ns'e ait bloğu, mevcut DB durumuyla ({flag, neden}) sıfırdan doldurur.
+function _zpotAc(ns, flag, nedenStr){
+  const parsed=_zpotNedenParse(nedenStr);
+  window._zpotState = {ns, val:flag===true, set:parsed.set, digerMetin:parsed.digerMetin};
+  _zpotRenderVal(ns, window._zpotState.val);
+  _zpotRenderNedenChips(ns);
+  const digerInp=document.getElementById(ns+'ZpotNedenDiger');
+  if(digerInp) digerInp.value=parsed.digerMetin;
+}
+function _zpotSetVal(ns, val){
+  window._zpotState.ns=ns; window._zpotState.val=val;
+  _zpotRenderVal(ns, val);
+}
+function zpotNedenChipClick(el){
+  const neden=el.dataset.neden;
+  if(window._zpotState.set.has(neden)) window._zpotState.set.delete(neden);
+  else window._zpotState.set.add(neden);
+  _zpotRenderNedenChips(window._zpotState.ns);
+}
+function zpotDigerMetinDegisti(ns){
+  const el=document.getElementById(ns+'ZpotNedenDiger');
+  if(el) window._zpotState.digerMetin=el.value;
+}
+// Kilit uygula/kaldır: zaten işaretliyse ve kullanıcının kaldırma yetkisi
+// yoksa (ya da genel readonly=true ise) tüm blok tıklanamaz hale gelir.
+function _zpotKilidiUygula(ns, locked, kilitNotuGoster){
+  [ns+'ZpotVar',ns+'ZpotYok'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){ el.style.pointerEvents=locked?'none':''; el.style.opacity=locked?'0.5':''; }
+  });
+  document.querySelectorAll('#'+ns+'ZpotNedenBox .zpot-neden-chip').forEach(el=>{
+    el.style.pointerEvents=locked?'none':''; el.style.opacity=locked?'0.5':'';
+  });
+  const digerEl=document.getElementById(ns+'ZpotNedenDiger'); if(digerEl) digerEl.disabled=locked;
+  document.getElementById(ns+'ZpotLockNote')?.classList.toggle('hide', !kilitNotuGoster);
+}
+
 /* ===== MÜŞTERİ DÜZENLE ===== */
 function openCustEditModal(c, source){
   if(!c){toast('Müşteri seçili değil','error');return;}
@@ -1049,6 +1209,10 @@ function openCustEditModal(c, source){
   if(typeof telefonMaskeBagla==='function') telefonMaskeBagla('editCustTelefon');
   window._custUpdateSource = source||'temas';
 
+  // V31.104: Satış Potansiyeli Yok — prefill (ns='edit')
+  window._custZpotOnceki = c.ziyaret_potansiyeli_yok===true;
+  _zpotAc('edit', c.ziyaret_potansiyeli_yok===true, c.ziyaret_potansiyeli_yok_nedeni||'');
+
   // v2.10.26: KRİTİK — sahiplik kontrolü merkezi hale getirildi. Önceden sadece
   // Müşteri listesi ekranı bu kontrolü yapıyordu; Temas/Fırsat formundan
   // "Müşteriyi Düzenle" ile açıldığında bu kontrol tamamen atlanıyordu —
@@ -1073,6 +1237,13 @@ function openCustEditModal(c, source){
       el.style.opacity = readonly?'0.5':'';
     });
   }
+
+  // V31.104: Satış Potansiyeli kilidi — genel readonly bloğu YUKARIDA tüm
+  // chip-btn'lerin kilidini zaten "readonly"ye göre ayarladı; burada bu genel
+  // ayarı EZEREK zpot'a özel kuralı uyguluyoruz: zaten işaretliyse VE kullanıcının
+  // kaldırma yetkisi yoksa (readonly'den bağımsız olarak) kilitli kalır.
+  const zpotKaldirmaYok = window._custZpotOnceki && !_zpotKaldirmaYetkisiVarMi();
+  _zpotKilidiUygula('edit', readonly||zpotKaldirmaYok, zpotKaldirmaYok);
 
   openModal('custEditModal');
 }
@@ -1157,6 +1328,35 @@ async function submitCustUpdate(){
     adres:document.getElementById('editCustAdres').value||null,
     telefon:_custTelKayit
   };
+
+  // V31.104: Satış Potansiyeli Yok — kaydet (çoklu neden)
+  const zpotYeni = window._zpotState.val===true;
+  const zpotOnceki = window._custZpotOnceki===true;
+  if(zpotYeni){
+    if(!window._zpotState.set.size){toast('Satış Potansiyeli "Yok" için en az bir neden seçmelisiniz','error');return;}
+    if(window._zpotState.set.has('Diğer') && !(window._zpotState.digerMetin||'').trim()){
+      toast('"Diğer" seçildi, lütfen nedeni yazın','error');return;
+    }
+    const neden=_zpotNedenBuild(window._zpotState.set, window._zpotState.digerMetin);
+    upd.ziyaret_potansiyeli_yok=true;
+    upd.ziyaret_potansiyeli_yok_nedeni=neden;
+    if(!zpotOnceki){
+      // İlk kez işaretleniyor — tarih/kullanıcı damgası bas
+      upd.ziyaret_potansiyeli_yok_tarih=new Date().toISOString();
+      upd.ziyaret_potansiyeli_yok_kullanici=currentUser.ad_soyad||('MY#'+currentUser.my_id);
+    }
+  } else {
+    if(zpotOnceki && !_zpotKaldirmaYetkisiVarMi()){
+      // UI zaten kilitli olmalıydı — DOM manipülasyonuna karşı sunucu-öncesi son kontrol
+      toast('Bu işareti kaldırma yetkiniz yok','error');
+      return;
+    }
+    upd.ziyaret_potansiyeli_yok=false;
+    upd.ziyaret_potansiyeli_yok_nedeni=null;
+    upd.ziyaret_potansiyeli_yok_tarih=null;
+    upd.ziyaret_potansiyeli_yok_kullanici=null;
+  }
+
   const isAdmin=(currentUser.yetki_seviyesi||'').toUpperCase()==='ADMIN';
   if(isAdmin){
     const nn=document.getElementById('editCustNcst').value;
@@ -1172,6 +1372,13 @@ async function submitCustUpdate(){
   const{error}=await sb.from('customers').update(upd).eq('ncst',currentEditingCustNcst);
   if(error){toast('Güncelleme hatası: '+error.message,'error');return;}
   toast('Müşteri güncellendi','success');
+  // V31.103: Ziyaret Potansiyeli değişikliğini logla (denetim izi)
+  if(zpotYeni!==zpotOnceki){
+    addLog('customers', currentEditingCustNcst,
+      zpotYeni?'Ziyaret Potansiyeli Yok İşaretlendi':'Ziyaret Potansiyeli Yok Kaldırıldı',
+      zpotYeni?(upd.ziyaret_potansiyeli_yok_nedeni||''):'');
+  }
+  window._custZpotOnceki=false;
   // Müşteri modülü açıksa orayı da güncelle
   if(window._custUpdateSource==='musteri'&&selectedMusteri){
     const {data} = await sb.from('customers').select('*').eq('ncst',currentEditingCustNcst).single();
@@ -1479,6 +1686,13 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
           await sb.from('opportunity_products').insert({
             opp_id:oppData[0].opp_id,urun_adi:f.urun,adet:f.adet||1,tutar:f.tutar||null
           });
+          // v2.10.52 (V31.188): ziyaret formundan acilan firsat icin activity_logs kaydi.
+          // Biçim firsat.js ile AYNI (aksiyon 'Oluşturuldu', detay 'Aşama | Ürün'): firsat
+          // zaman cizelgesi ve dashboard Evrak bekleme hesabi bu biçime dayanir.
+          // addLog kendi icinde hata yutar; log yazilamazsa firsat kaydi etkilenmez.
+          const _oppLogId=oppData[0].opp_id;
+          await addLog('opportunities',_oppLogId,'Oluşturuldu',(f.adim||'Fırsat')+(f.urun?' | '+f.urun:''));
+          if(f.aciklama) await addLog('opportunities',_oppLogId,'Not',f.aciklama);
         }
       }
       tmsEklenmisFirsatList=[];
@@ -1548,12 +1762,29 @@ const visitData={ncst,my_id:currentUser.my_id,kcm_id:visitKcmId,musteri_my_id:vi
 let _temasDashboardGen = 0;
 let _temasDashboardTimer = null;
 
-function loadTemasDashboardDebounced(){
-  clearTimeout(_temasDashboardTimer);
-  _temasDashboardTimer = setTimeout(()=>loadTemasDashboard(), 150);
+// V31.200: Dashboard onbellegi. Rakamlar DOM'da kalir; gecerli onbellek varsa yalniz liste tazelenir.
+var _temasDashCache = { anahtar: null, zaman: 0 };
+var TEMAS_DASH_TTL_MS = 5 * 60 * 1000;
+function temasDashboardCacheSifirla(){ _temasDashCache.anahtar = null; }
+function _temasDashAnahtar(){
+  const v = function(id){ return document.getElementById(id)?.value || ''; };
+  return [currentUser.my_id, listTimeFilter || 'tumu', trDateStr(new Date()),
+          v('temasMyFilter'), v('temasKcmTakimFilter'), v('temasKcmFilter')].join('|');
 }
 
-async function loadTemasDashboard(){
+// Kullanici eylemi (kayit, filtre tiklamasi) sonrasi: HER ZAMAN yeniden hesapla.
+function loadTemasDashboardDebounced(){
+  clearTimeout(_temasDashboardTimer);
+  _temasDashboardTimer = setTimeout(()=>loadTemasDashboard(true), 150);
+}
+
+async function loadTemasDashboard(zorla){
+  const anahtar = _temasDashAnahtar();
+  if(zorla !== true && _temasDashCache.anahtar === anahtar && Date.now() - _temasDashCache.zaman < TEMAS_DASH_TTL_MS){
+    renderTemasList();   // rakamlar onbellekten (ekranda duruyor); liste kendi hafif sorgusunu yapar
+    return;
+  }
+  _temasDashCache.anahtar = null;   // hesap bitene kadar onbellek gecersiz
   const myGen = ++_temasDashboardGen;
 
   const setCard=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
@@ -1877,6 +2108,7 @@ async function loadTemasDashboard(){
       setCard('tmsRatioFMY',    '—');
     }
 
+    if(myGen===_temasDashboardGen){ _temasDashCache.anahtar = anahtar; _temasDashCache.zaman = Date.now(); }
   }catch(err){console.error(err);toast('Ozet yuklenemedi','error');}
 }
 
@@ -2439,6 +2671,7 @@ async function updateVisit(){
     await addLog('visits',window.currentEditingVisitId,'Güncellendi','Temas düzenlendi');
     toast('Temas güncellendi','success');
     closeModal('editVisitModal');
+    temasDashboardCacheSifirla();   // V31.200: duzenleme rakamlari degistirebilir
     renderTemasList();
   }
 }
@@ -2556,6 +2789,12 @@ async function fetchAdvancedReport(){
     window._lastReportData=allData;
     window._lastReportCustMap=custMap;
     document.getElementById('repExcelBtn')?.classList.remove('hide');
+    // V31.171: denetim izi — rapor ekranda goruntulendi (bkz. js/denetim.js)
+    await veriCikisiKaydet({tur:'rapor_goruntuleme',modul:'temas',fonksiyon:'fetchAdvancedReport',
+      rapor_adi:'Temas Raporu',bicim:'ekran',satir_sayisi:allData.length,
+      kapsam:Object.assign(denetimFiltre({baslangic:'repStartDate',bitis:'repEndDate',
+        kcm:'repKcmFilter',takim:'repTakimFilter',my:'repMyFilter'}),
+        {statu:repStatusArr,temas_turu:repTypeArr})});
     // Ekranda 100'er "Daha Yükle"
     window._reportRenderCount=0;
     renderReportPage(true);

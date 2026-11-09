@@ -1,7 +1,848 @@
 // ============================================================
-// config.js — v1.3.07
-// Son güncelleme: 2026-09-06
+// config.js — v1.4.49
+// Son güncelleme: 2026-11-08
 // Değişiklikler:
+//   v1.4.49 — APP_VERSION → V31.207. temas.js v2.10.54 + admin.js v1.1.9: şikayet kapanışı Admin'den yönetilir
+//     (visit_results.kapatir / kapanis_idleri; çözüm yöntemi kapanışa göre filtrelenir).
+//   v1.4.48 — APP_VERSION → V31.206. gorev.js v1.2.30 (Görevi Geri Çevir), gorev_yonlendir.js v1.0.1 (Geri Çevrildi → Atandı).
+//   v1.4.47 — APP_VERSION → V31.205. gorev.js v1.2.29 (atayan İptal butonu; Onayla/Reddet atayan veya Admin).
+//   v1.4.46 — APP_VERSION → V31.204. gorev.js v1.2.28 (liste Temas Düzenle kapalı görevde gizli; durum butonları
+//     gorev_ilerlet kapsamına bağlı), yetki.js v1.3.7 (Görevi İlerletme kapsam satırı).
+//   v1.4.45 — APP_VERSION → V31.203. ÇAĞRI MERKEZİ DÖNGÜ HATASI: lead.js v1.11.2 — rakip sözleşme bitişine yakın
+//     kayıtları kuyruğa geri alan süpürme kuralı kaldırıldı (kapatılan kayıt hemen geri açılıyor, her kapatmada
+//     yeni görev doğuyordu). ÇİFT TIKLAMA: utils.js v1.0.9 tekSeferCalistir; gorev.js v1.2.27, arama.js v1.1.19,
+//     firsat.js v1.2.7, lead.js — Kaydet/Tamam tuşları ikinci/üçüncü basışta tekrar kayıt üretmez.
+//   v1.4.44 — APP_VERSION → V31.202. lead.js v1.11.1: Çağrı Merkezi kuyruk açılışında sorgu yükü azaltıldı
+//     (süpürme toplu update + paralel okuma, sekme sayaçları ve zenginleştirme sorguları paralel). Kural değişmedi.
+//   v1.4.43 — APP_VERSION → V31.201. gorev.js v1.2.26 + YENİ js/gorev_tamamla.js v1.0.0: "Tamamla" artık Temas/ziyaret
+//     planlama formunu açmaz; görev tipinin alanları varsa "Görevi Tamamla" penceresinde gösterilir, yoksa direkt tamamlanır.
+//   v1.4.42 — APP_VERSION → V31.200. VERİTABANI YÜKÜ: temas.js v2.10.53 Temas Dashboard 5 dk önbellek
+//     (navTo/goBack önbellekten; kayıt ve filtre tıklaması yeniden hesaplar); musteri.js v1.2.3 müşteri
+//     arama 3 harf + 500 ms. pg_stat_statements: en ağır 4 sorgunun kaynağı bunlardı.
+//   v1.4.41 — APP_VERSION → V31.199. YENİ js/surum.js v1.0.0 + version.json: kullanıcı sürüm takibi
+//     (tablo kullanici_surum), Admin Panel > Kullanıcı Sürümleri, 15 dk'da bir statik version.json
+//     kontrolü ile "Yeni sürüm var" bandı. auth.js initApp'ten surumKontrolBaslat(); admin.js yeni sekme.
+//     NOT: Her teslimatta version.json, APP_VERSION ile birlikte güncellenmelidir.
+//   v1.4.40 — APP_VERSION → V31.198. gorev.js v1.2.25: Görev otomatik yenilemesi 60 sn tam yenilemeden
+//     5 dk hafif-kontrol + gerekirse yenileme düzenine alındı; sekme/sayfa görünmüyorsa istek yok (veritabanı Disk IO yükü).
+//   v1.4.39 — APP_VERSION → V31.197. Dashboard (dashboard.js v1.2.1) hata düzeltme: yer tutucu (sanal) kullanıcı
+//     listesi dashboard'a ulaşmıyordu (window.sanalMyIds yok), Global portföy paydaya giriyordu. Düzeltildi.
+//   v1.4.38 — APP_VERSION → V31.196. Dashboard (dashboard.js v1.2.0): portföy segmentasyonu + ayrılan MY kuralı.
+//     Ziyaret = "Ziyaret" + "Fiziksel Ziyaret". KÇM penetrasyonunda ziyareti yapan müşterinin güncel sahibi olma
+//     şartı kaldırıldı (KÇM kadrosundan herkes; ayrılmış dahil). Odak portföy = aktif MY/FMY + ayrılan MY;
+//     Global (yer tutucu), sahipsiz ve potansiyeli-yok payda dışı. Yeni satırlar: Ayrılan MY portföyü, Global, Potansiyeli yok.
+//   v1.4.37 — APP_VERSION → V31.195. YENİ: js/gorev_yonlendir.js v1.0.0 — Görev "Yönlendir" (tek + toplu).
+//     Yeni izin gorev_yonlendir (yetki.js v1.3.6, otomatik atanmadi). Not zorunlu; parametrik not sablonlari
+//     gorev_yonlendirme_notlari tablosundan. Kayit mevcut task_logs'a (aksiyon='Yönlendirildi'). Yeni sorumluya
+//     her gorev icin ayri e-posta (bildirim.js, fromKey 'sifre'). gorev.js v1.2.24, index.html.
+//   v1.4.36 — APP_VERSION → V31.194. gorev.js v1.2.23 + yetki.js v1.3.5: yeni izin
+//     gorev_kcm_tumunu_gor (KCM'deki tum gorevler, tasks.kcm_id). DB: tasks.kcm_id kolonu + indeks +
+//     trg_tasks_kcm_doldur tetikleyicisi. Yetim (sahipsiz portfoy) gorev duzeltmesi, 1. asama.
+//   v1.4.35 — APP_VERSION → V31.193. lead.js v1.11.0: arama ekraninda "Iletisim Bilgisi Ekle"
+//     tusu (Kopyala'nin yaninda); kuyruk kartindaki Iletisim Ekle/Duzenle ile ayni form.
+//   v1.4.34 — APP_VERSION → V31.192. lead.js v1.10.0: Cagri Merkezi kuyruk kartinda
+//     "Sadece iletisimi olanlar" anahtari, bolunmus Ara / Iletisim Ekle-Duzenle tusu,
+//     "musteri aranmak istemiyor" uyarisi.
+//   v1.4.33 — APP_VERSION → V31.191. YENI: js/gorev_toplu.js v1.0.0, Veri Yonetimi > Toplu Gorev
+//     (Excel ile toplu gorev atamasi). veriyonetimi.js v1.7.0, yetki.js v1.3.4 (gorev_toplu_ata).
+//   v1.4.32 — APP_VERSION → V31.190. dashboard.js v1.1.0: MY/FMY siralama tablosu + genel skor.
+//   v1.4.31 — APP_VERSION → V31.189. YENI: js/dashboard.js v1.0.0, KCM karsilastirmali Dashboard
+//     (ziyaret, firsat, teyit, kontak puani). index.html: menu kutusu, sayfa, Dashboard Ayarlari sekmesi,
+//     config/temas ?v= onbellek parametreleri duzeltildi.
+//   v1.4.30 — APP_VERSION → V31.188. temas.js v2.10.52: ziyaret formundan acilan
+//     firsat icin activity_logs kaydi (Oluşturuldu + varsa Not) artik yaziliyor.
+//   v1.4.29 — APP_VERSION → V31.187. LEAD (lead.js v1.9.0): arama listesi
+//     filtrelerinde il/ilce/sektor/musteri tipi COKLU SECIM oldu; degerler
+//     veritabanindan okunuyor. Ilce listesi secili illere bagli.
+//     ONKOSUL: LEAD_03_Filtre_Secenekleri_2026-10-14.sql calistirilmis olmali.
+//   v1.4.28 — APP_VERSION → V31.186. LEAD (lead.js v1.8.0): agent kuyruk
+//     kartina "Aramadan Kapat" ve (lead_sil yetkisiyle) "Sil" tuslari eklendi.
+//     Yonetim ekranindaki "Listedeki Firmalar" bolumu de duruyor.
+//   v1.4.27 — APP_VERSION → V31.185.
+//     1) utils.js v1.0.7: showPage() sayfa degisince kaydirmayi basa alir.
+//        "Cagri merkezine girince ekran simsiyah, asagi cekince menuler
+//        geliyor" hatasi. Tek yerde cozuldu, tum modulleri duzeltir.
+//     2) lead.js v1.7.0: arama ekraninda "Aramadan Tamamla" (neden + aciklama).
+//     3) arama.js v1.1.18: teyit anket modalinda "Aramadan Kapat" — gorev
+//        kartindaki AYNI modal ve ayni kayit yolu kullanilir.
+//   v1.4.26 — APP_VERSION → V31.184. BUG FIX (lead.js v1.6.1): liste yonetimi
+//     yetkisi olan kullanici Lead ekraninda AGENT tarafina dusuyordu; silme
+//     tuslari yonetim ekraninda oldugu icin gorunmuyordu. Artik yonetim
+//     yetkisi olan once yonetim ekranina duser.
+//   v1.4.25 — APP_VERSION → V31.183. LEAD (lead.js v1.6.0): urun/servis odagi
+//     urun agacindan URUN GRUBU olarak secilir. Yeni 'lead_sil' yetkisi:
+//     arama listesi ve listedeki firmalar silinebilir, ARAMA IZI SILINMEZ.
+//     yetki.js: lead_sil yetki matrisine eklendi.
+//     ONKOSUL: LEAD_02_Silme_Yetkisi_2026-10-13.sql calistirilmis olmali.
+//   v1.4.24 — APP_VERSION → V31.182. LEAD (lead.js v1.5.0): 'Karar verici
+//     degil' secenegi artik takvim acmiyor. Alt soru soruluyor — karar
+//     vericinin bilgisi verildiyse yeni kontak acilir ve kayit 'Henuz
+//     Aranmadi' kuyruguna doner (telefon zorunlu); verilmediyse gorusme
+//     kapanir ve analizde olumsuz sayilir.
+//   v1.4.23 — APP_VERSION → V31.181. LEAD: 'Musteri talebi' sonucu eklendi
+//     (lead.js v1.4.0). Sikayet ve Talep, teyit aramasindaki ile AYNI gorev
+//     tiplerini acar: 'Musteri Sikayeti' / 'Musteri Talebi'.
+//     Sikayet hedefi AYNI zincirden bulunur — takim lideri -> KCM muduru ->
+//     operasyon muduru (arama.js:_sikayetTalepHedefBul, kopyalanmadi).
+//     Talep, musterinin portfoy sahibi MY'sine atanir (teyitteki kural).
+//     GOREV DURUMU kuyruk kartinda ve arama gecmisinde rozet olarak gorunur;
+//     tiklayinca gorev.js:openGorevDetay acilir — gorev kapatma akisi teyit
+//     aramasiyla BIREBIR AYNI, ayri bir kapatma yolu YOK.
+//     Talep sonuc_grubu='olumlu' (satis acilimi). Sikayet bilerek grupsuz:
+//     'olumsuz' saymak red nedenleri raporunu kirletirdi.
+//   v1.4.22 — APP_VERSION → V31.180. BUG FIX (lead.js v1.3.1): Lead arama
+//     ekraninda portfoyu DOLU musteriler icin bile "Portfoy sahibi:
+//     atanmamis" yaziyordu. Sebep: auth.js'te `let myIdToName = {}` ust
+//     duzey let ile tanimli — global degisken yaratir ama WINDOW UZERINE
+//     BINMEZ. lead.js korumayi `window.myIdToName && myIdToName[...]` diye
+//     yazdigi icin kosul HER ZAMAN false donuyor, MY adi hicbir yerde
+//     cozulmuyordu (portfoy sahibi, kilit sahibi, gecmis agent adi, Cagri
+//     Analizi agent tablosu, ziyaret satirlari). Tek okuma noktasi:
+//     _leadMyAd(). NOT: ayni tuzak uygulamanin baska yerinde YOK — tarandi;
+//     window.userSecici / window.PERM / window.FIRSAT_PRODUCTS acikca
+//     window'a atanmis durumda.
+//   v1.4.21 — APP_VERSION → V31.179. LEAD DUZELTMELERI (lead.js v1.3.0):
+//     (1) FIX: urun listesi 0-7 indeks basiyordu. FALLBACK_PRODUCTS bir
+//         DIZI ([{cat,items:[{n,t,product_id}]}]) ve loadProductsFromDB()
+//         giriste products tablosundan tazeliyor; artik kategori
+//         baslikli (optgroup) gercek urun agaci geliyor, product_id de
+//         lead_arama.urun_id'ye yaziliyor.
+//     (2) 'Zaten Turkcell musterisi' secenegi kaldirildi (Oktay: zaten
+//         Turkcell musterileri araniyor).
+//     (3) ARAMA ONCESI MUSTERI OZETI: portfoy sahibi, son ziyaret (kac gun
+//         once), acik firsat uyarisi, son teyit aramasi ve sikayet uyarisi
+//         + acilir temas/teyit gecmisi listeleri.
+//     (4) ARAMA ENGELI: musteri daha once aranmak istemedigini belirttiyse
+//         arama ekrani ACILMIYOR; kirmizi uyari + 'kaydi kapat' secenegi.
+//     (5) Agent gunluk panosu (bugun arama/ulasma/olumlu/gorev).
+//   v1.4.20 — APP_VERSION → V31.178. CAGRI MERKEZI FAZ 4 (lead.js v1.2.0):
+//     AGENT ARAMA EKRANI. Liste secimi -> 4 kutu (Henuz Aranmadi / Tekrar
+//     Aranacak / Ulasilamadi / Tamamlanan) + Cagri Analizi cipi. Iletisim
+//     bilgisi yoksa KONTAK KARTI acilir, kaydedilince dogrudan arama moduna
+//     gecilir. DURUM AGACI: 22 yaprak, ilerleyen sorular (tek state, her
+//     secimde yeniden render; ust secim degisince alt cevaplar temizlenir).
+//     FIRSAT KAYDI ACILMAZ — 'Lead Satis Firsati' gorev karti acilir ve
+//     musterinin MY'sine atanir; firsati MY ziyaret formuyla acar.
+//     Ek fonksiyonlar: yumusak kilit (iki agent ayni firmayi aramaz),
+//     deneme limiti ve rakip sozlesme bitisi supurmesi (zamanlayici YOK,
+//     ekran acilinca firsatci sekilde), saat bazli ulasma orani, red
+//     nedenleri raporu, agent bazli performans.
+//   v1.4.19 — APP_VERSION → V31.177. CAGRI MERKEZI FAZ 3 (lead.js v1.1.0):
+//     liste yonetimi (olustur/durum/ilerleme) + musteri ekleme iki yoldan:
+//     (1) FILTREYLE — KCM/MY/il/sektor/hat/profil sinyalleri + temas boslugu
+//         (hic ziyaret edilmemis, N gundur ziyaret yok, hic firsat yok) ve
+//         ELEME RAPORU: hangi musterinin neden elendigi tek tek gorunur.
+//     (2) EXCEL — kolon eslemeli; NCST sistemde yoksa satir ATILMAZ,
+//         unvaniyla girer ve sistemde_var=false isaretlenir.
+//     Tarama yontemi: once customers uzerinde DB tarafi filtre (sayfali,
+//     8000 ust sinir), sonra YALNIZ aday NCST'ler icin parcali .in()
+//     sorgulari — sorgu hacmi aday sayisiyla buyur, tablo boyutuyla degil.
+//     'Aranmak istemiyor' elemesi KAPATILAMAZ. Hic hatti olmayan musteri
+//     otomatik yuksek oncelik (oncelik=1).
+//   v1.4.18 — APP_VERSION → V31.176. CAGRI MERKEZI FAZ 2 — menu ayrimi:
+//     ana menudeki 'Ziyaret Teyit' kutusu 'Cagri Merkezi' (telefon ikonu) oldu
+//     ve iki kutulu ara menuyu aciyor: Ziyaret Teyit (mevcut modul,
+//     DOKUNULMADI) ve Lead Aramalari (yeni js/lead.js). yetki.js: 3 action
+//     yetkisi (lead_agent/lead_rapor/lead_liste_yonet) + 'lead' kapsam modulu
+//     matriste gorunuyor. utils.js: navTo kayitlari + initCagriMerkezi().
+//     Faz 1 SQL: LEAD_01_Tablolar_Yetkiler_2026-10-12.sql
+//   v1.4.17 — APP_VERSION → V31.175. Veri Guvenligi yetkileri Rol & Yetki
+//     matrisine alindi: veri_guvenlik_gor (ekrani gorur) + veri_guvenlik_ozet
+//     (haftalik ozeti e-posta ile alir). Onceden ikisi de admin_panel'e
+//     yapistirilmisti; ekrani gormek ile ozeti almak ayri kararlar.
+//     yetki.js: iki yeni action, 'Yonetim' grubunda.
+//     SQL: DENETIM_03_Yetki_Matrisi_2026-10-12.sql — admin_panel yetkisi olan
+//     HER role iki yetkiyi isaretler (rol adi varsayilmaz).
+//   v1.4.16 — APP_VERSION → V31.174. FIX: haftalik ozet yalniz 'ADMIN'
+//     rolune gidiyordu, 'SÜPER ADMIN' listeye girmiyordu. Alici secimi rol
+//     adina gore degil admin_panel YETKISINE gore yapiliyor (window.PERM).
+//     Buyuk/kucuk harf farki icin karsilastirma JS'te hasPerm ile ayni
+//     sekilde yapiliyor; mukerrer e-posta adresleri tekilleniyor.
+//   v1.4.15 — APP_VERSION → V31.173. HAFTALIK SUPHELI HAREKET OZETI:
+//     denetim.js v1.2.0 — bulgu varsa ADMIN e-postalarina ozet gider, yoksa
+//     mesaj gonderilmez. ZAMANLAYICI YOK: ADMIN girisinde kontrol edilir
+//     (Bolum 9 platform bagimsizligi). Son gonderim veri_cikis_log icinde
+//     (fonksiyon='ozetGonderildi') tutulur — yeni tablo/ayar/SQL YOKTUR.
+//     Kanal bildirim.js; e-posta kapanip WhatsApp'a gecilince burada
+//     degisiklik gerekmez. Kurallar artik _denetimBulgular() icinde tek
+//     yerde: ekran ve e-posta ayni motoru kullanir.
+//   v1.4.14 — APP_VERSION → V31.172. VERI GUVENLIGI EKRANI: ADMIN kutu
+//     menusune 'Veri Guvenligi' eklendi (denetim.js v1.1.0 icinde
+//     initVeriGuvenlik). veri_cikis_log'u tek sorguda okur, tum sayac ve
+//     kurallari tarayicida hesaplar — veritabaninda fonksiyon/view YOK.
+//     Iki duzeltme: (1) startImpersonation izi artik bayrak acilmadan once
+//     yaziliyor (ADMIN kendi hareketini vekaleten gostermiyordu), (2) vekalet
+//     izi tur='vekaleten' oldu (once rapor_goruntuleme sayilip ekran
+//     sayacini sisiriyordu). SQL: DENETIM_02_Ekran_Erisimi_2026-10-11.sql
+//   v1.4.13 — APP_VERSION → V31.171. IZ SURME KATMANI: yeni altyapi modulu
+//     js/denetim.js — veri raporlayan ve disa aktaran her hareket
+//     veri_cikis_log tablosuna yazilir (16 nokta). Ayrica vekaleten
+//     (impersonation) giris/cikis ilk kez kaydediliyor (auth.js v1.2.27).
+//     Tablo: anon'a yalniz INSERT; uygulama bu tabloyu okumaz ve silmez.
+//     Dosya: DENETIM_01_veri_cikis_log_2026-10-09.sql
+//   v1.4.12 — APP_VERSION → V31.170. musteri.js v1.2.2: Müşteri ekranına ilk
+//     girişte seçili kartın altında varsayılan listenin geri belirmesi giderildi
+//     (loadMusteriDefault yarış durumu: sıra numarası + kart açıkken liste yok).
+//     index.html: config.js ve musteri.js ?v= v31.170.
+//   v1.4.11 — APP_VERSION → V31.169. utils.js v1.0.5: tarayıcı yakınlaştırması
+//     %100 değilken topbar/alt barın titremesi giderildi (visualViewport
+//     senkronu yalnızca gerçek pinch-zoom'da çalışır, değerler yuvarlanır,
+//     değişmeyen değer yazılmaz, olaylar kare başına birleştirilir).
+//     index.html: utils.js ?v= v31.169.
+//   v1.4.10 — APP_VERSION → V31.168. Bildirim modulu ayrildi:
+//     js/bildirim.js olusturuldu (tek bildirim gonderme noktasi),
+//     donanim.js icindeki _sssoEmailGonder kaldirildi, auth.js ve
+//     arama.js bu tek fonksiyonu cagiriyor. Uc kopya -> bir.
+//   v1.4.09 — APP_VERSION → V31.167. donanim.js: depo ızgarasında hücre
+//     0'a çekilince stok_urunleri satırının FİZİKSEL SİLİNMESİ kaldırıldı
+//     (güvenlik/veri kaybı düzeltmesi) — artık soft-delete (toplam_adet=0,
+//     aktif=false), satır DB'de kalıp geri döndürülebiliyor. donanim.js
+//     v1.0.54 → v1.0.55.
+//   v1.4.08 — APP_VERSION → V31.166. gorev.js: görev kartındaki durum/tip
+//     rozetleri (font-size:10px, okunamıyordu) 12px'e, "✓ Onaylandı"/
+//     "⚠ Gecikmiş" etiketleri 11px'e büyütüldü. gorev.js v1.2.21 → v1.2.22.
+//   v1.4.07 — APP_VERSION → V31.165. gorev.js: "Ziyaret" butonu "Temas
+//     Düzenle" olarak yeniden adlandırıldı, aynı buton görev detay modaline
+//     de eklendi (kartta vardı, modalde eksikti). gorev.js v1.2.20 → v1.2.21.
+//   v1.4.06 — APP_VERSION → V31.164. gorev.js: görev kartı/detayındaki
+//     çakışan "Temas Oluştur" + "Ziyaret Planla" butonları tek "📍 Temas
+//     Planla" butonuna indirildi (eski Ziyaret butonuyla aynı pin ikonu).
+//     gorev.js v1.2.19 → v1.2.20.
+//   v1.4.05 — APP_VERSION → V31.163. gorev.js hata düzeltmesi: "Kaynağı Gör"
+//     modali görev detayının arkasında açılıp görünmüyordu (artık önce görev
+//     detayı kapatılıyor); "Ziyaret Planla" butonu yönetici rollerinde
+//     görünmüyordu (kart ile aynı yetki kuralına çekildi). gorev.js
+//     v1.2.18 → v1.2.19.
+//   v1.4.04 — APP_VERSION → V31.162. gorev.js: "Başla" tüm görev tiplerinde
+//     artık görev detayını açıyor (otomatik ziyaret/temas formuna atlamıyor);
+//     yeni "📅 Ziyaret Planla" butonu (gorevZiyaretPlanla) eski otomatik akışı
+//     ayrı bir eylem yaptı. Şikayet/talep görevlerinde parent_task_id
+//     zincirinden "🔎 Kaynağı Gör" + ziyareti yapan MY bilgisi eklendi. SQL yok.
+//     gorev.js v1.2.17 → v1.2.18.
+//   v1.4.03 — APP_VERSION → V31.161. arama.js: araSonucDetayAc (Arama Detay
+//     ekranı) künye satırına "Kontak" (visits.contact_id → contacts.ad_soyad,
+//     yoksa visits.gorusulen_yetkili) ve "Portföy sahibi" (customers.my_id →
+//     myIdToName) bilgisi eklendi. SQL yok, sadece mevcut kolonlardan okuma.
+//     arama.js v1.1.15 → v1.1.16.
+//   v1.4.02 — APP_VERSION → V31.160. YENİ: arama.js — şikayet değerlendirme
+//     ve görev kuralları. Kaynak 'Ziyarete gelen MY/FMY' puana girer, görev
+//     otomatik açılır (takım lideri → KÇM müdürü → operasyon müdürü zinciri)
+//     ve atanana bilgilendirme emaili gider. Kaynak 'Turkcell (genel)' veya
+//     'Fiyat/hizmet politikası' ise puan MY ortalamasından dışlanır; kayıt
+//     öncesi zorunlu "Görev oluşturulsun mu?" sorusu (Evet/Hayır) — Evet
+//     aynı zincirde görev+email açar, Hayır görevsiz/emailsiz kapanır. Talep
+//     akışı değişmedi. Operasyon müdürü email almaz, görevleri
+//     gorev_tumunu_gor yetkisiyle görür. Gönderen adresi mevcut
+//     noreply@360.org.tr / fromKey:'sifre' (yeni secret/SQL yok). "Düşük
+//     Puan" listesinde dışlanan kayıtlar "MY dışı şikayet, puana dahil
+//     değil" etiketiyle kalır. arama.js v1.1.14 → v1.1.15.
+//   v1.4.01 — APP_VERSION → V31.159. YENİ: Modül başına farklı gönderen
+//     ("from") email adresi. _worker.js'teki /api/send-mail artık body.fromKey
+//     ('donanim'/'sifre') parametresini whitelist'li bir map (_fromAdresiCoz)
+//     üzerinden çözüyor — client rastgele "from" giremez. Yeni Worker secret:
+//     MAIL_FROM_SIFRE = noreply@360.org.tr (şifre sıfırlama emailleri artık
+//     bu adresten gidiyor). MAIL_FROM_DONANIM tanımlanmazsa donanım modülü
+//     mevcut MAIL_FROM (donanimSatis@360.org.tr) ile devam eder — geriye
+//     dönük uyumlu. donanim.js:_sssoEmailGonder() 5. parametre (fromKey)
+//     [V31.168 NOTU: bu fonksiyon artik js/bildirim.js icinde ve adi
+//      bildirimGonder(); 5. parametre gonderenAnahtari olarak duruyor.]
+//     aldı; auth.js:sifreSifirlamaTalebiGonder() çağrısına 'sifre' eklendi.
+//   v1.4.00 — APP_VERSION → V31.158. YENİ: Şifremi Unuttum — email ile tek
+//     kullanımlık şifre sıfırlama linki (auth.js). users tablosuna
+//     sifre_sifirlama_token/sifre_sifirlama_son kolonları eklendi (1 saat
+//     geçerli). "Şifrenizi mi unuttunuz?" artık boş bir toast değil, email
+//     giriş modalı açıyor; link tıklanınca "Yeni Şifre Belirle" ekranı
+//     açılıyor (login gerektirmez). Hızlı/geçici çözüm — kalıcısı 360 ile
+//     user/şifre modülü birleşiminde gelecek; şifreler mevcut mimariyle
+//     tutarlı biçimde düz metin (sifre_hash) yazılmaya devam ediyor.
+//     admin.js'teki eski (işlevsiz) showSifreUnuttum() kaldırıldı — auth.js
+//     script sırasında sonra yüklendiği için onu eziyordu.
+//   v1.3.99 — APP_VERSION → V31.157. BUG FİX (V31.156'da): onaycı email
+//     listesi hep boş dönüyordu — _donanimSurecOnayciEmailleriGetir() scope'u
+//     yanlış yerden okuyordu (window.PERM.scope[permKey]). Scope permKey'e
+//     değil, TÜM donanim_takip yetkilerinin ortak 'donanim_takip' modülüne
+//     bağlı (bkz. _donanimSurecYetki/getScope('donanim_takip')). Düzeltme:
+//     window.PERM.scope['donanim_takip'] okunuyor artık. Bu yüzden onaya
+//     düşen kişilere (Takım Lideri/Müdür/Depo&Muhasebe vb.) email hiç
+//     gitmiyordu, yalnız rezervasyon sahibi MY/FMY'ye gidiyordu.
+//   v1.3.98 — APP_VERSION → V31.156. YENİ: Donanım Rezervasyon SÜREÇ email
+//     bildirimleri (donanim.js). Rezervasyon oluşturulduğunda ve her durum
+//     geçişinde (Ön Rezervasyon/Yönetici Onayı Bekliyor/Onaylandı/Turkcell
+//     Finans Onay/Finans Onaylandı/Fatura Kesildi/Tamamlandı) rezervasyon
+//     sahibi MY/FMY'ye VE o adımın onayını verecek yetkiye sahip kişilere
+//     (role_permissions scope'una göre TÜM/KÇM/BAĞLI çözülerek) email gider.
+//     BAĞLI kapsamı için _donanimUstleriGetir() eklendi — loadBagliMyIds()'in
+//     tersi (bir MY/FMY'nin bağlı olduğu TL/ÇST/ÇSU'yu bulur). Hızlı Sevkiyat
+//     Konsolu tüm süreci tek oturumda yürüttüğü için ara adım emaili atmıyor,
+//     yalnız tamamlandığında sahibe tek özet email gönderiyor. Best-effort —
+//     email hatası işlemi durdurmaz.
+//   v1.3.97 — APP_VERSION → V31.155. YENİ: Donanım Tedarik Talebi email
+//     bildirimi (Resend, Şengüller-360/leave-mail.js ile aynı desen).
+//     _worker.js'e POST /api/send-mail eklendi (sunucu tarafında Resend'e
+//     istek atıyor — RESEND_API_KEY ve MAIL_FROM Worker secret olarak
+//     tanımlı olmalı: `wrangler secret put RESEND_API_KEY` /
+//     `wrangler secret put MAIL_FROM`; SSSO'nun kendi "crm" worker'ı
+//     Şengüller-360'ın "360" worker'ından AYRI, bu secret'lar SSSO'ya
+//     henüz TANIMLANMADI — Oktay tanımlayana kadar email gönderimi hata
+//     verir ama talep akışını DURDURMAZ (best-effort). donanim.js: yeni
+//     talep oluşunca donanim_yonet yetkili + aynı KÇM'deki kullanıcılara,
+//     talep Karşılandı/Reddedildi olunca talep sahibine email gider.
+//   v1.3.96 — APP_VERSION → V31.154. TANI: _donanimKatalogSatiriBul'daki
+//     depo_id UPDATE'i şimdiye kadar hatasını hiç kontrol etmiyordu (sessiz
+//     başarısızlık olasılığı — RLS/yetki vb.). Artık updErr kontrol edilip
+//     hata varsa "Katalog satırı hazırlanamadı" olarak rapora düşüyor; ilk
+//     kez gerçek hata mesajı görülebilecek.
+//   v1.3.95 — APP_VERSION → V31.153. BUG FİX (V31.152'nin eksiği):
+//     _donanimKatalogSatiriBul "satır zaten var" dalı depo_id'yi hiç
+//     kontrol etmiyordu — V31.152 öncesi hatalı oluşturulmuş (depo_id NULL)
+//     katalog satırları bu yüzden "zaten var" denip bir daha asla
+//     düzeltilmiyordu, Depolar ızgarasında görünmeye devam ediyordu. Artık
+//     mevcut satırın depo_id'si NULL ise merkez.depo_id/depo_adi ile
+//     dolduruluyor.
+//   v1.3.94 — APP_VERSION → V31.152. FIX: Donanım "Stok Yükle" — Excel'den
+//     ilk kez görülen bir malzeme kodu için oluşturulan katalog satırı
+//     depo_id/depo_adi SET ETMİYORDU (NULL kalıyordu) -> "Yeni Ürün Ekle"
+//     ile davranış tutarsızdı ve ürün "Depolar" ızgarasında hiç görünmüyordu
+//     (ızgara stok_urunleri'ni depo_id IS NOT NULL filtresiyle okuyor).
+//     _donanimKatalogSatiriBul artık merkez parametresi alıyor ve INSERT'e
+//     depo_id/depo_adi ekliyor (donanimYeniUrunKaydet ile birebir aynı satır).
+//     YENİ: Excel ile Stok Yükle akışına KOLON EŞLEME adımı eklendi (Veri
+//     Düzenleme modülündeki desenle aynı) — dosya seçilince başlıklar
+//     otomatik Seri No/Malzeme Kodu/Açıklama alanlarına eşlenir, önizleme +
+//     düzeltilebilir dropdown ile ekranda gösterilir; Seri No ve Malzeme
+//     Kodu eşlenmeden "Onayla ve Yükle" aktif olmaz (önceden bulunamayan
+//     kolon sessizce boş geçilip satır arka planda eleniyordu).
+//   v1.3.93 — APP_VERSION → V31.151. YENİ: Donanım — "Excel ile Stok Yükle"
+//     butonu "Stok Yükle/Stoktan Çıkart" oldu (Stok sekmesi). Modal iki
+//     moda ayrıldı: Yükle (davranış değişmedi) ve yeni Çıkart. Çıkart:
+//     Excel IMEI listesi VEYA elle IMEI yapıştırma ile, seçilen depodan
+//     cihazlar kalıcı 'Çıkarıldı' durumuna alınır (IMEI kaydı silinmez,
+//     iz olarak kalır — cikis_sebep/cikis_hedef/cikis_aciklama/
+//     cikis_depo_id/cikis_tarihi/cikis_kullanici_id kolonlarıyla, bkz.
+//     TASARIM_Donanim_Stok_Giris_Cikis_ve_Veri_Sifirlama). Zorunlu alanlar:
+//     depo, sebep (Arıza/Kayıp/İade/Diğer), kime verildi. Merkez seçilirse
+//     havuz adedi yeniden sayılır; KÇM/Cep seçilirse o deponun toplam_adet'i
+//     ayrıca elle düşürülür (IMEI'ler mimari gereği yalnızca katalog
+//     satırına bağlı, KÇM satırı seri taşımaz — "hangi depodan çıktığı"
+//     bu yüzden kullanıcı seçimiyle belirlenir). İşlem sonunda Detay (IMEI
+//     bazlı, hangi depo/sebep/kime) + Özet (ürün×adet, IMEİ'siz) raporu
+//     ekranda gösterilir ve iki sayfalı Excel olarak indirilebilir.
+//     Mükerrer IMEI kontrolü (stok girişinde) zaten tüm sistemi kapsıyordu
+//     (stok_seri_no'da seri_no varlığı durum/depo fark etmeksizin
+//     kontrol ediliyordu) — bu yüzden ayrı bir değişiklik gerekmedi,
+//     'Çıkarıldı' durumundaki IMEI de zaten tekrar girişe kapalı.
+//     UI: Giriş ekranı "Giriş Yap" tuşu mavi→yeşil (Onayla ailesiyle
+//     tutarlı, Oktay'ın talebiyle).
+//   v1.3.92 — APP_VERSION → V31.150. UI FIX: Uygulama genelinde tuş renk/
+//     ikon sistemi kesinleştirildi ve tam tarama yapıldı (~45 düzeltme).
+//     (a) İPTAL/VAZGEÇ — 24 adet düz İptal/Vazgeç tuşuna ✕ ikonu eklendi
+//     (Donanım, Arama, Anket, Birleşik Onay, Zoptlar, Şifre, Plan, Ürün,
+//     Hedef Kalem, Kullanıcı, Şifre Sıfırla, Müşteri, Kişi, Ziyaret, Yeni
+//     Müşteri, ZPot, Görev modalları). yetkiRolModal İptal yanlış gri
+//     (.navy3) kullanıyordu → kesin İptal rengine çekildi. (b) ONAYLA/
+//     DEVAM/TAMAMLA — kural netleşti: bu aile artık HER ZAMAN Kaydet ile
+//     birebir aynı düz dolgu yeşil (fark sadece ikon). 9 yerde bordürlü
+//     yeşil kalmıştı (Pipeline/Temas/Ziyaret/Müşteri Raporu Getir x4,
+//     Portföy Onayla ve Güncelle, Plan Tamamlandı, Fırsat Onayla, Fırsat
+//     İptal Onayı, TDM Kullanıcı Onayla) → düz yeşile çevrildi; ✓ ikonu
+//     eklendi (Talebi Gönder, Sevkiyatı Tamamla). (c) .btn-green SINIFI
+//     EMEKLİ EDİLDİ — bu sınıf siyah metin kullanıyordu, standart dışıydı;
+//     5+ Kaydet tuşu (Hedef Tümünü Kaydet, Yetki Kaydet, Görev Tipi
+//     Kaydet, Arama Ayar Kaydet, Donanım Süreç Ayar Kaydet) ve Tamamla
+//     tuşu açık background:var(--green);color:#04301f; + ikon ile
+//     değiştirildi. (d) SİSTEMİK KIRMIZI-VARSAYILAN HATASI — class="btn"
+//     olup background tanımlamayan 7 tuş, .btn taban sınıfının kırmızı
+//     varsayılanına düşüyordu (Giriş Yap, Bağlan/Setup, Talebi Gönder,
+//     TDM Mesaj Gönder, Yeni Talep, Aramadan Kapat, Veri Kalitesi Tekrar
+//     Tara) → doğru renklere (mavi/yeşil) çekildi. (e) MOR İHLALİ —
+//     Görev "▶ Başla" tuşundaki satır-içi mor (#a78bfa) kaldırıldı, Oktay
+//     onayıyla yeşile çevrildi (Onayla ailesi). Görev Tipi "Ekle" tuşu
+//     .btn-green'den mavi (Yeni Kayıt ailesi) yapıldı. (f) admin.js —
+//     uygulamaAyarlariSekmeAc() fonksiyonel hatası düzeltildi: sekme
+//     butonları aktif/pasif renk mantığı çalışmıyordu (ikisi de .btn
+//     varsayılanından kırmızı görünüyordu), donanimTabGeç kalıbına göre
+//     açık background ataması eklendi. Dosyalar: index.html, config.js,
+//     gorev.js, donanim.js, arama.js, admin.js, yetki.js, hedef.js,
+//     main.css.
+//   v1.3.91 — APP_VERSION → V31.149. UI FIX: Kapsamlı tam-uygulama tekrar
+//     taraması (Oktay'ın bulduğu 3 hatanın ardından). (a) "Aramadan Kapat"
+//     (arama.js), Görev Tipi düzenleme "İptal" (gorev.js), Donanım Transfer
+//     "İptal" (donanim.js), Portföy "İptal" (index.html) — hepsi eski
+//     format/btn-ghost kullanıyordu → kesin İptal rengine (#350f18 fon,
+//     1.5px #ed2345 çerçeve, beyaz metin) çekildi. (b) Donanım sepet alt
+//     çubuğu "Devam Et →" içi dolu yeşile çevrildi (bordürlü Onayla değil);
+//     aynı çubuktaki İptal'in width:100% taşması düzeltilip tek satıra
+//     alındı. (c) EXCEL TUŞLARI — kuralımız "Excel Aktar/Yükle/İndir =
+//     turuncu outline" idi ama 8 yerde hâlâ yeşil/mavi/gri kalmıştı:
+//     Donanım Rapor Excel İndir, Pipeline/Temas Raporu/Ziyaret Analizi
+//     Excel İndir, Portföy Sonuç Excel İndir, Veri Kalitesi Excel Rapor,
+//     Donanım Izgara Excel, Donanım Excel Raporu İndir, Hedef Giriş Excel
+//     Yükle — hepsi .btn-orange-outline'a çevrildi. (d) MOR RENK İHLALİ —
+//     Arama "Seçilenleri tek görüşmede teyit et" mor kullanıyordu; mor
+//     artık sadece Hızlı Sevkiyat'a özel olduğundan maviye çevrildi.
+//     (e) ONAYLA/TAMAMLA TUŞLARI — 3 yerde düz dolgu yeşil (Kaydet ile
+//     karışan) kullanılmış: Portföy "Onayla ve Güncelle", Plan "Tamamlandı
+//     — Temas Gir", Fırsat "Onayla → Gerçekleşen" — hepsi bordürlü Onayla
+//     stiline (koyu fon + yeşil çerçeve/metin) çevrildi.
+//   v1.3.90 — APP_VERSION → V31.148 (KESİN İPTAL RENGİ). Oktay'ın DeepSeek
+//     ile birebir üretip onayladığı spesifikasyon uygulandı: fon #350f18,
+//     çerçeve 1.5px solid #ed2345, metin beyaz. (a) main.css → .btn-iptal
+//     sınıfı bu değerlere güncellendi — uygulama genelindeki tüm "İptal"
+//     tuşlarını kapsar. (b) temas.js → setOpportunityConfirm() — Temas
+//     ekranı 7. bölüm "Bu temastan fırsat doğdu mu?" sorusunda "Hayır"
+//     seçili durumu aynı değerlere çekildi. "Onayla/Evet" (yeşil) tuşlarına
+//     KESİNLİKLE dokunulmadı, Oktay'ın açık talimatıyla. Not: bir önceki
+//     v1.3.88 kaydında denenen ara format (transparent dolgu + #ff8ca2
+//     metin) yanlıştı, bu kayıtla geçersiz — kalıcı doğru değer budur.
+//   v1.3.87 — APP_VERSION → V31.146. UI FIX: "Yeni Müşteri Kartı" modalı
+//     bir önceki round'da kaçmıştı — İptal (btn-ghost/siyah) → .btn-iptal,
+//     Kaydet (yeşil ama .btn-kaydet değildi) → .btn-kaydet + ikon. Aynı
+//     kaçan kalıp (İptal tuşunun yanlışlıkla .btn-ghost/Kapat stiliyle
+//     kodlanmış olması) tüm index.html'de tarandı: 16 adet daha "İptal"
+//     tuşu .btn-ghost kullanıyordu (Donanım Talep/Yeni Ürün/Dağıtım/Excel/
+//     Sepet/Transfer/Seçim modalleri, Zpot, Şifre Değiştir/Sıfırla, Plan
+//     Düzenle, Ürün, Hedef Kalemi, Kullanıcı, Müşteri Düzenle, HM Zpot
+//     modalleri) → hepsi .btn-iptal'e (hafif kırmızı) çevrildi. Kapat
+//     (yan etkisiz gerçek kapatma) ile İptal (bir işlemi vazgeçme)
+//     arasındaki ayrım artık uygulama genelinde tutarlı.
+//   v1.3.86 — APP_VERSION → V31.145. UI FIX: Oktay'ın 13 maddelik ekran
+//     taramasına göre tüm uygulama genelinde renk standardı süpürmesi.
+//     Düzeltilenler: Donanım Reddet tuşu format hatası; "Devam Et" (Emei
+//     girişi) Onayla rengine; "Ön Rezervasyon Oluştur" Onayla rengine;
+//     Temas/Fırsat/Kontak modallarının "Kaydet" tuşları (hâlâ kırmızı/mavi
+//     kalanlar) .btn-kaydet yeşiline; Donanım Depo&Muhasebe "Excel ile
+//     Stok Yükle" siyah tuşu turuncu outline'a; "Hızlı Sevkiyat Başlat"
+//     çift çerçeveli mor özel tuş; Yeni Görev "İptal" tuşu düzeltmesi;
+//     Arama menüsü "Ara" mavi (yeni kayıt), "Aramadan Kapat" iptal rengi;
+//     Teyit arama "Vazgeç" iptal rengi; Arama analiz "Uygula" yeşil/onay;
+//     Temas raporu "Raporu Getir" yeşil/onay. Ayrıca aynı mantıkla
+//     uygulama genelinde ek taramada bulunan uyumsuzluklar: 9 adet Kaydet
+//     tuşu (Zpot/Plan/Ürün/Hedef Kalemi/Kullanıcı/Müşteri/Fırsat/HM Zpot
+//     modalleri) hâlâ mavi idi → .btn-kaydet yeşiline çevrildi; Veri
+//     Kalitesi "Taramayı Başlat" kırmızıdan maviye (yıkıcı işlem değil);
+//     Veri Kalitesi "Seçilenleri Düzelt" düz yeşilden Onayla çerçeveli
+//     yeşile; Fırsat modalı "İptal Talebi Onayı" (Onayla/Reddet) ve
+//     Müdür Onayı ikinci seçim tuşu (mor → amber, mor artık sadece Hızlı
+//     Sevkiyat'a özel); Görev sapma bildirimi "Evet Kapansın/Hayır
+//     Tamamlanmadı" Onayla/Reddet çerçeveli stiline; Fırsat İptal Onayı
+//     (hedef.js) Onayla/Reddet çerçeveli stiline. Bu round'da CSS
+//     class'ları (main.css) değişmedi — tüm düzeltmeler inline stil veya
+//     mevcut .btn-kaydet/.btn-confirm/.btn-reddet kalıplarıyla yapıldı.
+//   v1.3.85 — APP_VERSION → V31.144. UI FIX: Tüm uygulamadaki "+ Yeni X"
+//     tuşları taranıp maviye çevrildi (Yeni Kayıt = her zaman mavi kuralı):
+//     + Yeni Ürün, + Yeni Kullanıcı, + Yeni Hedef Kalemi, + Yeni Görev
+//     Oluştur, + Yeni Ekle, + Listeye Ekle, + Yeni Kişi (x2), + Yeni
+//     Müşteri Kartı Aç (x2, amber'den mavi dolguya), + Ekle (fırsat ürün
+//     satırı). Artık uygulamada bu kuralı çiğneyen tuş kalmadı.
+//   v1.3.84 — APP_VERSION → V31.143. UI FIX: Müşteri kartındaki "+ Kontak"
+//     (yeşildi) ve "+ Temas" (renksizdi) tuşları maviye çevrildi — "Yeni
+//     Kayıt her zaman mavi" kuralına uymuyorlardı. Aynı sebeple Donanım
+//     Talep ekranındaki "+ Ürün Ekle" de maviye çevrildi. NOT: taramada
+//     aynı kuralı çiğneyen çok daha fazla "+ Yeni X" tuşu bulundu (Yeni
+//     Ürün, Yeni Kullanıcı, Yeni Hedef Kalemi, Yeni Görev, Listeye Ekle vb.
+//     — yeşil/amber/gri karışık) — bu round'a dahil edilmedi, onay bekliyor.
+//   v1.3.83 — APP_VERSION → V31.142. UI: Kırmızı aile son hali —
+//     .btn-reddet artık Onayla ile birebir aynı yapı (fon #000 tam siyah,
+//     2px kenarlık, kenarlık=metin rengi var(--red)); .btn-iptal önceki
+//     Reddet denemesinin rgba(224,4,42,.12) fonunu koruyor + beyaz metin;
+//     .btn-sil değişmedi (tam dolgulu kırmızı). Tuş renk standardı
+//     tamamlandı: Kaydet/Onayla yeşil, Sil/Reddet/İptal kırmızı,
+//     Rapor/Excel turuncu, Filtrele gri, Kapat saydam.
+//   v1.3.82 — APP_VERSION → V31.141. FIX: "Sil ile Reddet formatları
+//     değişsin" isteği önceki round'da yanlış yorumlanıp yeni stiller
+//     icat edilmişti — doğrusu iki formatın YER DEĞİŞTİRMESİYDİ. Düzeltildi:
+//     .btn-sil artık tam dolgulu kırmızı (kalıcı işlem, en ağır), .btn-reddet
+//     artık kenarlıklı-açık kırmızı (daha hafif). İkisi de main.css'te tanımlı.
+//   v1.3.81 — APP_VERSION → V31.140. UI: Tuş standardı son hali —
+//     .btn-confirm (Onayla) siyaha yakın fon (#0d1f17) + yeşil çerçeve/metin;
+//     .btn-kaydet (Kaydet) düz yeşil dolgu + 💾 ikon alanı; .btn-iptal
+//     (İptal) tam opak kırmızı çerçeveli, saydam; .btn-filtre (Filtrele)
+//     uygulamadaki tek açık renkli tuş (#9797a8 + siyah metin). Sil ve
+//     Reddet formatları henüz onay bekliyor, bu round'a dahil değil.
+//   v1.3.80 — APP_VERSION → V31.139. UI: .btn-confirm (Onayla) rengi koyu
+//     kırmızıdan yeşile çevrildi — mevcut --green token'ı ("başarı/tamamlandı"
+//     anlamında zaten kullanılıyordu), Oktay'ın onayıyla A seçeneği (#00d68f,
+//     koyu yeşil metin #04301f) uygulandı.
+//   v1.3.79 — APP_VERSION → V31.138. UI: main.css'e .btn-confirm (Onayla —
+//     Kaydet'ten farklı, daha koyu kırmızı + ince çerçeve, "sonuçlandırıcı"
+//     aksiyon hissi) ve .btn-ghost-fill (Filtrele/Ara/Uygula — Kapat'tan
+//     farklı, hafif dolgulu, "veriyi değiştirir" hissi) eklendi. Henüz
+//     mevcut Kaydet/Onayla/Kapat/Filtrele tuşlarına uygulanmadı — sadece
+//     standart tanımlandı, onay sonrası sweep yapılacak.
+//   v1.3.78 — APP_VERSION → V31.137. UI: Tuş renk standardı — main.css'e
+//     .btn-orange (Rapor/Getir/Görüntüle tuşları) ve .btn-orange-outline
+//     (Excel/Dışa Aktar tuşları) eklendi; .btn-ghost kenarlığı/metin rengi
+//     kontrastı yükseltildi (görünmez tuş şikayeti). Stok sekmesindeki
+//     Mutabakat Raporu + Stok Hareket Raporu tuşları turuncuya, ilgili iki
+//     Excel'e Aktar tuşu yeşilden turuncu-kenarlıklıya çevrildi. Kırmızı
+//     sadece birincil/Sil tuşlarında kalmaya devam ediyor (marka rengi).
+//   v1.3.77 — APP_VERSION → V31.136. Stok Hareket Raporu Excel çıktısı 7
+//     sayfaya çıkarıldı: mevcut "Stok Hareketleri" sayfası aynen korunarak
+//     Cihaz Giriş (Detay/Özet), Cihaz Çıkış (Detay/Özet, müşteri+satan MY
+//     ile) ve Rezerve Cihazlar (Detay/Özet, KÇM+MY+güncel durum ile) tek
+//     .xlsx içinde tek tıkla üretiliyor. Detaylar: donanim.js v1.0.54.
+//   v1.3.76 — APP_VERSION → V31.135. YENİ: Stok Hareket Raporu (Stok
+//     sekmesi, ayrı yetki: donanim_hareket_raporu_gor) — tüm stok
+//     hareketlerini tarih/aksiyon/ürün filtreli listeler. Hem bu rapor hem
+//     Mutabakat Raporu artık Excel'e aktarılabiliyor. Detaylar: donanim.js
+//     v1.0.53, yetki.js v1.3.1.
+//   v1.3.75 — APP_VERSION → V31.134. UI: Mutabakat Raporu butonu Talepler
+//     sekmesinden Stok sekmesine taşındı (stok bütünlüğü kontrolü, Depolar/
+//     Stok ekranına ait — talep akışıyla değil).
+//   v1.3.74 — APP_VERSION → V31.133. Mutabakat Raporu için ayrı yetki
+//     anahtarı (donanim_mutabakat_gor, yetki.js v1.3.0) — Rol&Yetki
+//     ekranından Depo & Muhasebe rolüne elle atanmalı.
+//   v1.3.73 — APP_VERSION → V31.132. Talepler modülü kritik açık kapatıldı:
+//     "Karşılandı" artık gerçek stok/IMEI kontrolü olmadan basılamıyor.
+//     Yeni "📊 Mutabakat Raporu" ekranı: sistem adedi vs IMEI sayısı
+//     karşılaştırması, uyuşmazlıkları öne çıkarır. Detaylar: donanim.js
+//     v1.0.51 değişiklik notu.
+//   v1.3.72 — APP_VERSION → V31.131. Rezervasyon kartı + Geçmiş iyileştirmeleri:
+//     ürün adı ve IMEI'ler artık hareket loglarına yazılıyor, "Fatura Kesildi"
+//     adımında fatura numarası zorunlu (DB: stok_rezervasyonlari.fatura_no),
+//     Geçmiş modalı üstte sepet özetini gösteriyor ve tekrarlı satırları
+//     tekilleştiriyor, kartta "Adım N/7" başlığı + "sırada ne var" satırı
+//     eklendi. Detaylar: donanim.js v1.0.50 değişiklik notu.
+//   v1.3.71 — APP_VERSION → V31.130. YENİ ÖZELLİK: Donanım rezervasyon
+//     kartlarına (1) görünür kısa ID rozeti (REZ-XXXXXXXX, sepet_id'nin ilk
+//     8 hanesi) ve (2) "📜 Geçmiş" butonu eklendi. Geçmiş, o rezervasyona ait
+//     tüm hareketleri (kim ne zaman onayladı/reddetti/IMEI girdi/gönderdi)
+//     zaman sıralı listeler. DB: stok_hareketleri tablosuna sepet_id (uuid,
+//     nullable) kolonu eklendi (Oktay tarafından çalıştırıldı); tüm
+//     rezervasyon hareket logları (_donanimRezHareketLog) artık bunu da
+//     yazıyor. NOT: bu tarihten ÖNCEKİ hareket kayıtlarında sepet_id boş —
+//     eski rezervasyonların Geçmiş'i bu yüzden boş görünebilir, bu beklenen
+//     bir durum, hata değil.
+//   v1.3.70 — APP_VERSION → V31.129. UI: Aynı marka ikonu (konum iğnesi + insan
+//     silueti) artık tarayıcı sekmesinde de görünüyor — yeni favicon.svg
+//     dosyası eklendi, index.html <head>'e <link rel="icon"> ile bağlandı.
+//   v1.3.69 — APP_VERSION → V31.128. UI: Giriş ekranı marka ikonu — onay işareti
+//     yerine, iğnenin içine küçük bir insan silueti (kafa+omuz) yerleştirildi;
+//     "insan faktörü" eksikti. Artık ikon hem konumu (saha) hem sahadaki
+//     kişiyi (temsilci) tek sembolde birleştiriyor.
+//   v1.3.68 — APP_VERSION → V31.127. UI: Giriş ekranındaki marka rozeti — artık
+//     "Şengüller" markasını taşımayan "Ş" harfi yerine, konum iğnesi içine
+//     yerleştirilmiş onay işareti ikonu (saha ziyareti + otomasyonla
+//     tamamlanma temasını tek sembolde birleştiriyor). index.html, iki brand
+//     bloğunda da (login + kayıtlı-oturum ekranı) değiştirildi.
+//   v1.3.67 — APP_VERSION → V31.126. KÖK NEDEN FİX: KÇM'den KÇM'ye stok
+//     transferinde hedefte satır yoksa yeni satır depo_id'siz açılıyordu —
+//     bu, Depo modülünün göremediği "yetim" stok kayıtları üretiyordu.
+//     Artık hedef KÇM'nin kayıtlı ANA depo_id'si kullanılıyor (donanim.js
+//     v1.0.48).
+//   v1.3.66 — APP_VERSION → V31.125. UI FIX: SVK Cihazlar adımında adet kutusu
+//     ürün adının üzerine biniyordu — CSS özgüllük çakışması (main.css,
+//     donanim.js v1.0.47).
+//   v1.3.65 — APP_VERSION → V31.124. BUG FİX: Stok listesi ekranındaki Merkez
+//     (Havuz) satırı da ham toplam/müsait gösteriyordu; bu, rezervasyon
+//     adedinin üst sınırını da etkilediği için zaten dağıtılmış stoktan
+//     tekrar rezervasyon yapılabiliyordu (donanim.js v1.0.46).
+//   v1.3.64 — APP_VERSION → V31.123. BUG FİX: Merkez (Havuz) deposu dağıtım
+//     sonrası hiç azalmıyordu; Depo kartları/Depo detay modalı/Stok Raporu
+//     dağıtılan miktarı hem Merkez'de hem hedef KÇM'de çift sayıyordu
+//     (donanim.js v1.0.45).
+//   v1.3.63 — APP_VERSION → V31.122. BUG FİX: Donanım Takip rozeti Transfer
+//     taleplerini (Aşama 1/Aşama 2 onayı bekleyenler) hiç saymıyordu
+//     (donanim.js v1.0.44).
+//   v1.3.62 — APP_VERSION → V31.121. Rezervasyon listesi sıralaması: kendinden
+//     onay bekleyenler her zaman en üstte, sonra aktif kayıtlar, sonra
+//     Tamamlandı → Reddedildi → Süresi Doldu → İptal (donanim.js v1.0.43).
+//   v1.3.61 — APP_VERSION → V31.120. Rezervasyon ekranına filtreler (KÇM/MY-
+//     FMY arama/süreç adımı/ödeme tipi/tarih aralığı) + kart altında renkli
+//     süreç özet barı ve tüm kenarlarda adım rengiyle çerçeve (donanim.js
+//     v1.0.42).
+//   v1.3.60 — APP_VERSION → V31.119. BUG FİX: Turkcell Finans Onayı ile Fatura
+//     Kesildi tek butonda birleşmişti; Depo&Muhasebe ekranında ayrı bir "Fatura
+//     Kesildi" adımı hiç görünmüyordu. Aralarına 'Finans Onaylandı' ara durumu
+//     eklendi (donanim.js v1.0.41).
+//   v1.3.59 — APP_VERSION → V31.118. BUG FİX: Donanım Takip rozeti Turkcell
+//     Finans Onayı ve Fatura Kesildi (sevk) bekleyen kayıtları hiç saymıyordu
+//     — finans onaycılarında rozet hiç görünmüyordu (donanim.js v1.0.40).
+//   v1.3.58 — APP_VERSION → V31.117. (1) Donanım modülü artık her açıldığında
+//     ilk ekran Rezervasyon sekmesi oluyor (önceden Stok). (2) IMEI seçimi
+//     artık Turkcell Finans Onay'dan ÖNCE, "Stok Onay / Emei Giriş" adımının
+//     kendisinde yapılıyor — talep edilen tüm cihazların IMEI'leri o adımda
+//     girilmeden Finans Onay'a geçilemiyor (donanim.js v1.0.39).
+//   v1.3.57 — APP_VERSION → V31.116. Ana menü Donanım Takip ikonu rozeti
+//     artık onay/red bekleyen kayıtları da sayıyor (donanim.js v1.0.38).
+//   v1.3.56 — APP_VERSION → V31.115. ACİL FIX (donanim.js v1.0.37): ortak/Merkez
+//     havuz stoktan sipariş verilince "null value in column kcm_id" hatası
+//     veriyordu — kcm_id artık satan MY'nin kendi KÇM'sinden alınıyor.
+//   v1.3.55 — APP_VERSION → V31.114. Donanım Satış Süreç Akışı V2'nin asıl
+//     süreç kodu (donanim.js v1.0.36): Ön Rezervasyon artık rezerve_adet'e
+//     doğrudan düşer, 6+6 saatlik süre + uzatma + mükerrer talep onayı,
+//     "Hazırlanıyor" adımı kalktı, yeni 8 adımlı akış (Stok Onay/Emei Giriş →
+//     Turkcell Finans Onay → Emei Eşleştirme → Fatura → Tamamlandı).
+//     GEREKLİ: sistem_ayarlari SQL'i henüz çalıştırılmadıysa varsayılan
+//     değerlerle (6/6/1/48/2) çalışır. Rol&Yetki'de yeni 4 izni + donanim_imei_gor
+//     iznini ilgili rollere atamak Oktay'ın yapması gereken bir adım.
+//   v1.3.54 — APP_VERSION → V31.113. Donanım Satış Süreç Akışı V2 (adım 1-3):
+//     yetki.js'e 4 yeni izin (donanim_onrez_uzat, donanim_mukerrer_onay,
+//     donanim_emei_giris, donanim_finans_onay); Admin Panel "Arama Ayarları"
+//     kutusu "Uygulama Ayarları" oldu, 2 sekme: Arama Ayarları (aynı) +
+//     Donanım Satış Süreç Ayarları (yeni, sistem_ayarlari üzerinden 5 yeni
+//     parametre — admin.js v1.1.5). Donanım süreç kodu (donanim.js) HENÜZ
+//     GÜNCELLENMEDİ, sıradaki adım.
+//   v1.3.53 — APP_VERSION → V31.112. Marka adı: uygulama genelinde "Şengüller
+//     Saha Satış" ifadesi "Saha Satış Otomasyonu" olarak değiştirildi
+//     (index.html — sayfa başlığı, giriş ekranı, tüm app-footer'lar, 27 yer).
+//   v1.3.52 — APP_VERSION → V31.111. FIX: Ana Menü'deki sabit (fixed)
+//     app-footer'ın V31.108'de yanlışlıkla kaldırılması geri alındı — diğer
+//     tüm ekranlarla aynı şekilde geri geldi (auth.js v1.2.24). Donanım Takip:
+//     Talepler sekmesindeki "➕ Yeni Talep" butonu artık MY/FMY'de de
+//     görünüyor (donanim.js v1.0.35).
+//   v1.3.51 — APP_VERSION → V31.110. UI: Donanım Takip > Stok sekmesindeki
+//     mavi "📌 Rezervasyon" tuşu, Rezervasyon sekmesindeki tuşla tutarlı
+//     olacak şekilde "📌 Yeni Rezervasyon" olarak değiştirildi.
+//   v1.3.50 — APP_VERSION → V31.109. UI: "Yönetici Paneli" kutusu ayrı
+//     bölümden çıkarılıp Ana Menü ızgarasına taşındı — "Uygulama Taleplerim"
+//     ile aynı satıra, diğer kutular gibi 1/2 (yarım) genişlikte giriyor
+//     (auth.js v1.2.23).
+//   v1.3.49 — APP_VERSION → V31.108. FIX: Ana Menü düzeni — "Uygulama
+//     Taleplerim" kutusu ana menü ızgarasına taşındı, görünür kutu sayısı
+//     tek olduğunda son kutu (Hangi Müşteriye Gidelim / Uygulama Taleplerim)
+//     artık yanında boşluk bırakmadan tam satırı kaplıyor (auth.js v1.2.22,
+//     menu-box-full CSS sınıfı). FIX: Ana Menü'de iki ayrı versiyon yazısı
+//     ("Yükleniyor..." satırı + alt app-footer) tek satıra indirildi.
+//   v1.3.48 — APP_VERSION → V31.107. UI: Temas Raporu/Temas Analizi sekme
+//     tuşları alttaki KÇM kutusu genişliğine eşleşecek şekilde büyütüldü
+//     (flex:1). Ana Menü: "Talep Gir" ve "Taleplerim" tek kutuya birleştirildi
+//     — "Uygulama Taleplerim" (Taleplerim ekranına açılır, üstüne "Yeni Talep"
+//     tuşu eklendi, liste altında kalmaya devam ediyor). "Geri Bildirim" bölüm
+//     başlığı kaldırıldı.
+//   v1.3.47 — APP_VERSION → V31.106. Görev tipi adları düzeltildi: "Şikayet
+//     Kaydı" → "Müşteri Şikayeti" (mevcut aynı adlı type_id ile birleştirildi,
+//     duplicate giderildi), "Talep Kaydı" → "Müşteri Talebi". task_types SQL
+//     güncellemesi + mevcut 15 görevin tasks.baslik metni + arama.js kod
+//     referansları (v1.1.14) birlikte uygulandı.
+//   v1.3.46 — APP_VERSION → V31.105. KRİTİK FIX: Temas Analizi ekranında MY/
+//     FMY/USER rolündeki kullanıcılar kendi KÇM'sindeki TÜM MY/FMY'lerin
+//     temasını görebiliyordu (filtre alanları bu roller için gizli olduğundan
+//     kendilerini daraltamıyorlardı, sorgu varsayılan olarak tüm KÇM'yi
+//     getiriyordu). Artık bu roller için sorgu her zaman sadece kendi kaydına
+//     kısıtlı (rapor.js v1.2.9).
+//   v1.3.45 — APP_VERSION → V31.104. "Satış Potansiyeli" (eski adı Ziyaret
+//     Potansiyeli) ekran düzenlemesi + ÇOKLU neden seçimi: Müşteri Düzenle
+//     modalında özel çerçeveli/renkli kutuya alındı, IT Ekibi'nin üstüne
+//     taşındı; IT/Sunucu/Şube/Firewall satırları artık soru-cevap aynı
+//     satırda. Neden seçimi tek <select> yerine tıklanabilir kutucuklara
+//     (birden fazla seçilebilir) çevrildi — hem Müşteri Düzenle'de hem de
+//     "Hangi Müşteriye Gidelim" (eski adı "Hangi Müşteri?") ekranındaki yeni
+//     hızlı modalda (hmZpotModal — "⚠ Müşteri Potansiyeli İşaretle" butonu,
+//     tam profile gitmeden işaretler). Veri modeli DEĞİŞMEDİ — mevcut
+//     ziyaret_potansiyeli_yok_nedeni kolonu, seçilen nedenler ' | ' ile
+//     birleştirilip yazılıyor. Değişen dosyalar: temas.js v2.10.50,
+//     gorev.js v1.2.17, index.html.
+//   v1.3.44 — APP_VERSION → V31.103. YENİ: "Ziyaret Potansiyeli Yok" işaretleme.
+//     Batık/iflas, tabela firması, ulaşılamayan veya rakipte çok memnun olup
+//     değiştirilemeyen müşteriler artık işaretlenip ziyaret hedefi/penetrasyon
+//     hesaplarından ayrıştırılabiliyor. customers tablosuna 4 yeni kolon
+//     gerekiyor (bkz. SQL notu): ziyaret_potansiyeli_yok (bool),
+//     ziyaret_potansiyeli_yok_nedeni (text), ziyaret_potansiyeli_yok_tarih
+//     (timestamptz), ziyaret_potansiyeli_yok_kullanici (text). Akış: "Hangi
+//     Müşteri?" ekranından "Müşteri Profiline Git" ile müşteri kartı açılır
+//     (gorev.js+musteri.js), orada Müşteri Düzenle modalında (temas.js)
+//     işaretlenir — MY/FMY işaretleyebilir, sadece KÇM MÜDÜRÜ/OPERASYON
+//     MÜDÜRÜ/ADMIN/SATIŞ DİREKTÖRÜ/TAKIM LİDERİ kaldırabilir. Ziyaret
+//     Analizi'ne (rapor.js) 4. sekme "Potansiyel Değil" eklendi, Excel 5
+//     sekmeye çıktı. Değişen dosyalar: temas.js v2.10.49, gorev.js v1.2.16,
+//     musteri.js v1.2.1, rapor.js v1.2.8, index.html (custEditModal + Ziyaret
+//     Analizi 4. sekme + pageHangiMusteri butonu).
+//   v1.3.43 — APP_VERSION → V31.102. KRİTİK FIX: Duyurular ekranı "column
+//     duyuru_feed.musteri_my_id does not exist" hatasıyla kırılıyordu (admin/
+//     gölge hesapla görüntülemede tetiklendi) — applyRBAC'ın genel PRT+ dalı
+//     duyuru_feed'de olmayan bir kolona bakıyordu. duyuru.js'e sadece var olan
+//     kolonlarla (my_id/kcm_id) çalışan _duyuruApplyScope() eklendi (duyuru.js
+//     v1.0.1).
+//   v1.3.42 — APP_VERSION → V31.101. Görev Yönetimi: ikon/rozet iyileştirmesi
+//     (✅ ikon, büyük rozet, Görevler ekranı açılmasa bile güncel bekleyen
+//     sayısı + Ana Menü'ye her dönüşte toast bildirimi), filtre chip satırı
+//     alttaki kutularla aynı toplam genişliğe getirildi. YENİ: Ana Menü'ye
+//     "Hangi Müşteri?" modülü eklendi — portföyde hiç ziyaret edilmemiş
+//     (yoksa en uzun süredir ziyaret edilmeyen) bir müşteri önerip "Devam" ile
+//     temas planlama formunu açıyor (gorev.js v1.2.15, auth.js v1.2.21,
+//     utils.js v1.0.4).
+//   v1.3.41 — APP_VERSION → V31.100. Görev Yönetimi ekranına: Görev Tipi
+//     filtresi (DB'den dinamik), KÇM/Takım/MY personel filtresi (geniş
+//     görüşlü roller), Durum filtresi (mevcut chip filtrelerin yanına ek
+//     satır, Gecikmiş dahil), Sıralama (Tarih/Görev Tipi/Durum) eklendi.
+//     Listeden "Tamamla" artık bağlı formu (ziyaret/şikayet/fırsat/
+//     potansiyel) varsa önce o formu açıyor, form kaydedilince görev
+//     otomatik Tamamlandı'ya geçiyor (gorev.js v1.2.14).
+//   v1.3.40 — APP_VERSION → V31.99. FIX: Donanım Takip > Depolar sekmesi
+//     genişleyince (.page.genis) üst çubuk (topbar) 480px'e sıkıştırılıp
+//     ortalanıyordu — bu, açık renkli (--navy2) topbar'ın koyu (--navy) sayfa
+//     zemininin ortasında dar/yüzen bir kutu gibi görünmesine ve sekmeler
+//     arası geçişte rahatsız edici bir görünüme yol açıyordu. Artık topbar'ın
+//     arka planı geniş sayfayı dikişsiz kaplıyor, sadece içeriği (geri tuşu +
+//     başlık) padding ile 480px'lik alana ortalanıyor (css/main.css).
+//   v1.3.39 — APP_VERSION → V31.98. FIX: Talepler > Yeni Talep akışı artık
+//     GERÇEK sepet mantığıyla çalışıyor — ürün seçilince tek ürün modalı
+//     yerine sepete ekleniyor, "+ Ürün Ekle" ile başka ürün de eklenebiliyor,
+//     her satırın kendi adet kutusu ve silme tuşu var, sepet tek seferde
+//     (tek müşteri ile) gönderiliyor. Stok sekmesindeki tekli "🛒 Talep Et"
+//     kartı da artık aynı sepete ekliyor (donanim.js v1.0.34).
+//   v1.3.38 — APP_VERSION → V31.97. Donanım Takip ekran düzeni: Hızlı Sevkiyat
+//     Ana Menü'den kaldırıldı, Stok+Rezervasyon sekmelerinin üstüne taşındı;
+//     Yeni Ürün Ekle/Excel ile Stok Yükle sadece Stok sekmesine taşındı.
+//     Rezervasyon sekmesine "Yeni Rezervasyon", Talepler sekmesine stokta
+//     olmayan ürünlerden seçim yaptıran "Yeni Talep" eklendi. Depolar
+//     sekmesinin geniş modu artık sadece dağıtım ızgarasını genişletiyor,
+//     üst bölüm (başlık+sekme şeridi) diğer sekmelerle aynı ölçüde kalıyor
+//     (donanim.js v1.0.33, auth.js v1.2.20, index.html, css/main.css).
+//   v1.3.37 — APP_VERSION → V31.96. FIX: Yönetici Paneli > Hedef Yönetimi >
+//     Hedef Girişi ekranı hiç kapsam kontrolü yapmıyordu, her yönetici tüm
+//     şirket personelini görüyordu (hedef.js v1.2.8, yetki.js v1.2.8, bkz.
+//     o dosyalar). Yeni 'hedef_giris' kapsam modülü Rol & Yetki ekranında
+//     ayarlanabilir hale geldi.
+//   v1.3.36 — APP_VERSION → V31.95. FIX: KÇM Müdürleri Görev modülünde tüm
+//     KÇM'lerin görevlerini görebiliyordu — kapsam kontrolü Rol ekranındaki
+//     ayarı hiç okumuyordu (gorev.js v1.2.13, bkz. o dosya).
+//   v1.3.35 — APP_VERSION → V31.94. FIX: Ziyaret Analizi "Portföy Dışı"/MY Özet
+//     sekmelerinde KÇM sütunu müşterinin KÇM'sini gösteriyordu, ziyareti yapan
+//     MY'nin kendisini değil (rapor.js v1.2.7, bkz. o dosya).
+//   v1.3.34 — APP_VERSION → V31.93. FIX: Ziyaret Analizi Excel İndir butonu
+//     .hide!important yüzünden hiç görünmüyordu (rapor.js v1.2.6, bkz. o dosya).
+//   v1.3.33 — APP_VERSION → V31.92. ZİYARET ANALİZİ: standalone "Ziyaret
+//     Raporu V2.0" HTML aracı Temas Raporu ekranına 2. sekme olarak entegre
+//     edildi (rapor.js v1.2.5, index.html pageTemasRapor). Yeni izin
+//     eklenmedi — mevcut rapor_temas scope'u kullanılıyor.
+//   v1.3.32 — APP_VERSION → V31.91. Veri Kalitesi alan haritasına 4 yeni
+//     kontrol eklendi (SQL, devir notundaki "Müşteri Ünvanı" ve "MY Adı"
+//     madde 2 kalemleri tamamlandı): contacts.musteri_unvani, duyuru_feed.
+//     unvan, stok_tedarik_talepleri.musteri_unvani (hepsi MUSTERI_UNVANI,
+//     kaynak customers.unvan via ncst) + duyuru_feed.my_adi (MY_ADI, kaynak
+//     users.ad_soyad via my_id). veri_kalite_denetim.js: _VK_PK_KOLONLARI'na
+//     duyuru_feed(duyuru_id), stok_tedarik_talepleri(talep_id) eklendi.
+//     admin.js: KONTROL_ETIKET'e MY_ADI/MUSTERI_UNVANI etiketleri eklendi
+//     (ekran + Excel). yedek_*/backup tabloları ve contacts.ad_soyad/
+//     gorev_unvani bilinçli olarak kapsam dışı bırakıldı (cache değil).
+//   v1.3.31 — APP_VERSION → V31.90. admin.js: "📊 Detaylı Excel Rapor İndir"
+//     butonu eklendi (veriKaliteExcelIndir). js/xlsx.full.min.js (SheetJS,
+//     zaten yüklü, kullanılmıyordu) ile taramanın TÜM bulgularını (ekran
+//     önizlemesiyle sınırlı değil, sayfalanarak) Özet + Detay sekmeli .xlsx
+//     olarak indiriyor. Yetki: veri_kalite_calistir (yetki.js'te zaten bu
+//     izin için "Excel rapor üretir" açıklaması vardı). Otomatik haftalık
+//     rapor üretimi henüz YOK — ayrı adım.
+//   v1.3.30 — APP_VERSION → V31.89. veri_kalite_denetim.js
+//     _vkIsimTutarsizligiTara PK EŞLEŞTİRME BUG FIX: aynı ilişkiye (örn.
+//     aynı kcm_id) bağlı birden fazla satır aynı hatalı cache değerine
+//     sahipse hepsi yanlışlıkla tek bir satıra eşleniyor, "Seçilenleri
+//     Düzelt" hep o satırı güncelleyip diğerlerini hiç düzeltmeden
+//     "uygulandı" işaretliyordu (üretimde 33 kullanıcıdan 1'i gerçekten
+//     etkilendi — my_id 134, elle SQL ile düzeltildi). Artık PK satırla
+//     birlikte ilk sorguda çekiliyor, ayrı eşleştirme adımı kaldırıldı.
+//     Ayrıca üretimde ortaya çıktı: kcm_groups.kcm_adi (kcm_id=6) kaynakta
+//     sondaki boşluk hatası içeriyordu — SQL ile trim edildi (kaynak da
+//     bozuk olabilir, motor bunu otomatik ayırt edemez, admin görsel
+//     kontrol etmeli). Excel export ve otomatik haftalık rapor henüz YOK.
+//   v1.3.29 — APP_VERSION → V31.88. admin.js _vkSonucRenderla DÜZELTME:
+//     önizleme sorgusu tek seferde .order('id').limit(500) çekiyordu; bu
+//     taramada 819 NCST orphan bulgusu (öneri yok) id sırasında ilk 500'ü
+//     tamamen doldurduğu için 33 KÇM Adı bulgusu (öneri VAR) hiç
+//     görünmüyor, "0 satır düzeltilebilir" yazıyor, checkbox/"Seçilenleri
+//     Düzelt" butonu çıkmıyordu. Artık öneri taşıyan (onerilen_deger NOT
+//     NULL) ve taşımayan satırlar AYRI sorgulanıp birleştiriliyor;
+//     düzeltilebilir sayısı count:'exact' ile tam olarak hesaplanıyor.
+//     Excel export ve otomatik haftalık rapor henüz YOK (ayrı adım).
+//   v1.3.28 — APP_VERSION → V31.87. YANMIŞ ETİKET DÜZELTMESİ: admin.js
+//     V31.86 etiketi altında localhost'a 3 farklı içerikle sunuldu (ilk
+//     sürüm, veriSagligi temizliği, checkbox/onay akışı) — kural ihlal
+//     edildi, sürüm atlatılarak düzeltildi. Değişiklik özeti V31.86 ile
+//     aynı, sadece etiket bozuk.
+//   v1.3.27 — APP_VERSION → V31.86. Veri Kalitesi Denetim Modülü (ilk parça):
+//     yeni js/veri_kalite_denetim.js (tarama motoru), admin.js'e "Veri Kalitesi
+//     Denetim" sekmesi, yetki.js'e 3 yeni izin. SQL: veri_kalite_alan_haritasi,
+//     veri_kalite_tespit tabloları + alan haritası ilk kayıtları (bu sürümde
+//     çalıştırıldı, ayrı migrasyon dosyası yok — devir notunda kayıtlı).
+//     HENÜZ YOK: Excel export, düzeltme onay/uygulama, kontak formu canlı
+//     uyarısı, arama modülü notu, durum/tarih kontrolleri.
+//   v1.3.26 — APP_VERSION → V31.85. arama.js: Çağrı Analizi'nde TÜM
+//     kategorilerdeki kartlara "Takım Lideri" satırı eklendi (MY listesi
+//     için tek seferlik users sorgusu, satır başına sorgu yok).
+//   v1.3.25 — APP_VERSION → V31.84. arama.js: Çağrı Analizi Şikayet/Talep
+//     kartlarına agent_notu önizlemesi eklendi (bazı agent'lar açıklamayı
+//     sikayet_metni yerine genel arama notuna yazmış). Görev Oluştur/
+//     Yönlendir seçicisi artık tüm MY/FMY kadrosu yerine, kaydın MY'sinin
+//     KÇM'sindeki MY/FMY + Takım Lideri + KÇM Müdürü + Operasyon Müdürü ile
+//     sınırlı (bkz. _analizGorevOptions).
+//   v1.3.24 — APP_VERSION → V31.83. arama.js: Çağrı Analizi Şikayet/Talep
+//     kartlarına MY/FMY seçici + "Görev Oluştur" (görev yoksa) / "Yönlendir"
+//     (görev varsa) eklendi — atanan_id güncellenip task_logs'a kayıt
+//     düşülüyor. Ayrıca varsayılan atama düzeltildi: Şikayet takım lideri
+//     zincirine (değişmedi), Talep artık ziyareti yapan MY/FMY'nin kendisine
+//     açılıyor (_sikayetTalepGoreviAc yeni manualAtananId parametresi).
+//   v1.3.23 — APP_VERSION → V31.82. arama.js: Çağrı Analizi'nde Şikayet/
+//     Talep kartlarına açıklama (sikayet_metni) önizlemesi ve bağlı görevin
+//     durum rozeti eklendi; rozete tıklayınca Görev modülünün detay modalı
+//     açılıyor (parent_task_id üzerinden bağlantı — yeni kolon gerekmedi).
+//     gorev.js: openGorevDetay, GÖREV.tasks önbelleğinde olmayan bir görevi
+//     artık DB'den çekip açabiliyor (V31.75'teki araSonucDetayAc ile aynı
+//     sağlamlaştırma yöntemi) — başka ekranlardan doğrudan görev açmayı
+//     mümkün kılıyor.
+//   v1.3.22 — APP_VERSION → V31.81. arama.js: "Gelecek" kutusu 2 rakam
+//     gösteriyor (toplam/arama yapılacak) ve "Gelecek" sekmesinde Aranacak/
+//     Aranmayacak ayrımı geldi — aranmak istemiyor, son N günde teyit
+//     edilmiş, aynı gün aynı kişi tekrarı nedenleriyle otomatik ayıklama
+//     (detay: arama.js v1.1.9, madde 13).
+//   v1.3.21 — APP_VERSION → V31.80. admin.js: Yeni "Arama Ayarları" sekmesi
+//     eklendi — arama_sla_gun/arama_cooldown_gun artık admin ekranından
+//     düzenlenebiliyor (detay: admin.js v1.1.4). Ayrıca eksik olan
+//     arama_sla_gun satırı sistem_ayarlari'na SQL ile eklendi.
+//   v1.3.20 — APP_VERSION → V31.79. arama.js: "MY Kırılım / Liderlik
+//     Tablosu" başlığı "MY/FMY Ziyaret Performans Değerlendirme" oldu
+//     (detay: arama.js v1.1.8).
+//   v1.3.19 — APP_VERSION → V31.78. arama.js: Çağrı Analizi kategori
+//     kutuları sadeleşti (üstteki özet kutularıyla tekrar edenler ve "Yüz
+//     yüze uyuşmazlık" kaldırıldı), "Memnuniyetsiz" → "Düşük Puan" oldu,
+//     kalan 7 kutu 3+4 iki satıra düzenlendi (detay: arama.js v1.1.7).
+//   v1.3.18 — APP_VERSION → V31.77. arama.js: BUG FIX — Talep seçilince
+//     metin yazarken "task oluştur" butonu hiç görünmüyordu, artık her tuş
+//     vuruşunda görünürlüğü güncelleniyor (detay: arama.js v1.1.6).
+//   v1.3.17 — APP_VERSION → V31.76. arama.js: Şikayet/Talep ayrıldı, şikayet
+//     kategorisi (kimi/ne için) detaylandırıldı, şikayet kaydı otomatik takım
+//     liderine/müdüre task açıyor, talep için manuel tek-tık task butonu
+//     eklendi (detay: arama.js v1.1.5). SQL önkoşulu vardı, uygulandı.
+//   v1.3.16 — APP_VERSION → V31.75. arama.js: Çağrı Analizi ekranındaki
+//     filtrelenmiş kayıtlar artık tıklanınca tam görüşme detayını açıyor
+//     (detay: arama.js v1.1.4).
+//   v1.3.15 — APP_VERSION → V31.74. arama.js: "Çağrı Analizi" tuşunun eni
+//     üstteki 2'li özet kutu satırı (Gelecek/Tamamlanan) ile aynı genişliğe
+//     getirildi, yüksekliği ~3-4px arttı (detay: arama.js v1.1.3).
+//   v1.3.14 — APP_VERSION → V31.73. arama.js: "Gelecek" sekmesindeki kartlar
+//     artık Aktif sekmedeki fonksiyonlarla bire bir aynı — Ara/Aramadan Kapat
+//     butonu ve aynı kişi uyarısı da çalışıyor (detay: arama.js v1.1.2).
+//   v1.3.13 — APP_VERSION → V31.72. arama.js: Tamamlanan sayacı "300+" yerine
+//     tam rakam gösteriyor (detay: arama.js v1.1.1 değişiklik notu).
+//   v1.3.12 — APP_VERSION → V31.71. Ana menüde "Arama" ifadesi "Ziyaret Teyit"
+//     olarak değiştirildi, ikonu 📞'dan 🎧 (çağrı merkezi) olarak güncellendi
+//     (index.html, menuAramaBox).
+//   v1.3.11 — APP_VERSION → V31.70. KRİTİK GÜVENLİK FIX: Arama (Ziyaret Teyit)
+//     modülünde hiçbir KÇM/rol kısıtı yoktu, herkes tüm KÇM'lerin arama
+//     kayıtlarını görebiliyordu. yetki.js'e 'arama' scope modülü eklendi,
+//     arama.js artık customers.kcm_id üzerinden veri kısıtlıyor (detay: arama.js
+//     v1.1.0, yetki.js v1.2.6 değişiklik notları).
+//   v1.3.10 — APP_VERSION → V31.69. veriyonetimi.js: Devir + Atama/Musteri/
+//     Kontak yazma butonlarina cift-tiklama korumasi (islem surerken/bittikten
+//     sonra tekrar basilamaz) ve tum 4 sekme icin ortak NCST/KCM/MY detayli
+//     Excel raporu (islem bitince otomatik iniyor) eklendi.
+//   v1.3.09 — APP_VERSION → V31.68. KRİTİK BUG FIX: veriyonetimi.js — MY Devri
+//     (vyDevirExec) ve Atama'daki "düşen müşteri" tasima (vyUygula) customers.
+//     my_id'yi guncelliyor ama kcm_id'ye dokunmuyordu; kaynak/hedef farkli
+//     KCM'de olursa musteri yanlis KCM'de kalmaya devam ediyordu. 790 kayitlik
+//     mevcut birikim SQL ile duzeltildi (ayri islem, kod fix'inden bagimsiz).
+//     Koda kalici kural islendi: MY devri/atamasinda KCM ASLA degismez —
+//     kaynak/hedef (ve Devir'de C) farkli KCM'deyse islem 3 katmanda engellenir.
+//     Ayrica: 9 adet gecersiz customers kaydi (ncst alanina kisi adi/DUMMY
+//     yazilmis, hicbir ziyaret/firsati olmayan cop kayitlar) silindi; users.
+//     kcm_adi'daki yazim tutarsizliklari (ayni kcm_id icin "KÇM3"/"Şengüller
+//     KÇM 3" gibi varyantlar) normalize edildi.
+//   v1.3.08 — APP_VERSION → V31.67. KRİTİK BUG FIX: searchMusteri() (musteri.js)
+//     .select() içine my_id,kcm_id eklendi. Arama kutusundan müşteri seçildiğinde
+//     (selC/selFirsatC/selectPrMusteri vb.) döndürülen obje my_id taşımadığı için
+//     visits.musteri_my_id ve opportunities.musteri_my_id NULL yazılıyordu —
+//     portföy sahibi bilgisi kaydedilmiyordu (giren = güncel sahip olsa bile).
+//     ~3.505 temas + ilgili fırsat kayıtları etkilenmiş, ayrı SQL ile düzeltilecek.
 //   v1.3.07 — APP_VERSION → V31.66. Donanim sekme seridi sabit iki satir:
 //     ust satir Depolar+Stok, alt satir Rezervasyon+Transfer+Talepler.
 //   v1.3.06 — APP_VERSION → V31.65. Hizli Sevkiyat Donanim sekmesinden
@@ -310,7 +1151,7 @@
 //            sifre_sifirla, urun_hedef_map, firsat_sil (önceden de KÇM MÜDÜRÜ'nde yoktu)
 
 // v1.2.7: TEK KAYNAK VERSİYON — değiştirilecek tek yer burası.
-const APP_VERSION = 'V31.66';
+const APP_VERSION = 'V31.207';
 function applyAppVersion(){
   document.querySelectorAll('.app-ver').forEach(el => el.textContent = APP_VERSION);
   document.title = document.title.replace(/V[\d.]+/, APP_VERSION);

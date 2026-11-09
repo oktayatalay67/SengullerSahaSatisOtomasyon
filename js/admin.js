@@ -1,4 +1,24 @@
 // ============================================================
+// admin.js — v1.1.9
+//   v1.1.9 (V31.207) — Ziyaret Seçenekleri: Şikayet Kapanış listesinde her seçenek için "Görevi kapatır"
+//     (visit_results.kapatir); Şikayet Çözüm listesinde kategori yerine "Hangi kapanışlarda görünsün"
+//     çoklu seçimi (visit_results.kapanis_idleri). Çözüm satırında "Görünür: ..." etiketi.
+//   v1.1.8 (V31.189) — Uygulama Ayarlari: "Dashboard Ayarlari" sekmesi (renderDashboardAyarlari, js/dashboard.js).
+//   v1.1.7 (V31.172) — ADMIN kutu menusune "Veri Guvenligi" eklendi;
+//     ekranin kendisi js/denetim.js icinde (initVeriGuvenlik).
+//   v1.1.6 — V31.171: veri raporlama/disa aktarma izi eklendi -> veriCikisiKaydet()
+//     (js/denetim.js, veri_cikis_log tablosu). Noktalar: downloadPipelineExcel,
+//     veriKaliteExcelIndir.
+//   v1.1.5 (17.09.2026, V31.113) — "Arama Ayarları" ekranı "Uygulama Ayarları"
+//     olarak yeniden adlandırıldı, 2 sekmeye çıkarıldı: Arama Ayarları (aynı)
+//     + Donanım Satış Süreç Ayarları (yeni — sistem_ayarlari'deki 5 yeni
+//     Donanım Rezervasyon V2 parametresi: donanim_onrez_sure_saat/uzatma_saat/
+//     max_uzatma, donanim_emei_sure_saat, donanim_mukerrer_esik). Sadece ADMIN
+//     görür (Admin Panel'in geri kalanıyla aynı erişim kuralı, ayrı izin yok).
+// admin.js — v1.1.4
+//   v1.1.4 (13.09.2026, V31.80) — Yeni "Arama Ayarları" admin sekmesi:
+//     sistem_ayarlari.arama_sla_gun / arama_cooldown_gun artik ekrandan
+//     duzenlenebiliyor (oncesinde sadece veritabanindan degistirilebiliyordu).
 // admin.js — v1.1.3
 //   v1.1.3 (V31.50) — Kullanici listesinde ham telefon yerine _telG().
 // admin.js — v1.1.2
@@ -27,10 +47,13 @@ let _zoptAktifTip = 'amac';
 
 // v1.1.0: Hangi tip hangi tipin alt kademesi (parent) — child tip:parent tip
 const ZOPT_PARENT_MAP = {
-  'sikayet_cozum_yontemi': 'sikayet_kategori',
   'temas_sonuc_detay':     'temas_sonuc_ust',
   'firsat_sonuc_detay':    'firsat_sonuc_ust',
   'islem':                 'amac'
+};
+// V31.207: çözüm yöntemi artık bir kategoriye değil, görünür olacağı KAPANIŞ seçeneklerine bağlanır (çoklu)
+const ZOPT_KAPANIS_MAP = {
+  'sikayet_cozum_yontemi': 'sikayet_kapalis_durumu'
 };
 
 async function initZiyaretOpt(){
@@ -46,6 +69,26 @@ async function zoptTipSec(tip, btn){
   await zoptListeYukle();
 }
 
+let _zoptVeri = {};       // V31.207: result_id -> satır (düzenleme penceresi için)
+let _zoptKapanisAd = {};  // V31.207: kapanış result_id -> ad (çözüm etiketi için)
+
+function _zoptEkEtiket(r){
+  if(_zoptAktifTip==='sikayet_kapalis_durumu'){
+    return '<div style="font-size:10px;margin-top:2px;color:'+(r.kapatir?'var(--green)':'var(--text3)')+';">'+(r.kapatir?'🔒 Görevi kapatır (onaya düşer)':'↻ Görev açık kalır')+'</div>';
+  }
+  if(ZOPT_KAPANIS_MAP[_zoptAktifTip]){
+    const ids=Array.isArray(r.kapanis_idleri)?r.kapanis_idleri:[];
+    const adlar=ids.map(i=>_zoptKapanisAd[i]).filter(Boolean);
+    return adlar.length
+      ? '<div style="font-size:10px;color:var(--text3);margin-top:2px;">👁 Görünür: '+adlar.map(x=>escapeHTML(x)).join(', ')+'</div>'
+      : '<div style="font-size:10px;color:var(--amber);margin-top:2px;">👁 Hiçbir kapanışta görünmüyor</div>';
+  }
+  return '';
+}
+
+// V31.207: Seçenek listeleri değişince görev formu önbelleği (temas.js) yenilensin
+function _zoptOnbellekTemizle(){ _gorevSecenekCache = {}; }
+
 async function zoptListeYukle(){
   const el = document.getElementById('zoptList');
   el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
@@ -53,6 +96,14 @@ async function zoptListeYukle(){
     .select('*').eq('tip',_zoptAktifTip).order('sira');
   if(error){ el.innerHTML=`<div style="color:var(--red);">${escapeHTML(error.message)}</div>`; return; }
   if(!data?.length){ el.innerHTML='<div class="empty">Kayıt yok.</div>'; return; }
+
+  _zoptVeri = {};
+  data.forEach(r=>{ _zoptVeri[r.result_id]=r; });
+  if(ZOPT_KAPANIS_MAP[_zoptAktifTip]){
+    const{data:kp}=await sb.from('visit_results').select('result_id,sonuc_adi').eq('tip',ZOPT_KAPANIS_MAP[_zoptAktifTip]);
+    _zoptKapanisAd = {};
+    (kp||[]).forEach(k=>{ _zoptKapanisAd[k.result_id]=k.sonuc_adi; });
+  }
 
   // v1.1.0: Bu tip bir alt kademe mi? Üst seçeneklerin adını çek (gösterim için)
   const parentTip = ZOPT_PARENT_MAP[_zoptAktifTip];
@@ -72,6 +123,7 @@ async function zoptListeYukle(){
       <span style="color:var(--text3);font-size:16px;cursor:grab;">☰</span>
       <div style="flex:1;">
         <div style="font-size:13px;${r.aktif?'':'opacity:0.4;text-decoration:line-through;'}">${escapeHTML(r.sonuc_adi)}</div>
+        ${_zoptEkEtiket(r)}
         ${parentTip?`<div style="font-size:10px;color:var(--text3);margin-top:2px;">↳ ${r.parent_id&&parentNameMap[r.parent_id]?escapeHTML(parentNameMap[r.parent_id]):'<span style=\"color:var(--amber);\">Bağlı değil</span>'}</div>`:''}
       </div>
       <div style="display:flex;gap:4px;">
@@ -160,6 +212,23 @@ async function zoptAcModal(id, mevcutAd, mevcutParentId){
   } else {
     if(parentWrap) parentWrap.style.display='none';
   }
+
+  // V31.207: "Görevi kapatır" (şikayet kapanış) ve "Hangi kapanışlarda görünsün" (şikayet çözüm)
+  const satir = id ? (_zoptVeri[id]||{}) : {};
+  const kapatirWrap = document.getElementById('zoptModalKapatirWrap');
+  const kapatirChk = document.getElementById('zoptModalKapatir');
+  if(kapatirWrap) kapatirWrap.style.display = (_zoptAktifTip==='sikayet_kapalis_durumu') ? 'block' : 'none';
+  if(kapatirChk) kapatirChk.checked = !!satir.kapatir;
+  const kapTip = ZOPT_KAPANIS_MAP[_zoptAktifTip];
+  const kapWrap = document.getElementById('zoptModalKapanisWrap');
+  const kapList = document.getElementById('zoptModalKapanisList');
+  if(kapWrap) kapWrap.style.display = kapTip ? 'block' : 'none';
+  if(kapTip && kapList){
+    const{data:kaps}=await sb.from('visit_results').select('result_id,sonuc_adi').eq('tip',kapTip).eq('aktif',true).order('sira');
+    const secili = (Array.isArray(satir.kapanis_idleri)?satir.kapanis_idleri:[]).map(Number);
+    kapList.innerHTML = (kaps||[]).map(k=>'<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;cursor:pointer;"><input type="checkbox" class="zoptKapChk" value="'+k.result_id+'" '+(secili.includes(k.result_id)?'checked':'')+'> '+escapeHTML(k.sonuc_adi)+'</label>').join('')
+      || '<div style="font-size:11px;color:var(--amber);">Önce Şikayet Kapanış listesine seçenek ekleyin</div>';
+  }
   openModal('zoptModal');
 }
 
@@ -173,15 +242,28 @@ async function zoptModalKaydet(){
     if(!v){ toast('Üst seçenek seçmelisiniz','error'); return; }
     parentId = parseInt(v);
   }
-  await zoptKaydet(_zoptEditId, ad, null, parentId);
+  // V31.207: tipe özel ek alanlar
+  let ekstra = {};
+  if(_zoptAktifTip==='sikayet_kapalis_durumu'){
+    ekstra.kapatir = !!document.getElementById('zoptModalKapatir')?.checked;
+  }
+  if(ZOPT_KAPANIS_MAP[_zoptAktifTip]){
+    const idler = Array.from(document.querySelectorAll('#zoptModalKapanisList .zoptKapChk:checked')).map(c=>parseInt(c.value));
+    if(!idler.length){ toast('En az bir kapanış seçin','error'); return; }
+    ekstra.kapanis_idleri = idler;
+    parentId = undefined; // eski kategori bağlantısına (parent_id) dokunma
+  }
+  await zoptKaydet(_zoptEditId, ad, null, parentId, ekstra);
   closeModal('zoptModal');
 }
 
-async function zoptKaydet(id, ad, sira, parentId){
-  const payload = {sonuc_adi:ad, tip:_zoptAktifTip, parent_id: parentId ?? null};
+async function zoptKaydet(id, ad, sira, parentId, ekstra){
+  const payload = Object.assign({sonuc_adi:ad, tip:_zoptAktifTip, parent_id: parentId ?? null}, ekstra||{});
   let error;
   if(id){
-    const res = await sb.from('visit_results').update({sonuc_adi:ad, parent_id: parentId ?? null}).eq('result_id',id);
+    const upd = Object.assign({sonuc_adi:ad}, ekstra||{});
+    if(parentId!==undefined) upd.parent_id = parentId ?? null; // undefined = parent_id'ye dokunma (V31.207)
+    const res = await sb.from('visit_results').update(upd).eq('result_id',id);
     error = res.error;
   } else {
     payload.aktif = true;
@@ -193,6 +275,7 @@ async function zoptKaydet(id, ad, sira, parentId){
   }
   if(error){ toast('Hata: '+error.message,'error'); return; }
   toast(id?'Güncellendi':'Eklendi','success');
+  _zoptOnbellekTemizle();
   await zoptListeYukle();
   await buildTemasUI(); // Temas formunu güncelle
 }
@@ -200,6 +283,7 @@ async function zoptKaydet(id, ad, sira, parentId){
 async function zoptAktifToggle(id, yeniDurum){
   const {error} = await sb.from('visit_results').update({aktif:yeniDurum}).eq('result_id',id);
   if(error){ toast('Hata','error'); return; }
+  _zoptOnbellekTemizle();
   await zoptListeYukle();
   await buildTemasUI();
 }
@@ -209,6 +293,7 @@ async function zoptSil(id){
   const {error} = await sb.from('visit_results').delete().eq('result_id',id);
   if(error){ toast('Hata: '+error.message,'error'); return; }
   toast('Silindi','success');
+  _zoptOnbellekTemizle();
   await zoptListeYukle();
   await buildTemasUI();
 }
@@ -654,6 +739,12 @@ async function downloadPipelineExcel(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;a.download='Pipeline_Raporu_'+new Date().toLocaleDateString('tr-TR').replace(/[/.]/g,'-')+'.csv';
+  // V31.171: denetim izi
+  await veriCikisiKaydet({tur:'disa_aktarim',modul:'admin',fonksiyon:'downloadPipelineExcel',
+    rapor_adi:'Pipeline Raporu',bicim:'csv',dosya_adi:a.download,satir_sayisi:rows.length,
+    kapsam:Object.assign(denetimFiltre({baslangic:'prStartDate',bitis:'prEndDate',
+      kcm:'prKcmFilter',takim:'prTakimFilter',my:'prMyFilter',ncst:'prMusteriNcst'}),
+      {adim:(typeof prAdimSec!=='undefined')?prAdimSec:undefined})});
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   toast(rows.length+' kayıt indirildi','success');
 }
@@ -842,9 +933,13 @@ function switchAdminTab(tab){
 
 var _adminTabAdlar = {
   'urunler':'Ürünler','kullanicilar':'Kullanıcılar','talepler':'Talepler',
-  'ziyaretOpt':'Ziyaret Seçenekleri','veriSagligi':'Veri Sağlığı','gorevTipleri':'Görev Tipleri',
-  'yetki':'Rol & Yetki Yönetimi'
+  'ziyaretOpt':'Ziyaret Seçenekleri','gorevTipleri':'Görev Tipleri',
+  'yetki':'Rol & Yetki Yönetimi','aramaAyarlari':'Uygulama Ayarları',
+  'veriKalite':'Veri Kalitesi Denetim',
+  'veriGuvenlik':'Veri Güvenliği',
+  'surumler':'Kullanıcı Sürümleri'
 };
+var _adminTabListesi=['urunler','kullanicilar','talepler','ziyaretOpt','gorevTipleri','yetki','aramaAyarlari','veriKalite','veriGuvenlik','surumler'];
 
 function adminSayfaAc(tab){
   // Kutu menüyü gizle, nav bar'ı göster
@@ -856,7 +951,7 @@ function adminSayfaAc(tab){
   if(baslik) baslik.textContent   = _adminTabAdlar[tab] || tab;
 
   // Sadece seçili tab'ı göster
-  ['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri','yetki'].forEach(function(t){
+  _adminTabListesi.forEach(function(t){
     const p = document.getElementById('adminTab'+capitalize(t));
     if(p) p.style.display = (t===tab) ? '' : 'none';
   });
@@ -867,6 +962,10 @@ function adminSayfaAc(tab){
   if(tab==='ziyaretOpt')  initZiyaretOpt();
   if(tab==='gorevTipleri')renderGorevTipleriAdmin();
   if(tab==='yetki')       initYetkiYonetim();
+  if(tab==='aramaAyarlari')uygulamaAyarlariSekmeAc('arama');
+  if(tab==='veriKalite')   initVeriKaliteDenetim();
+  if(tab==='veriGuvenlik') initVeriGuvenlik();   // V31.172 — js/denetim.js
+  if(tab==='surumler')     surumListeAc();       // V31.199 — js/surum.js
 }
 
 function adminMenueGeri(){
@@ -875,10 +974,88 @@ function adminMenueGeri(){
   if(menuEl) menuEl.style.display = '';
   if(altEl)  altEl.style.display  = 'none';
   // Tüm tab içeriklerini gizle
-  ['urunler','kullanicilar','talepler','ziyaretOpt','veriSagligi','gorevTipleri','yetki'].forEach(function(t){
+  _adminTabListesi.forEach(function(t){
     const p = document.getElementById('adminTab'+capitalize(t));
     if(p) p.style.display = 'none';
   });
+}
+
+// ============================================================
+// V31.80: ARAMA AYARLARI — sistem_ayarlari tablosundaki arama_sla_gun ve
+// arama_cooldown_gun degerlerini admin ekranindan duzenlenebilir yapar.
+// Onceden bu degerler sadece dogrudan veritabanindan degistirilebiliyordu.
+// ============================================================
+async function renderAramaAyarlari(){
+  const el=document.getElementById('aramaAyarlariListesi');
+  if(!el) return;
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const {data,error}=await sb.from('sistem_ayarlari').select('id,ayar_tipi,deger,gorunen_ad')
+    .in('ayar_tipi',['arama_sla_gun','arama_cooldown_gun']).eq('aktif',true).order('sira');
+  if(error){ el.innerHTML='<div class="empty">Yüklenemedi: '+escapeHTML(error.message)+'</div>'; return; }
+  if(!data || !data.length){ el.innerHTML='<div class="empty">Ayar bulunamadı.</div>'; return; }
+  el.innerHTML=data.map(a=>`
+    <div class="field" style="margin-bottom:12px;">
+      <label>${escapeHTML(a.gorunen_ad||a.ayar_tipi)}</label>
+      <div style="display:flex;gap:8px;">
+        <input type="number" min="1" id="aramaAyar_${a.id}" value="${escapeHTML(String(a.deger))}"
+          style="flex:1;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">
+        <button class="btn btn-sm" style="background:var(--green);color:#04301f;" onclick="aramaAyarKaydet(${a.id})">💾 Kaydet</button>
+      </div>
+    </div>`).join('');
+}
+async function aramaAyarKaydet(id){
+  const el=document.getElementById('aramaAyar_'+id);
+  if(!el) return;
+  const v=parseInt(el.value);
+  if(!v || v<1){ toast('Geçerli bir sayı girin (1 veya üzeri)','error'); return; }
+  const {error}=await sb.from('sistem_ayarlari').update({deger:String(v)}).eq('id',id);
+  if(error){ toast('Kaydedilemedi: '+error.message,'error'); return; }
+  toast('Kaydedildi','success');
+}
+
+// ============================================================
+// V31.113: UYGULAMA AYARLARI — "Arama Ayarları" ekranı 2 sekmeye çıkarıldı:
+// Arama Ayarları (değişmedi) + Donanım Satış Süreç Ayarları (yeni, Donanım
+// Rezervasyon Akışı V2 için sistem_ayarlari'deki 5 yeni parametre).
+// ============================================================
+function uygulamaAyarlariSekmeAc(sekme){
+  ['arama','donanim','dashboard'].forEach(function(s){
+    const p=document.getElementById('uygAyarPanel_'+s);
+    const b=document.getElementById('uygAyarTab_'+s);
+    if(p) p.style.display = (s===sekme) ? '' : 'none';
+    if(b){ b.style.background = (s===sekme) ? 'var(--blue)' : ''; b.classList.toggle('btn-ghost', s!==sekme); }
+  });
+  if(sekme==='arama')   renderAramaAyarlari();
+  if(sekme==='donanim') renderDonanimSurecAyarlari();
+  if(sekme==='dashboard' && typeof renderDashboardAyarlari==='function') renderDashboardAyarlari();   // V31.189
+}
+async function renderDonanimSurecAyarlari(){
+  const el=document.getElementById('donanimSurecAyarlariListesi');
+  if(!el) return;
+  el.innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  const {data,error}=await sb.from('sistem_ayarlari').select('id,ayar_tipi,deger,gorunen_ad')
+    .in('ayar_tipi',['donanim_onrez_sure_saat','donanim_onrez_uzatma_saat','donanim_onrez_max_uzatma',
+      'donanim_emei_sure_saat','donanim_mukerrer_esik']).eq('aktif',true).order('sira');
+  if(error){ el.innerHTML='<div class="empty">Yüklenemedi: '+escapeHTML(error.message)+'</div>'; return; }
+  if(!data || !data.length){ el.innerHTML='<div class="empty">Ayar bulunamadı.</div>'; return; }
+  el.innerHTML=data.map(a=>`
+    <div class="field" style="margin-bottom:12px;">
+      <label>${escapeHTML(a.gorunen_ad||a.ayar_tipi)}</label>
+      <div style="display:flex;gap:8px;">
+        <input type="number" min="1" id="donanimSurecAyar_${a.id}" value="${escapeHTML(String(a.deger))}"
+          style="flex:1;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:13px;">
+        <button class="btn btn-sm" style="background:var(--green);color:#04301f;" onclick="donanimSurecAyarKaydet(${a.id})">💾 Kaydet</button>
+      </div>
+    </div>`).join('');
+}
+async function donanimSurecAyarKaydet(id){
+  const el=document.getElementById('donanimSurecAyar_'+id);
+  if(!el) return;
+  const v=parseInt(el.value);
+  if(!v || v<1){ toast('Geçerli bir sayı girin (1 veya üzeri)','error'); return; }
+  const {error}=await sb.from('sistem_ayarlari').update({deger:String(v)}).eq('id',id);
+  if(error){ toast('Kaydedilemedi: '+error.message,'error'); return; }
+  toast('Kaydedildi','success');
 }
 function switchYoneticiTab(tab){
   ['hedefKalem','urunHedef','hedefGiris','iptalOnay'].forEach(t=>{
@@ -1491,266 +1668,12 @@ async function saveSifreSifirla(){
   }catch(e){toast('Hata: '+e.message,'error');}
 }
 
-function showSifreUnuttum(){
-  toast('Yöneticinizle iletişime geçin — Admin panelinden şifreniz sıfırlanabilir.','info');
-}
+// V31.157: showSifreUnuttum() artık auth.js'te (email ile self-servis sıfırlama linki).
 
 
 // ============================================================
 // v30.18: VERİ SAĞLIĞI — KÇM bilgisi eksik kayıtları tespit ve düzelt
 // ============================================================
-// v30.83: ÇİFT KAYIT TESPİTİ — 10 dk penceresi, gerçek zaman farkı
-// records içinde keyFn ile gruplar, her grupta anchor'dan <=windowMs olanları çift sayar.
-function _ciftGruplaBul(records, keyFn, timeFn, windowMs){
-  const groups={};
-  (records||[]).forEach(r=>{ const k=keyFn(r); if(k==null) return; (groups[k]=groups[k]||[]).push(r); });
-  const dup=[];
-  Object.values(groups).forEach(arr=>{
-    if(arr.length<2) return;
-    arr.sort((a,b)=> timeFn(a)-timeFn(b));
-    let chain=[arr[0]];
-    for(let i=1;i<arr.length;i++){
-      if(timeFn(arr[i]) - timeFn(chain[0]) <= windowMs){ chain.push(arr[i]); }
-      else { if(chain.length>1) dup.push(chain.slice()); chain=[arr[i]]; }
-    }
-    if(chain.length>1) dup.push(chain.slice());
-  });
-  return dup; // [[rec,rec,...], ...]
-}
-
-// Son 30 gün içinde temas/fırsat/görev çiftlerini bulur
-async function _vsCiftKayitBul(){
-  const since = new Date(Date.now() - 30*24*60*60*1000).toISOString();
-  const WIN = 10*60*1000;
-  const {data:vis} = await sb.from('visits')
-    .select('visit_id,my_id,ncst,tarih_saat').eq('durum','Gerçekleşti')
-    .gte('tarih_saat',since).not('tarih_saat','is',null);
-  const visDup=_ciftGruplaBul(vis, r=>r.my_id+'|'+r.ncst, r=>new Date(r.tarih_saat).getTime(), WIN);
-  const {data:opp} = await sb.from('opportunities')
-    .select('opp_id,my_id,ncst,urun_adi,olusturma_tarihi')
-    .gte('olusturma_tarihi',since).not('olusturma_tarihi','is',null);
-  const oppDup=_ciftGruplaBul(opp, r=>r.my_id+'|'+r.ncst+'|'+(r.urun_adi||''), r=>new Date(r.olusturma_tarihi).getTime(), WIN);
-  const {data:tsk} = await sb.from('tasks')
-    .select('task_id,atayan_id,atanan_id,ncst,baslik,olusturma_tarihi')
-    .gte('olusturma_tarihi',since).not('olusturma_tarihi','is',null);
-  const tskDup=_ciftGruplaBul(tsk, r=>r.atayan_id+'|'+r.atanan_id+'|'+r.ncst+'|'+(r.baslik||''), r=>new Date(r.olusturma_tarihi).getTime(), WIN);
-  return {visDup, oppDup, tskDup};
-}
-
-// Çift grupları HTML tabloya çevirir + silinecek id'leri döndürür
-function _vsCiftRender(dupGroups, idKey, zamanKey, etiket){
-  if(!dupGroups.length) return {html:'', silId:[]};
-  const rowStyle='padding:7px;border-bottom:1px solid var(--border);font-size:12px;';
-  const thStyle='padding:7px;font-size:10px;color:var(--text3);text-transform:uppercase;';
-  let silId=[];
-  let rows='';
-  dupGroups.forEach(g=>{
-    const ids=g.map(r=>r[idKey]).sort((a,b)=>a-b);
-    const tut=ids[0]; const sil=ids.slice(1);
-    silId=silId.concat(sil);
-    const zaman=new Date(g[0][zamanKey]).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul'});
-    rows+=`<tr>
-      <td style="${rowStyle}">${escapeHTML(String(g[0].ncst||'?'))}</td>
-      <td style="${rowStyle}">${escapeHTML(String(g[0].my_id||g[0].atanan_id||'?'))}</td>
-      <td style="${rowStyle}">${escapeHTML(zaman)}</td>
-      <td style="${rowStyle}">${g.length}</td>
-      <td style="${rowStyle};color:var(--green);">#${tut}</td>
-      <td style="${rowStyle};color:var(--red);">${sil.map(x=>'#'+x).join(', ')}</td>
-    </tr>`;
-  });
-  const html=`<div style="margin-bottom:16px;">
-    <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">${etiket} (${dupGroups.length} grup, ${silId.length} fazla)</div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:auto;">
-      <table style="width:100%;border-collapse:collapse;">
-        <tr style="background:var(--navy2);"><th style="${thStyle}">Müşteri</th><th style="${thStyle}">MY/Atanan</th><th style="${thStyle}">İlk Kayıt</th><th style="${thStyle}">Adet</th><th style="${thStyle}">Tutulacak</th><th style="${thStyle}">Silinecek</th></tr>
-        ${rows}
-      </table>
-    </div>
-  </div>`;
-  return {html, silId};
-}
-
-async function veriSagligiTara(){
-  const sonucDiv=document.getElementById('veriSagligiSonuc');
-  sonucDiv.innerHTML='<div class="loader"><div class="spinner"></div></div><div style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;">Taranıyor...</div>';
-
-  try{
-    // 1. KÇM eksik fırsatlar
-    const{data:oppNull,error:e1}=await sb.from('opportunities')
-      .select('opp_id,ncst,my_id,musteri_my_id,adim,beklenen_ciro,kcm_id')
-      .is('kcm_id',null).order('opp_id');
-    if(e1) throw e1;
-
-    // 2. KÇM eksik temas kayıtları
-    const{data:visNull,error:e2}=await sb.from('visits')
-      .select('visit_id,ncst,my_id,musteri_my_id,durum,kcm_id')
-      .is('kcm_id',null).order('visit_id');
-    if(e2) throw e2;
-
-    const oppList=oppNull||[];
-    const visList=visNull||[];
-
-    if(oppList.length===0&&visList.length===0){
-      sonucDiv.innerHTML='<div style="padding:20px;text-align:center;color:var(--green);font-size:14px;">✅ Tüm kayıtlarda KÇM bilgisi mevcut. Sorun yok!</div>';
-      return;
-    }
-
-    // 3. Etkilenen NCST'lerin müşteri KÇM bilgisini çek
-    const allNcst=[...new Set([...oppList.map(o=>o.ncst),...visList.map(v=>v.ncst)].filter(Boolean))];
-    let custKcmMap={}, custMyMap={};
-    if(allNcst.length){
-      const{data:custs}=await sb.from('customers').select('ncst,kcm_id,my_id,unvan').in('ncst',allNcst);
-      (custs||[]).forEach(c=>{custKcmMap[c.ncst]=c.kcm_id; custMyMap[c.ncst]={my_id:c.my_id,unvan:c.unvan};});
-    }
-
-    // 4. Aynı zamanda my_id'den kcm_id çek (fallback)
-    const allMyIds=[...new Set([...oppList.map(o=>o.my_id),...visList.map(v=>v.my_id)].filter(Boolean))];
-    let userKcmMap={};
-    if(allMyIds.length){
-      const{data:usrs}=await sb.from('users').select('my_id,kcm_id,ad_soyad').in('my_id',allMyIds);
-      (usrs||[]).forEach(u=>{userKcmMap[u.my_id]={kcm_id:u.kcm_id,ad:u.ad_soyad};});
-    }
-
-    // Tablo oluştur
-    const rowStyle='padding:8px;border-bottom:1px solid var(--border);font-size:12px;';
-    const thStyle='padding:8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;';
-
-    let html=`<div style="margin-bottom:12px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">
-        📊 Eksik: <span style="color:var(--red);">${oppList.length} fırsat</span> + <span style="color:var(--amber);">${visList.length} temas</span>
-      </div>`;
-
-    if(oppList.length>0){
-      html+=`<div style="margin-bottom:16px;">
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">💼 KÇM Eksik Fırsatlar (${oppList.length})</div>
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-          <table style="width:100%;border-collapse:collapse;">
-            <tr style="background:var(--navy2);">
-              <th style="${thStyle}">opp_id</th><th style="${thStyle}">Müşteri</th>
-              <th style="${thStyle}">Giren MY</th><th style="${thStyle}">Adım</th>
-              <th style="${thStyle}">Düzeltme KÇM</th>
-            </tr>
-            ${oppList.map(o=>{
-              const cust=custMyMap[o.ncst]||{};
-              const guessKcm=custKcmMap[o.ncst]||userKcmMap[o.my_id]?.kcm_id;
-              const girenAd=userKcmMap[o.my_id]?.ad||('MY#'+o.my_id);
-              return `<tr>
-                <td style="${rowStyle}">#${o.opp_id}</td>
-                <td style="${rowStyle}">${escapeHTML(cust.unvan||o.ncst||'?')}</td>
-                <td style="${rowStyle}">${escapeHTML(girenAd)}</td>
-                <td style="${rowStyle}">${escapeHTML(o.adim||'?')}</td>
-                <td style="${rowStyle};color:${guessKcm?'var(--green)':'var(--red);'}">
-                  ${guessKcm?'KÇM#'+guessKcm:'❌ Bulunamadı'}
-                </td>
-              </tr>`;
-            }).join('')}
-          </table>
-        </div>
-      </div>`;
-    }
-
-    if(visList.length>0){
-      html+=`<div style="margin-bottom:16px;">
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">📞 KÇM Eksik Temas Kayıtları (${visList.length})</div>
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-          <table style="width:100%;border-collapse:collapse;">
-            <tr style="background:var(--navy2);">
-              <th style="${thStyle}">visit_id</th><th style="${thStyle}">Müşteri</th>
-              <th style="${thStyle}">Giren MY</th><th style="${thStyle}">Durum</th>
-              <th style="${thStyle}">Düzeltme KÇM</th>
-            </tr>
-            ${visList.map(v=>{
-              const cust=custMyMap[v.ncst]||{};
-              const guessKcm=custKcmMap[v.ncst]||userKcmMap[v.my_id]?.kcm_id;
-              const girenAd=userKcmMap[v.my_id]?.ad||('MY#'+v.my_id);
-              return `<tr>
-                <td style="${rowStyle}">#${v.visit_id}</td>
-                <td style="${rowStyle}">${escapeHTML(cust.unvan||v.ncst||'?')}</td>
-                <td style="${rowStyle}">${escapeHTML(girenAd)}</td>
-                <td style="${rowStyle}">${escapeHTML(v.durum||'?')}</td>
-                <td style="${rowStyle};color:${guessKcm?'var(--green)':'var(--red);'}">
-                  ${guessKcm?'KÇM#'+guessKcm:'❌ Bulunamadı'}
-                </td>
-              </tr>`;
-            }).join('')}
-          </table>
-        </div>
-      </div>`;
-    }
-
-    // Düzelt butonu
-    const duzeltilebilenOpp=oppList.filter(o=>custKcmMap[o.ncst]||userKcmMap[o.my_id]?.kcm_id);
-    const duzeltilebilenVis=visList.filter(v=>custKcmMap[v.ncst]||userKcmMap[v.my_id]?.kcm_id);
-    html+=`<button class="btn" style="width:100%;background:var(--green);" onclick="veriSagligiDuzelt()">
-      ✅ ${duzeltilebilenOpp.length} fırsat + ${duzeltilebilenVis.length} temas kaydını otomatik düzelt
-    </button>`;
-    html+='</div>';
-
-    // Düzeltme verisini sakla
-    window._vsDuzeltOpp=oppList.map(o=>({id:o.opp_id,kcm:custKcmMap[o.ncst]||userKcmMap[o.my_id]?.kcm_id,musteri_my_id:custMyMap[o.ncst]?.my_id||o.musteri_my_id})).filter(x=>x.kcm);
-    window._vsDuzeltVis=visList.map(v=>({id:v.visit_id,kcm:custKcmMap[v.ncst]||userKcmMap[v.my_id]?.kcm_id,musteri_my_id:custMyMap[v.ncst]?.my_id||v.musteri_my_id})).filter(x=>x.kcm);
-
-    // v30.83: ÇİFT KAYIT bölümü
-    const _cift = await _vsCiftKayitBul();
-    const _cv=_vsCiftRender(_cift.visDup,'visit_id','tarih_saat','📝 Çift Temas');
-    const _co=_vsCiftRender(_cift.oppDup,'opp_id','olusturma_tarihi','💼 Çift Fırsat (aynı ürün, 10 dk)');
-    const _ct=_vsCiftRender(_cift.tskDup,'task_id','olusturma_tarihi','✅ Çift Görev (aynı başlık, 10 dk)');
-    window._vsCiftSil={ visits:_cv.silId, opportunities:_co.silId, tasks:_ct.silId };
-    const _toplamCift=_cv.silId.length+_co.silId.length+_ct.silId.length;
-    if(_toplamCift>0){
-      html+=`<div style="margin-top:20px;border-top:2px solid var(--border);padding-top:14px;">`;
-      html+=`<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;">🔁 Çift Kayıtlar — toplam ${_toplamCift} fazla</div>`;
-      html+=_cv.html+_co.html+_ct.html;
-      html+=`</div>`;
-    } else {
-      html+=`<div style="margin-top:20px;border-top:2px solid var(--border);padding-top:14px;color:var(--green);font-size:13px;">✅ Son 30 günde çift kayıt yok.</div>`;
-    }
-
-    sonucDiv.innerHTML=html;
-  }catch(err){
-    sonucDiv.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;
-    console.error(err);
-  }
-}
-
-async function veriSagligiDuzelt(){
-  const oList=window._vsDuzeltOpp||[];
-  const vList=window._vsDuzeltVis||[];
-  if(!oList.length&&!vList.length){toast('Düzeltilecek kayıt yok','info');return;}
-  if(!confirm(`${oList.length} fırsat ve ${vList.length} temas kaydı güncellenecek. Onaylıyor musunuz?`)) return;
-
-  const sonucDiv=document.getElementById('veriSagligiSonuc');
-  sonucDiv.innerHTML='<div class="loader"><div class="spinner"></div></div><div style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;">Düzeltiliyor...</div>';
-
-  let hatalar=[], ok=0;
-  try{
-    // Fırsatları güncelle
-    for(const o of oList){
-      const upd={kcm_id:o.kcm};
-      if(o.musteri_my_id) upd.musteri_my_id=o.musteri_my_id;
-      const{error}=await sb.from('opportunities').update(upd).eq('opp_id',o.id);
-      if(error) hatalar.push('opp#'+o.id+': '+error.message);
-      else ok++;
-    }
-    // Temas kayıtlarını güncelle
-    for(const v of vList){
-      const upd={kcm_id:v.kcm};
-      if(v.musteri_my_id) upd.musteri_my_id=v.musteri_my_id;
-      const{error}=await sb.from('visits').update(upd).eq('visit_id',v.id);
-      if(error) hatalar.push('visit#'+v.id+': '+error.message);
-      else ok++;
-    }
-    if(hatalar.length){
-      sonucDiv.innerHTML=`<div style="color:var(--red);font-size:12px;">${ok} başarılı, ${hatalar.length} hata:<br>${hatalar.join('<br>')}</div>`;
-    } else {
-      sonucDiv.innerHTML=`<div style="padding:20px;text-align:center;color:var(--green);font-size:14px;">✅ ${ok} kayıt başarıyla güncellendi!</div>
-        <button class="btn" style="width:100%;margin-top:8px;" onclick="veriSagligiTara()">🔍 Tekrar Tara</button>`;
-      toast(`${ok} kayıt düzeltildi!`,'success');
-    }
-  }catch(err){
-    sonucDiv.innerHTML=`<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;
-  }
-}
 
 
 // ============================================================
@@ -1800,4 +1723,236 @@ async function impersonateUser(myId){
   if(!user){toast('Kullanıcı bulunamadı','error');return;}
   closeModal('impersonateModal');
   await startImpersonation(user);
+}
+
+// ============================================================
+// V31.86: VERİ KALİTESİ DENETİM MODÜLÜ — admin ekranı
+//   Devir notu: claude/DEVIR-NOTU_Veri-Kalitesi-Denetim-Modulu_2026-09-13.md
+//   Çekirdek tarama motoru: js/veri_kalite_denetim.js (veriKaliteTara()).
+//   Bu bölüm SADECE ekranı yönetir — hiçbir yazma işlemi burada yapılmaz.
+// ============================================================
+async function initVeriKaliteDenetim(){
+  const el = document.getElementById('veriKaliteSonuc');
+  if(!el) return;
+  if(typeof hasPerm==='function' && !hasPerm('veri_kalite_gor')){
+    el.innerHTML = '<div class="empty">Bu ekranı görüntüleme yetkiniz yok.</div>';
+    return;
+  }
+  const yetkiliCalistir = (typeof hasPerm==='function') ? hasPerm('veri_kalite_calistir') : false;
+  el.innerHTML = `
+    <button class="btn" style="width:100%;background:var(--blue);margin-bottom:10px;"
+      onclick="veriKaliteTaraBaslat()" ${yetkiliCalistir?'':'disabled title="Tarama çalıştırma yetkiniz yok"'}>
+      🔍 Veri Kalitesi Taramasını Başlat
+    </button>
+    <div id="veriKaliteSonucIcerik"></div>`;
+}
+
+async function veriKaliteTaraBaslat(){
+  const el = document.getElementById('veriKaliteSonucIcerik');
+  if(!el) return;
+  el.innerHTML = '<div class="loader"><div class="spinner"></div></div><div style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;">Taranıyor — bu işlem veritabanı büyüklüğüne göre zaman alabilir...</div>';
+  try{
+    const sonuc = await veriKaliteTara();
+    await _vkSonucRenderla(sonuc, el);
+  }catch(err){
+    el.innerHTML = `<div class="empty" style="color:var(--red);">Hata: ${escapeHTML(err.message)}</div>`;
+    console.error(err);
+  }
+}
+
+async function _vkSonucRenderla(sonuc, el){
+  if(sonuc.toplamBulgu===0){
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--green);font-size:14px;">✅ Tutarsızlık bulunamadı.</div>';
+    return;
+  }
+
+  const KONTROL_ETIKET = {
+    NCST:'NCST tutarsızlığı/orphan', MY_ID:'MY ID tutarsızlığı/orphan',
+    KCM_ID:'KÇM ID tutarsızlığı/orphan', KCM_ADI:'KÇM Adı cache tutarsızlığı',
+    MY_ADI:'MY Adı cache tutarsızlığı', MUSTERI_UNVANI:'Müşteri Ünvanı cache tutarsızlığı',
+    KONTAK_MUKERRER:'Mükerrer kontak (farklı firma)'
+  };
+
+  let html = `<div style="margin-bottom:14px;font-size:13px;font-weight:700;">
+    📊 Toplam ${sonuc.toplamBulgu} bulgu</div>`;
+  html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">';
+  sonuc.kontrolOzet.forEach(k=>{
+    html += `<div style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;">
+      ${escapeHTML(KONTROL_ETIKET[k.kontrol_tipi]||k.kontrol_tipi)}: <b>${k.adet}</b></div>`;
+  });
+  html += '</div>';
+
+  // Detay tablosu — düzeltilebilir (öneri var) ve diğer (insan kararı) satırlar AYRI sorgulanır.
+  // Not: tek sorguda .limit(500) kullanılırsa, öneri taşımayan bulgu sayısı çoksa (örn. NCST orphan)
+  // öneri taşıyan satırlar (örn. KÇM Adı) önizleme penceresinin dışında kalıp checkbox hiç görünmüyordu.
+  const { data: duzeltilebilirler, count: duzeltilebilirToplam } = await sb.from('veri_kalite_tespit')
+    .select('*', { count:'exact' }).eq('tarama_id', sonuc.taramaId)
+    .not('onerilen_deger','is',null).order('id').limit(500);
+  const { data: digerBulgular } = await sb.from('veri_kalite_tespit')
+    .select('*').eq('tarama_id', sonuc.taramaId)
+    .is('onerilen_deger', null).order('id').limit(200);
+
+  const detaylar = [...(duzeltilebilirler||[]), ...(digerBulgular||[])];
+  const yetkiliOnayla = (typeof hasPerm==='function') ? hasPerm('veri_kalite_duzelt_onayla') : false;
+  const duzeltilebilirSayisi = duzeltilebilirToplam ?? (duzeltilebilirler||[]).length;
+
+  html += `<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">
+    ${detaylar.length} satır önizleniyor (ekranda en fazla ${detaylar.length} satır, tüm bulgular Excel raporunda).
+    ${duzeltilebilirSayisi} satır otomatik düzeltilebilir (öneri var), diğerleri insan kararı gerektiriyor.</div>`;
+
+  const yetkiliCalistir = (typeof hasPerm==='function') ? hasPerm('veri_kalite_calistir') : false;
+  if(yetkiliCalistir){
+    html += `<button class="btn btn-orange-outline" style="width:100%;margin-bottom:10px;"
+      onclick="veriKaliteExcelIndir('${sonuc.taramaId}')">📊 Detaylı Excel Rapor İndir</button>`;
+  }
+  if(yetkiliOnayla && duzeltilebilirSayisi>0){
+    html += `<button class="btn" style="width:100%;background:var(--green);color:#04301f;margin-bottom:10px;"
+      onclick="veriKaliteDuzeltUygula('${sonuc.taramaId}')">✅ Seçilenleri Düzelt</button>`;
+  }
+
+  html += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:500px;">
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <tr style="background:var(--navy2);position:sticky;top:0;">
+      <th style="padding:6px;"></th>
+      <th style="padding:6px;text-align:left;">Kontrol</th><th style="padding:6px;text-align:left;">Tablo</th>
+      <th style="padding:6px;text-align:left;">Kayıt</th><th style="padding:6px;text-align:left;">Kolon</th>
+      <th style="padding:6px;text-align:left;">Mevcut</th><th style="padding:6px;text-align:left;">Önerilen</th>
+    </tr>`;
+  (detaylar||[]).forEach(d=>{
+    const duzeltilebilir = d.onerilen_deger!==null && d.onerilen_deger!==undefined;
+    html += `<tr style="border-top:1px solid var(--border);" data-vk-durum="${escapeHTML(d.durum||'bekliyor')}">
+      <td style="padding:6px;">${(duzeltilebilir && yetkiliOnayla)
+        ? `<input type="checkbox" class="vk-secim" value="${d.id}" ${d.durum==='uygulandi'?'disabled checked':''}>`
+        : ''}</td>
+      <td style="padding:6px;">${escapeHTML(KONTROL_ETIKET[d.kontrol_tipi]||d.kontrol_tipi)}</td>
+      <td style="padding:6px;">${escapeHTML(d.tablo_adi||'')}</td>
+      <td style="padding:6px;">${escapeHTML(d.kayit_pk||'')}</td>
+      <td style="padding:6px;">${escapeHTML(d.kolon_adi||'')}</td>
+      <td style="padding:6px;color:var(--red);">${escapeHTML(d.mevcut_deger||'')}</td>
+      <td style="padding:6px;color:var(--green);">${duzeltilebilir?escapeHTML(d.onerilen_deger):'<span style="color:var(--text3);">(insan kararı gerekli)</span>'}
+        ${d.durum==='uygulandi'?' <span style="color:var(--green);">✓ uygulandı</span>':''}</td>
+    </tr>`;
+  });
+  html += '</table></div>';
+  html += `<button class="btn" style="width:100%;margin-top:10px;background:var(--blue);" onclick="veriKaliteTaraBaslat()">🔍 Tekrar Tara</button>`;
+
+  el.innerHTML = html;
+}
+
+/* ------------------------------------------------------------
+   DÜZELTME UYGULAMA — sadece onerilen_deger dolu (otomatik hesaplanmış)
+   satırlar için, sadece işaretlenenler, sadece bu yetkiyle.
+   Kaynak tabloya YAZAN TEK NOKTA budur.
+   ------------------------------------------------------------ */
+async function veriKaliteDuzeltUygula(taramaId){
+  if(typeof hasPerm==='function' && !hasPerm('veri_kalite_duzelt_onayla')){
+    toast('Bu işlem için yetkiniz yok','error'); return;
+  }
+  const secililer = [...document.querySelectorAll('.vk-secim:checked')].map(el=>parseInt(el.value));
+  if(secililer.length===0){ toast('Düzeltilecek satır seçilmedi','info'); return; }
+  if(!confirm(`${secililer.length} satır düzeltilecek. Bu işlem veritabanını değiştirir. Onaylıyor musunuz?`)) return;
+
+  const { data: tespitler, error: tErr } = await sb.from('veri_kalite_tespit').select('*').in('id', secililer);
+  if(tErr){ toast('Tespitler okunamadı: '+tErr.message,'error'); return; }
+
+  let ok=0, hata=[];
+  for(const t of (tespitler||[])){
+    if(t.onerilen_deger===null || t.onerilen_deger===undefined){
+      hata.push(`#${t.id}: önerilen değer yok, atlandı`); continue;
+    }
+    const pkKolon = (typeof _VK_PK_KOLONLARI!=='undefined') ? _VK_PK_KOLONLARI[t.tablo_adi] : null;
+    if(!pkKolon){
+      hata.push(`#${t.id}: ${t.tablo_adi} için birincil anahtar kolonu tanımlı değil, atlandı`); continue;
+    }
+    try{
+      const { error: uErr } = await sb.from(t.tablo_adi).update({ [t.kolon_adi]: t.onerilen_deger }).eq(pkKolon, t.kayit_pk);
+      if(uErr) throw uErr;
+      await sb.from('veri_kalite_tespit').update({
+        durum:'uygulandi', karar_tarihi:new Date().toISOString(),
+        karar_my_id: (typeof currentUser!=='undefined' && currentUser)?currentUser.my_id:null
+      }).eq('id', t.id);
+      ok++;
+    }catch(e){
+      hata.push(`#${t.id}: ${e.message}`);
+      await sb.from('veri_kalite_tespit').update({ uygulama_hatasi: e.message }).eq('id', t.id);
+    }
+  }
+
+  if(hata.length){
+    toast(`${ok} düzeltildi, ${hata.length} hata`,'error');
+    console.error('Veri kalitesi düzeltme hataları:', hata);
+  } else {
+    toast(`${ok} satır düzeltildi`,'success');
+  }
+  await veriKaliteTaraBaslat(); // ekranı tazele
+}
+
+/* ------------------------------------------------------------
+   EXCEL RAPOR — bu taramanın TÜM bulgularını (ekran önizlemesiyle
+   sınırlı değil) XLSX olarak indirir. js/xlsx.full.min.js (SheetJS)
+   kullanır — sayfa zaten yüklüyor. Salt okuma, veritabanına yazmaz.
+   ------------------------------------------------------------ */
+async function veriKaliteExcelIndir(taramaId){
+  if(typeof hasPerm==='function' && !hasPerm('veri_kalite_calistir')){
+    toast('Bu işlem için yetkiniz yok','error'); return;
+  }
+  if(typeof XLSX==='undefined'){
+    toast('Excel kütüphanesi yüklenemedi (xlsx.full.min.js)','error'); return;
+  }
+  toast('Rapor hazırlanıyor…','info');
+
+  const KONTROL_ETIKET = {
+    NCST:'NCST tutarsızlığı/orphan', MY_ID:'MY ID tutarsızlığı/orphan',
+    KCM_ID:'KÇM ID tutarsızlığı/orphan', KCM_ADI:'KÇM Adı cache tutarsızlığı',
+    MY_ADI:'MY Adı cache tutarsızlığı', MUSTERI_UNVANI:'Müşteri Ünvanı cache tutarsızlığı',
+    KONTAK_MUKERRER:'Mükerrer kontak (farklı firma)'
+  };
+
+  // Tüm satırları sayfalayarak çek (PostgREST varsayılan limiti aşabilir)
+  const tumSatirlar = [];
+  const SAYFA = 1000;
+  for(let i=0;;i+=SAYFA){
+    const { data, error } = await sb.from('veri_kalite_tespit')
+      .select('*').eq('tarama_id', taramaId).order('id').range(i, i+SAYFA-1);
+    if(error){ toast('Rapor verisi okunamadı: '+error.message,'error'); return; }
+    tumSatirlar.push(...(data||[]));
+    if(!data || data.length < SAYFA) break;
+  }
+
+  if(tumSatirlar.length===0){ toast('Bu taramada bulgu yok','info'); return; }
+
+  const detaySatirlari = tumSatirlar.map(d=>({
+    'Kontrol': KONTROL_ETIKET[d.kontrol_tipi]||d.kontrol_tipi,
+    'Tablo': d.tablo_adi||'',
+    'Kayıt (PK)': d.kayit_pk||'',
+    'Kolon': d.kolon_adi||'',
+    'Mevcut Değer': d.mevcut_deger||'',
+    'Önerilen Değer': (d.onerilen_deger!==null && d.onerilen_deger!==undefined) ? d.onerilen_deger : '(insan kararı gerekli)',
+    'Durum': d.durum||'bekliyor',
+    'Bağlam Bilgisi': d.baglam_bilgisi ? JSON.stringify(d.baglam_bilgisi) : '',
+    'Karar Tarihi': d.karar_tarihi||'',
+    'Uygulama Hatası': d.uygulama_hatasi||''
+  }));
+
+  const ozetMap = {};
+  tumSatirlar.forEach(d=>{ ozetMap[d.kontrol_tipi] = (ozetMap[d.kontrol_tipi]||0)+1; });
+  const ozetSatirlari = Object.keys(ozetMap).map(k=>({
+    'Kontrol Tipi': KONTROL_ETIKET[k]||k, 'Adet': ozetMap[k]
+  }));
+  ozetSatirlari.push({ 'Kontrol Tipi': 'TOPLAM', 'Adet': tumSatirlar.length });
+
+  const wb = XLSX.utils.book_new();
+  const wsOzet = XLSX.utils.json_to_sheet(ozetSatirlari);
+  const wsDetay = XLSX.utils.json_to_sheet(detaySatirlari);
+  XLSX.utils.book_append_sheet(wb, wsOzet, 'Özet');
+  XLSX.utils.book_append_sheet(wb, wsDetay, 'Detay');
+
+  const tarih = new Date().toISOString().slice(0,10);
+  const dosyaAdi = `Veri_Kalitesi_Raporu_${tarih}_${taramaId.slice(0,8)}.xlsx`;
+  // V31.171: denetim izi
+  await veriCikisiKaydet({tur:'disa_aktarim',modul:'admin',fonksiyon:'veriKaliteExcelIndir',
+    rapor_adi:'Veri Kalitesi Raporu',bicim:'xlsx',dosya_adi:dosyaAdi,
+    satir_sayisi:tumSatirlar.length,kapsam:{tarama_id:taramaId}});
+  XLSX.writeFile(wb, dosyaAdi);
+  toast(`Excel raporu indirildi (${tumSatirlar.length} satır)`,'success');
 }

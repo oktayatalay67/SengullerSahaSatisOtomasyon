@@ -1,7 +1,40 @@
 // ============================================================
-// yetki.js — v1.2.5
-// Son güncelleme: 2026-08-26
+// yetki.js — v1.3.7
+//   v1.3.7 — (V31.204) Yeni kapsam modülü: gorev_ilerlet (Görevi İlerletme) — TÜM/KÇM/BAĞLI; satır yoksa yalnız atanan.
+//   v1.3.6 — (V31.195) Yeni izin: gorev_yonlendir (gorevleri baska kisiye yonlendirir; gorev_tumunu_gor yoksa yalniz kendi KCM'i). Otomatik atanmadi.
+//   v1.3.5 — (V31.194) Yeni izin: gorev_kcm_tumunu_gor (kendi KCM'indeki TUM gorevleri gorur). Otomatik atanmadi.
+//   v1.3.4 — (V31.191) Yeni izin: gorev_toplu_ata (Veri Yonetimi > Toplu Gorev). Otomatik atanmadi.
+//   v1.3.3 — (V31.189) Yeni izin: dashboard_gor + dashboard modulu (KCM karsilastirmali Dashboard).
+//     Otomatik atanmadi: Rol&Yetki ekranindan elle verilmeli; yoneticiler icin kapsam TUM, MY/FMY icin KCM.
+// Son güncelleme: 2026-09-19
 // Değişiklikler:
+//   v1.3.1 — (V31.135) Yeni izin anahtarı: donanim_hareket_raporu_gor — Stok
+//     Hareket Raporu (tüm stok hareketleri, tarih/aksiyon/ürün filtreli,
+//     Excel'e aktarılabilir) ekranını görüntüleme. Otomatik atanmadı, Rol&Yetki
+//     ekranından elle verilmesi gerekiyor.
+// yetki.js — v1.3.0
+// Son güncelleme: 2026-09-19
+// Değişiklikler:
+//   v1.3.0 — (V31.133) Yeni izin anahtarı: donanim_mutabakat_gor — Stok
+//     Mutabakat Raporu (sistem adedi vs IMEI sayısı) ekranını görüntüleme.
+//     Bu yeni bir anahtar olduğundan hiçbir role otomatik atanmadı; Depo &
+//     Muhasebe rolüne Rol&Yetki ekranından elle verilmesi gerekiyor.
+//   v1.2.9 — (V31.113) Donanım Satış Süreç Akışı V2 — yeni izin anahtarları:
+//     donanim_onrez_uzat, donanim_mukerrer_onay, donanim_emei_giris,
+//     donanim_finans_onay ('Donanım Takip' grubuna eklendi). Adım onay
+//     yetkileri Rol & Yetki ekranından atanır, kodda sabit rol adı yok.
+//   v1.2.8 — (V31.96) KAPSAM GÜVENLİK FIX: YETKI_MODUL_ADLARI'na 'hedef_giris'
+//     eklendi — Yönetici Paneli > Hedef Yönetimi > Hedef Girişi ekranı hiç
+//     kapsam kontrolü yapmıyordu, her yönetici tüm şirket personelini görüyordu.
+//     Rol & Yetki > Görüntüleme sekmesinde artık bu modül için de TÜM/KÇM/BAĞLI/
+//     PRT+/PRT seçici çıkıyor. Detay: hedef.js v1.2.8 değişiklik notu.
+//   v1.2.7 — (V31.86) Veri Kalitesi Denetim Modülü izinleri eklendi:
+//     veri_kalite_gor, veri_kalite_calistir, veri_kalite_duzelt_onayla
+//     ('Yönetim' grubuna, KÇM/TÜM scope'suz — modül tüm veriyi tarar).
+//   v1.2.6 — (V31.70) KRİTİK GÜVENLİK FIX'in parçası: YETKI_MODUL_ADLARI'na
+//     'arama' (Ziyaret Teyit) eklendi — Rol & Yetki ekranında bu modül için de
+//     artık diğerleri gibi TÜM/KÇM/BAĞLI/PRT+/PRT kapsam seçici çıkıyor.
+//     Detay: arama.js v1.1.0 değişiklik notu.
 //   v1.2.5 — (V31.35) 'portfoy_yukle' izni 'veri_yonetimi' olarak yeniden
 //            adlandırıldı (Veri Yönetimi modülüne bağlandı). DB tarafında
 //            role_permissions.perm_key migrasyonu ayrı SQL ile yapılır.
@@ -39,8 +72,16 @@ const YETKI_SCOPE_TANIM = [
 
 const YETKI_MODUL_ADLARI = {
   musteri:'Müşteri', temas:'Temas / Ziyaret', firsat:'Fırsat',
-  gorev:'Görev', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
-  donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)'
+  gorev:'Görev', gorev_ilerlet:'Görevi İlerletme (durum değiştirme / tamamlama)', rapor_temas:'Temas Raporu', rapor_firsat:'Fırsat Raporu',
+  donanim:'Donanım Takip (Stok Görünürlüğü)', donanim_takip:'Donanım Takip (Süreç Takibi)',
+  arama:'Ziyaret Teyit (Arama)', // v1.2.6 (V31.7x): kritik guvenlik fix — daha once bu modulun HIC scope kisiti yoktu
+  lead:'Lead Aramaları (Çağrı Merkezi)', // V31.176: agent/raporcu hangi KÇM'nin listelerini görür
+  dashboard:'Dashboard (KÇM Karşılaştırma)', // V31.189: TÜM = tüm KÇM leri görür; KÇM/tanımsız = yalnız kendi KÇM si
+  hedef_giris:'Hedef Girişi (Çalışan Listesi)' // v1.2.8 (V31.96): Yönetici Paneli > Hedef Yönetimi > Hedef Girişi
+    // ekranı hiç kapsam kontrolü yapmıyordu, her yönetici tüm şirket personelini görüyordu.
+    // NOT: Bu modül DB'de henüz tanımlı değilse getScope() varsayılan olarak 'PRT' (sadece
+    // kendi) döner — ilk deploy sonrası her rol için Görüntüleme sekmesinden değer seçilmeli
+    // (ADMIN/SATIŞ DİREKTÖRÜ=TÜM önerilir, aksi halde onlar da sadece kendini görür).
 };
 
 const YETKI_ACTION_GRUP = [
@@ -54,7 +95,13 @@ const YETKI_ACTION_GRUP = [
       donanim_surec_ilerlet:'Satış sürecini ilerletir (Hazırla / süreç adımları)',
       donanim_imei_eslestir:'IMEI eşleştirme yapar (barcode)',
       donanim_sevk:'Fatura kesildi / Cihaz gönderildi adımları',
-      donanim_imei_gor:'IMEI numaralarını tam (maskesiz) görüntüler' } },
+      donanim_imei_gor:'IMEI numaralarını tam (maskesiz) görüntüler',
+      donanim_onrez_uzat:'Ön rezervasyon süresini uzatır',
+      donanim_mukerrer_onay:'Mükerrer ön rezervasyon talebini onaylar',
+      donanim_emei_giris:'Stok Onay / Emei Giriş adımını ilerletir',
+      donanim_finans_onay:'Turkcell Finans Onay adımını ilerletir',
+      donanim_mutabakat_gor:'Stok Mutabakat Raporu\'nu görüntüler (sistem adedi vs IMEI sayısı)',
+      donanim_hareket_raporu_gor:'Stok Hareket Raporu\'nu görüntüler (tüm stok hareketleri, filtreli, Excel)' } },
   { grup:'Yönetim', items:{
       admin_panel:'Admin paneline girebilir',
       yonetici_panel:'Yönetici paneline girebilir',
@@ -65,7 +112,24 @@ const YETKI_ACTION_GRUP = [
       talep_yonet:'Talepleri yönetir',
       yonetici_tam:'Tam yönetici işlemleri (Admin/Direktör)',
       gorev_tumunu_gor:'Tüm görevleri görür',
-      veri_yonetimi:'Veri Yönetimi ekranını kullanır (toplu güncelleme/yükleme)' } },
+      gorev_kcm_tumunu_gor:'Kendi KÇM\'indeki tüm görevleri görür (sahipsiz portföy görevleri dahil) — Satış Müdürü / Takım Lideri',
+      gorev_yonlendir:'Görevleri başka bir kişiye yönlendirir (tek ve toplu; not zorunlu). Tüm görevleri görme yetkisi yoksa yalnız kendi KÇM\'indekileri',
+      veri_yonetimi:'Veri Yönetimi ekranını kullanır (toplu güncelleme/yükleme)',
+      gorev_toplu_ata:'Veri Yönetimi > Toplu Görev: Excel ile toplu görev atar ve kendi yüklemesini iptal eder',
+      veri_kalite_gor:'Veri Kalitesi Denetim ekranını görüntüler',
+      veri_kalite_calistir:'Veri Kalitesi taramasını çalıştırır (Excel rapor üretir)',
+      veri_kalite_duzelt_onayla:'Veri Kalitesi düzeltme önerilerini onaylar/uygular',
+      veri_guvenlik_gor:'Veri Güvenliği ekranını görüntüler (rapor/Excel çıkış izi)',
+      veri_guvenlik_ozet:'Haftalık şüpheli hareket özetini e-posta ile alır' } },
+  { grup:'Dashboard', items:{
+      dashboard_gor:'KÇM karşılaştırmalı Dashboard ekranını görüntüler (kapsam: Görüntüleme sekmesi, dashboard modülü)' } },
+  { grup:'Çağrı Merkezi — Lead', items:{
+      lead_agent:'Lead aramaları yapar (agent ekranı)',
+      lead_rapor:'Lead çağrı analizini görür',
+      lead_liste_yonet:'Arama listesi oluşturur/kapatır, Excel yükler, filtreyle müşteri ekler',
+      // V31.183: silme AYRI yetki. Liste yönetimi olan herkes silemez —
+      // yalnız bu kutu işaretli roller. Arama izi (lead_arama) silinmez.
+      lead_sil:'Arama listesini ve listedeki firmaları SİLER (yalnız yönetim)' } },
   { grup:'Memnuniyet Arama', items:{
       arama_agent:'Ziyaret teyit araması yapar (agent ekranı)',
       arama_rapor:'Çağrı analizi/raporunu görür (yönetici)' } },
@@ -262,7 +326,7 @@ function _yEylemKartlari(){
 function _yRollerListesi(){
   let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
     + '<div style="font-size:11px;color:var(--text3);">Pasif roller kullanıcı formunda görünmez.</div>'
-    + '<button class="btn btn-green btn-sm" onclick="yetkiRolEkleModal()" style="width:auto;padding:8px 14px;">+ Yeni Rol</button></div>';
+    + '<button class="btn btn-sm" style="background:var(--blue);width:auto;padding:8px 14px;" onclick="yetkiRolEkleModal()">+ Yeni Rol</button></div>';
   _yRoller.forEach(r=>{
     h+='<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;">'
       + '<div style="flex:1;min-width:0;">'

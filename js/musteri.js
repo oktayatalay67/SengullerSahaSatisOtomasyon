@@ -1,4 +1,23 @@
 // ============================================================
+// musteri.js — v1.2.3
+// Son güncelleme: 2026-10-21
+// Değişiklikler:
+//   v1.2.3 — (V31.200) VERITABANI YUKU: musteri arama en az 3 harfle baslar (eskiden 2) ve 500 ms
+//     bekler (eskiden 300). Arama her harfte customers tablosunu ilike ile tarıyordu (günde ~18 bin
+//     sorgu, ort. 270 ms). Hem searchMusteri (ortak) hem onMusteriSearch icin.
+//   v1.2.2 — (V31.170) BUG: Müşteri ekranına ilk girişte, varsayılan liste
+//            yüklenirken bir müşteri seçilirse, geç biten loadMusteriDefault
+//            listeyi seçili kartın ALTINA geri yazıyordu (ikinci girişte veri
+//            önbellekte olduğu için görünmüyordu). Yarış durumu giderildi:
+//            (1) loadMusteriDefault'a sıra numarası (musteriListeSeq) eklendi,
+//            yeni çağrı/seçim eskisinin sonucunu geçersiz kılar; (2) kart açıkken
+//            (selectedMusteri dolu) liste ne yüklenir ne yazılır; (3) selectMusteri
+//            uçuştaki liste yüklemelerini iptal eder; (4) KÇM/Takım filtre
+//            değişimi kart açıkken listeyi yenilemez.
+//   v1.2.1 — (V31.103) initMusteriPage: window._pendingMusteriNcst kontrolü
+//            eklendi ("Hangi Müşteri?" ekranından gorev.js:
+//            hangiMusteriMusteriProfiline ile gelindiğinde ilgili müşteri
+//            kartı otomatik açılır — selectMusteri() çağrılır).
 // musteri.js — v31.50: kontak listelerinde ham telefon yerine _telG() (config.js)
 // musteri.js — v1.2.0
 // Son güncelleme: 2026-07-17
@@ -48,14 +67,17 @@ async function searchMusteri(val, opts){
   const r = document.getElementById(opts.resultsId);
   if(!r) return;
   const prompt = opts.promptId ? document.getElementById(opts.promptId) : null;
-  if(val.length < 2){
+  if(val.length < 3){
     opts.useShowClass ? r.classList.remove('show') : (r.style.display='none');
     if(prompt) prompt.classList.add('hide');
     return;
   }
   _searchTimers[opts.timerId] = setTimeout(async()=>{
     const {data} = await getCustomerBaseQuery(true)  // v1.2.1: forForm=true — KÇM scope
-      .select('ncst,unvan,vergi_no')
+      // v1.3.08: my_id,kcm_id eklendi — searchMusteri sonucundan seçilen obje
+      // doğrudan selC/selFirsatC vb. ile kullanılıyordu; my_id eksik olduğu için
+      // visits/opportunities.musteri_my_id NULL yazılıyordu (portföy sahibi kaybı bug'ı)
+      .select('ncst,unvan,vergi_no,my_id,kcm_id')
       .or(`ncst.ilike.%${val}%,unvan.ilike.%${val}%,vergi_no.ilike.%${val}%`)
       .limit(opts.limit||20);
     if(!data?.length){
@@ -85,7 +107,7 @@ async function searchMusteri(val, opts){
       r.appendChild(div);
     });
     opts.useShowClass ? r.classList.add('show') : (r.style.display='');
-  }, 300);
+  }, 500);
 }
 
 function searchPrMusteri(val){ searchMusteri(val,{timerId:'pr',resultsId:'prMusteriResults',onSelect:c=>selectPrMusteri(c.ncst,c.unvan||c.ncst)}); }
@@ -548,6 +570,7 @@ let musteriSearchTimer = null;
 let musteriPage = 0;
 const MUSTERI_PAGE_SIZE = 10;
 let musteriAllLoaded = false;
+let musteriListeSeq = 0; // V31.170: loadMusteriDefault sıra numarası (eski sorgu yeni durumu ezmesin)
 
 async function initMusteriPage(){
   if(kcmMyIds.length === 0) await loadKcmMyIds();
@@ -575,6 +598,17 @@ async function initMusteriPage(){
 
   await loadMusteriOzetler();
   await loadMusteriDefault();
+
+  // V31.103: "Hangi Müşteri?" ekranından "Müşteri Profiline Git" ile gelindiyse
+  // (window._pendingMusteriNcst — gorev.js:hangiMusteriMusteriProfiline),
+  // ilgili müşteri kartını otomatik aç. selectMusteri() search/liste
+  // state'ini resetlediği için initMusteriPage'in TÜM işi bittikten SONRA
+  // çağrılması gerekiyor — aksi halde yukarıdaki reset'ler bunu ezer.
+  if (window._pendingMusteriNcst) {
+    const ncst = window._pendingMusteriNcst;
+    window._pendingMusteriNcst = null;
+    await selectMusteri(ncst);
+  }
 }
 
 function switchMusteriTab(tab){
@@ -752,20 +786,23 @@ async function musteriKcmChanged(){
   const kcmId=document.getElementById('musteriKcmFilter')?.value||'';
   await _hiyerarsikKcmChanged('musteriKcmFilter','musteriTakimFilter','musteriMyFilter', null);
   musteriPage=0; musteriAllLoaded=false;
-  await loadMusteriDefault();
+  if(!selectedMusteri) await loadMusteriDefault(); // V31.170: kart açıkken liste yenilenmez
   loadMusteriOzetler();
 }
 
 async function musteriTakimChanged(){
   await _hiyerarsikTakimChanged('musteriTakimFilter','musteriKcmFilter','musteriMyFilter', null);
   musteriPage=0; musteriAllLoaded=false;
-  await loadMusteriDefault();
+  if(!selectedMusteri) await loadMusteriDefault(); // V31.170: kart açıkken liste yenilenmez
   loadMusteriOzetler();
 }
 
 async function loadMusteriDefault(append=false){
   if(musteriAllLoaded) return;
+  if(selectedMusteri) return; // V31.170: müşteri kartı açıkken varsayılan liste yüklenmez
+  const mySeq = ++musteriListeSeq; // V31.170: bu çağrının sıra numarası
   if(Object.keys(myIdToName).length===0) await loadKcmMyIds();
+  if(mySeq !== musteriListeSeq || selectedMusteri) return;
   const c = document.getElementById('musteriDefaultList');
   if(!append) c.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   const myFilterVal=document.getElementById('musteriMyFilter')?.value||'';
@@ -785,6 +822,8 @@ async function loadMusteriDefault(append=false){
     if(ids.length) defQ=defQ.in('my_id',ids);
   } else if(kcmFilterVal) defQ=defQ.eq('kcm_id',parseInt(kcmFilterVal));
   const {data} = await defQ.order('guncelleme_tarihi',{ascending:false,nullsFirst:false}).order('unvan').range(musteriPage*MUSTERI_PAGE_SIZE, (musteriPage+1)*MUSTERI_PAGE_SIZE-1).limit(MUSTERI_PAGE_SIZE);
+  // V31.170: sorgu sürerken yeni bir çağrı/seçim olduysa sonucu yazma
+  if(mySeq !== musteriListeSeq || selectedMusteri) return;
   if(!data || data.length===0){
     if(!append) c.innerHTML = '<div class="empty">Müşteri bulunamadı.</div>';
     musteriAllLoaded = true; return;
@@ -819,7 +858,7 @@ async function loadMoreMusteri(){
 async function onMusteriSearch(val){
   clearTimeout(musteriSearchTimer);
   const r = document.getElementById('musteriSearchResults');
-  if(val.length < 2){
+  if(val.length < 3){
     r.classList.remove('show');
     musteriPage=0; musteriAllLoaded=false;
     await loadMusteriDefault();
@@ -842,10 +881,11 @@ async function onMusteriSearch(val){
       <div class="search-item" onclick='selectMusteri(${JSON.stringify(c.ncst)})'>${escapeHTML(c.unvan)}<span style="font-size:11px;color:var(--text2);margin-left:8px;">${c.ncst}</span></div>
     `).join('');
     r.classList.add('show');
-  }, 300);
+  }, 500);
 }
 
 async function selectMusteri(ncst){
+  musteriListeSeq++; // V31.170: uçuştaki varsayılan liste yüklemelerini geçersiz kıl
   document.getElementById('musteriSearchResults').classList.remove('show');
   document.getElementById('musteriSearchInp').value = '';
   document.getElementById('musteriDefaultList').innerHTML = '';

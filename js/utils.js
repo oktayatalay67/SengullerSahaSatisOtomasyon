@@ -1,7 +1,27 @@
 // ============================================================
-// utils.js — v1.0.3
-// Son güncelleme: 2026-08-20
+// utils.js — v1.0.9
 // Değişiklikler:
+//   v1.0.9 (V31.203) — tekSeferCalistir/tekSeferBasarili: tüm Kaydet/Tamam tuşları için merkezi çift tıklama koruması.
+//   v1.0.8 (V31.189) — navTo: pageDashboardKcm -> initDashboardKcm() (js/dashboard.js).
+//   v1.0.6 (V31.176) — Çağrı Merkezi ara menüsü: navTo içine pageCagriMerkezi
+//            ve pageLead kayıtları, initCagriMerkezi() (iki kutunun yetkiye
+//            göre görünürlüğü). Navigasyon katmanında — iki modülü birlikte
+//            ilgilendirdiği için özellik modülüne konmadı (Bölüm 12).
+// Son güncelleme: 2026-10-08
+// Değişiklikler:
+//   v1.0.5 (V31.169) — FIX: Tarayıcı yakınlaştırması %100 değilken (Ctrl +/-)
+//            topbar ve alt versiyon barı titriyordu (Görev > Düzenle > Kapat
+//            ile başlıyor, Ctrl+0 ile kesiliyordu). Sebep: V31.30'daki
+//            visualViewport senkronu her resize/scroll olayında kesirli piksel
+//            değerini (örn. 0.4px) koşulsuz yazıyordu; bu değerler topbar ve
+//            footer'ın translateY'sine gidip her olayda yeniden boyama
+//            tetikliyordu. Artık: (1) kilitleme yalnızca gerçek pinch-zoom
+//            varken (vv.scale > 1.01) uygulanır, aksi halde değerler 0'dır;
+//            (2) değerler tam sayıya yuvarlanır; (3) değer değişmediyse CSS
+//            yazılmaz; (4) olaylar kare başına tek yazıma indirilir
+//            (requestAnimationFrame). Pinch-zoom davranışı (V31.30) korunur.
+//   v1.0.4 (V31.101) — navTo: pageHangiMusteri için initHangiMusteri() çağrısı
+//            eklendi (yeni "Hangi Müşteri?" modülü, js/gorev.js içinde).
 //   v1.0.3 (V31.33) — navTo: pageDuyuru için loadDuyurular() çağrısı eklendi
 //            (Duyurular modülü, js/duyuru.js).
 //   v1.0.2 (V31.30) — FIX: Masaüstünde trackpad/Ctrl ile pinch-tarzı zoom
@@ -26,15 +46,31 @@
 (function(){
   if(!window.visualViewport) return;
   const vv = window.visualViewport;
-  function syncVisualViewport(){
-    const top = vv.offsetTop || 0;
-    const bottom = (vv.offsetTop||0) + (vv.height||window.innerHeight) - window.innerHeight;
+  // V31.169: son yazılan değerler ve bekleyen kare. Değer değişmediyse CSS'e
+  // yazılmaz; aynı karedeki birden fazla olay tek yazıma indirilir.
+  let lastTop = null, lastBottom = null, rafId = 0;
+  function applyVisualViewport(){
+    rafId = 0;
+    let top = 0, bottom = 0;
+    // Kilitleme yalnızca gerçek pinch-zoom varken gerekir (vv.scale > 1).
+    // Tarayıcı yakınlaştırması (Ctrl +/-) vv.scale'i değiştirmez; orada
+    // vv.height ile innerHeight arasındaki kesirli fark titremeye yol açıyordu.
+    if((vv.scale || 1) > 1.01){
+      top = Math.round(vv.offsetTop || 0);
+      bottom = Math.round((vv.offsetTop||0) + (vv.height||window.innerHeight) - window.innerHeight);
+    }
+    if(top === lastTop && bottom === lastBottom) return;
+    lastTop = top; lastBottom = bottom;
     document.documentElement.style.setProperty('--vvy-top', top+'px');
     document.documentElement.style.setProperty('--vvy-bottom', bottom+'px');
   }
+  function syncVisualViewport(){
+    if(rafId) return;
+    rafId = requestAnimationFrame(applyVisualViewport);
+  }
   vv.addEventListener('resize', syncVisualViewport);
   vv.addEventListener('scroll', syncVisualViewport);
-  syncVisualViewport();
+  applyVisualViewport();
 })();
 
 /* ===== YARDIMCILAR ===== */
@@ -128,7 +164,22 @@ function renderLogSection(tabloAdi, kayitId, logs, containerId){
 
 /* ===== NAVİGASYON ===== */
 /* ===== NAVİGASYON ===== */
-function showPage(pid){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(pid).classList.add('active');}
+function showPage(pid){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const el=document.getElementById(pid);
+  if(!el) return;
+  el.classList.add('active');
+  // V31.185 — SAYFA DEGISINCE KAYDIRMA BASA ALINIR.
+  // Oktay'in bildirdigi hata: "Cagri merkezi modulune girildiginde ekran
+  // simsiyah geliyor, asagiya cekince menuler geliyor." Nedeni: uzun bir
+  // sayfadan (orn. musteri listesi) gelindiginde yeni sayfa onceki kaydirma
+  // konumunda aciliyordu; ustteki menu kutulari ekranin disinda kaliyordu.
+  // Tek bir yerde cozuldugu icin TUM modulleri birden duzeltir.
+  try{
+    el.querySelectorAll('.scroll').forEach(s=>{ s.scrollTop=0; });
+    if(typeof window.scrollTo==='function') window.scrollTo(0,0);
+  }catch(e){ /* kaydirma sifirlanamadi — sayfa yine de acilir, bloke etmez */ }
+}
 let navHistory=[];
 function navTo(pid,reset=false){
   // Mevcut sayfayı history'ye ekle
@@ -152,7 +203,11 @@ function navTo(pid,reset=false){
   if(pid==='pageDuyuru'){ if(typeof loadDuyurular==='function') loadDuyurular(); }
   if(pid==='pageFirsatForm'){if(reset)initFirsatForm();else initFirsatForm();}
   if(pid==='pageGorev'){initGorevModulu();}
+  if(pid==='pageHangiMusteri'){ if(typeof initHangiMusteri==='function') initHangiMusteri(); }
+  if(pid==='pageCagriMerkezi'){ initCagriMerkezi(); }                               // V31.176
   if(pid==='pageArama'){ if(typeof initAramaEkrani==='function') initAramaEkrani(); }
+  if(pid==='pageDashboardKcm'){ if(typeof initDashboardKcm==='function') initDashboardKcm(); }   // V31.189
+  if(pid==='pageLead'){ initLeadEkrani(); }                                          // V31.176
   if(pid==='pageSevkiyat'){ if(typeof initSevkiyatPage==='function') initSevkiyatPage(); }   // V31.65
   if(pid==='pageGorevAdmin'){renderGorevTipleriAdmin();}
   if(pid==='pageAdmin'){ adminMenueGeri(); }
@@ -187,9 +242,56 @@ function goBack(){
     navTo('pageDash');
   }
 }
+/* ===== ÇAĞRI MERKEZİ ARA MENÜSÜ (V31.176) =====
+   İki kutu: Ziyaret Teyit (js/arama.js) ve Lead Aramaları (js/lead.js).
+   Navigasyon katmanında duruyor çünkü İKİ modülü birlikte ilgilendiriyor —
+   özellik modüllerinden birinin içine konsa, o dosya yüklenmediğinde diğer
+   kutu da kaybolurdu (çalışma kuralları Bölüm 12). */
+function initCagriMerkezi(){
+  const teyit = hasPerm('arama_agent') || hasPerm('arama_rapor');
+  const lead  = hasPerm('lead_agent')  || hasPerm('lead_rapor') || hasPerm('lead_liste_yonet');
+  const t=document.getElementById('cmTeyitBox'); if(t) t.style.display = teyit ? '' : 'none';
+  const l=document.getElementById('cmLeadBox');  if(l) l.style.display = lead  ? '' : 'none';
+}
+
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function openModal(id){document.getElementById(id).classList.add('show');}
 function toast(msg,type='info'){const c=document.getElementById('toastContainer');const t=document.createElement('div');t.className='toast '+type;t.innerHTML=msg;c.appendChild(t);setTimeout(()=>t.remove(),3800);}
 
+
+/* ============================================================
+   V31.203 — CIFT TIKLAMA KORUMASI (tek merkez)
+   Kayit/gorev/firsat ureten tum Kaydet/Tamam tuslari bu fonksiyondan gecer.
+   - Ayni anahtar calisirken 2./3. basis YOK SAYILIR (internet yavassa cift kayit olmaz).
+   - Tus calisirken pasif olur, bitince (hata olsa bile) eski haline doner.
+   - Basarili kayittan sonra AYNI icerikle (imza) tekrar basilirsa ikinci kayit yapilmaz.
+   Kullanim: function kaydet(){ return tekSeferCalistir('anahtar', _kaydetIc, {btn:'#id', imza:()=>'...'}); }
+   Ic fonksiyon basarida tekSeferBasarili('anahtar') cagirir (imza yalniz o zaman yazilir).
+   ============================================================ */
+const _TS={calisan:{},imza:{},basari:{}};
+function tekSeferBasarili(anahtar){ _TS.basari[anahtar]=true; }
+async function tekSeferCalistir(anahtar, fn, opt){
+  opt=opt||{};
+  if(_TS.calisan[anahtar]) return;                       // islem suruyor: sessizce yok say
+  let imza=null;
+  if(typeof opt.imza==='function'){ try{ imza=String(opt.imza()); }catch(e){ imza=null; } }
+  const son=_TS.imza[anahtar];
+  if(imza!==null && son && son.imza===imza && (Date.now()-son.zaman)<(opt.pencereMs||30000)){
+    toast('Bu kayıt zaten alındı — değişiklik yok, tekrar kaydedilmedi','info');
+    return;
+  }
+  _TS.calisan[anahtar]=true; _TS.basari[anahtar]=false;
+  let tuslar=[];
+  try{ tuslar=opt.btn?Array.from(document.querySelectorAll(opt.btn)):[]; }catch(e){ tuslar=[]; }
+  const eski=tuslar.map(b=>({b:b,html:b.innerHTML,dis:b.disabled}));
+  tuslar.forEach(b=>{ b.disabled=true; b.innerHTML='⏳ Kaydediliyor...'; });
+  try{
+    return await fn();
+  } finally{
+    eski.forEach(e=>{ try{ e.b.innerHTML=e.html; e.b.disabled=e.dis; }catch(x){} });
+    if(_TS.basari[anahtar] && imza!==null) _TS.imza[anahtar]={imza:imza,zaman:Date.now()};
+    _TS.basari[anahtar]=false; _TS.calisan[anahtar]=false;
+  }
+}
 
 // v30.41 utils loaded

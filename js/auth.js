@@ -1,7 +1,51 @@
 // ============================================================
-// auth.js — v1.2.19
-// Son güncelleme: 2026-08-26
+// auth.js — v1.2.31
+//   v1.2.31 (V31.189) — Ana menuye Dashboard kutusu (dashboard_gor yetkisiyle gorunur).
+//   v1.2.30 (V31.176) — Ana menudeki "Cagri Merkezi" kutusu lead yetkileriyle
+//     de gorunur (onceden yalniz arama_agent/arama_rapor).
+//   v1.2.29 (V31.173) — initApp sonunda denetimOzetKontrol() cagriliyor
+//     (haftalik supheli hareket ozeti; ADMIN olmayanda hemen cikar).
+//   v1.2.28 (V31.172) — FIX: startImpersonation izi, impersonating bayragi
+//     acilmadan once yazilir. Onceden ADMIN kendi hareketini vekaleten=true
+//     olarak kaydediyordu.
 // Değişiklikler:
+//   v1.2.27 (V31.171) — Vekaleten (impersonation) giris/cikis artik
+//     kaydediliyor: startImpersonation/stopImpersonation ->
+//     vekaletenIzKaydet() (js/denetim.js). Onceden hicbir iz kalmiyordu.
+//     stopImpersonation async oldu (iz reload oncesi yazilmali).
+// Son güncelleme: 2026-09-17
+// Değişiklikler:
+//   v1.2.26 — (V31.168) Parola sifirlama e-postasi artik js/bildirim.js
+//     icindeki bildirimGonder() ile gonderiliyor (eskiden donanim.js
+//     icindeki _sssoEmailGonder). `typeof ... === 'function'` korumasi
+//     KALDIRILDI: fonksiyon yoksa kod patlamali, sessizce gecmemeli —
+//     bu koruma eksikligi gizledigi icin hatali teshise yol acmisti.
+//   v1.2.25 — (V31.112) Marka adı: uygulama genelinde "Şengüller Saha Satış"
+//     ifadesi "Saha Satış Otomasyonu" olarak değiştirildi (index.html — title,
+//     giriş ekranı, tüm app-footer'lar). Bu dosyada değişen kod yok, sadece
+//     yorum satırlarındaki eski ifade bilgi amaçlı bırakıldı.
+//   v1.2.24 — (V31.111) DÜZELTME: V31.108'de yanlışlıkla Ana Menü'deki SABİT
+//     (position:fixed) alt app-footer kaldırılıp metni scroll içindeki
+//     appVersionInfo'ya taşınmıştı — geri alındı. setAppVersion tekrar sadece
+//     "V31.x | tarih saat" yazıyor, "© Şengüller Saha Satış" metni index.html
+//     tarafındaki sabit app-footer'da (diğer tüm ekranlarla aynı).
+//   v1.2.23 — (V31.109) "Yönetici Paneli" kutusu ayrı bölümden çıkarılıp ana
+//     menü ızgarasına (dashMainGrid) normal yarım-genişlik kutu olarak taşındı
+//     — "Uygulama Taleplerim" ile aynı satıra, diğerleri gibi 1/2 ölçekte
+//     giriyor. menu-box-full hesaplaması artık aramaBox/ymBox toggle'larından
+//     sonra çalışıyor ki güncel görünürlüğü doğru hesaba katsın.
+//   v1.2.22 — (V31.108) Ana Menü düzeni: loadDashboard içine, görünür kutu
+//     sayısı tek olduğunda son kutuyu tam satır genişliğine yayan mantık
+//     eklendi (menu-box-full CSS sınıfı) — "Hangi Müşteriye Gidelim" ve
+//     "Uygulama Taleplerim" artık yanlarında boşluk bırakmıyor. setAppVersion
+//     artık "© Şengüller Saha Satış" metnini de içeriyor — alttaki ayrı
+//     app-footer kaldırıldı, tek versiyon satırı kaldı.
+//   v1.2.21 — (V31.101) loadDashboard: Ana Menü'ye her dönüşte gorev.js'teki
+//     _gorevBekleyenSayisiHafif() çağrılıp Görevler rozeti tazeleniyor ve
+//     bekleyen görev varsa kısa bir toast bildirimi gösteriliyor.
+//   v1.2.20 — (V31.97) Ana Menü'deki "Hızlı Sevkiyat" kutusu (menuSevkiyatBox)
+//     kaldırıldı — Donanım Takip içine taşındı (bkz. donanim.js v1.0.33,
+//     index.html). loadDashboard'daki ilgili görünürlük kodu temizlendi.
 //   v1.2.19 — (V31.42) loadKcmMyIds ext_kod da yukler; myIdToExt + window.userSecici
 //             (isim/EXT ile MY arama) — Veri Yonetimi Toplu Atama secicisi icin.
 //   v1.2.18 — (V31.33) initApp'te girişte duyuru.js:_duyuruBadgeGuncelle()
@@ -54,6 +98,11 @@ window.onload=async()=>{
   if(!url||!key){ showPage('pageSetup'); return; }
   sb = supabase.createClient(url, key);
   document.getElementById('dbLedSpan')?.classList.remove('hide');
+
+  // V31.157: ?reset=<token> ile açıldıysa, normal login/oturum akışını atlayıp
+  // doğrudan "Yeni Şifre Belirle" ekranını göster.
+  if(await _sifreSifirlamaLinkKontrol()) return;
+
   const saved = JSON.parse(localStorage.getItem('cu')||'null');
   if(saved){
     // B6 fix: localStorage'daki kullanıcıyı DB'den doğrula (pasif/rol değişikliği kontrolü)
@@ -81,6 +130,84 @@ window.onload=async()=>{
     }
   } else showPage('pageLogin');
 };
+
+// ============================================================
+// V31.157: Şifremi Unuttum — email ile tek kullanımlık sıfırlama linki.
+// Hızlı/geçici çözüm: token users.sifre_sifirlama_token'da tutulur, 1 saat
+// geçerlidir. Şifreler mevcut mimariyle tutarlı biçimde düz metin (sifre_hash)
+// olarak yazılır — kalıcı çözüm 360 ile user/şifre modülü birleşimiyle gelecek.
+// ============================================================
+function showSifreUnuttum(){
+  document.getElementById('sifreUnuttumEmail').value = document.getElementById('loginEmail')?.value || '';
+  openModal('sifreUnuttumModal');
+}
+
+async function sifreSifirlamaTalebiGonder(){
+  const email = (document.getElementById('sifreUnuttumEmail').value||'').toLowerCase().trim();
+  if(!email){ toast('Email girin','error'); return; }
+  // Kullanıcı sistemde kayıtlı olsun ya da olmasın AYNI genel mesaj gösterilir
+  // (email numaralandırma/keşfini önlemek için).
+  const genelMesaj = 'Bu email sistemde kayıtlıysa, şifre sıfırlama linki gönderildi. Gelen kutunuzu kontrol edin.';
+  try{
+    const {data} = await sb.from('users').select('my_id,ad_soyad,email').eq('email', email).eq('aktif', true).maybeSingle();
+    if(data && data.email){
+      const token = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random())).replace(/-/g,'');
+      const son = new Date(Date.now() + 60*60*1000).toISOString(); // 1 saat geçerli
+      const {error:updErr} = await sb.from('users')
+        .update({sifre_sifirlama_token:token, sifre_sifirlama_son:son}).eq('my_id', data.my_id);
+      if(!updErr){
+        const link = location.origin + location.pathname + '?reset=' + token;
+        const subject = 'SSSO - Şifre Sıfırlama';
+        const text = `Merhaba ${data.ad_soyad||''},\n\nŞifrenizi sıfırlamak için aşağıdaki linke tıklayın (1 saat geçerlidir):\n${link}\n\nBu talebi siz yapmadıysanız bu emaili görmezden gelebilirsiniz.`;
+        const html = `<p>Merhaba ${escapeHTML(data.ad_soyad||'')},</p><p>Şifrenizi sıfırlamak için aşağıdaki linke tıklayın (1 saat geçerlidir):</p><p><a href="${link}">${escapeHTML(link)}</a></p><p>Bu talebi siz yapmadıysanız bu emaili görmezden gelebilirsiniz.</p>`;
+        await bildirimGonder([data.email], subject, text, html, 'sifre');
+      }
+    }
+  }catch(err){ console.error('[auth] şifre sıfırlama talebi hatası:', err.message||err); }
+  toast(genelMesaj, 'info');
+  closeModal('sifreUnuttumModal');
+}
+
+// Sayfa açılırken ?reset=<token> varsa doğrular ve "Yeni Şifre Belirle" ekranını
+// açar. true dönerse çağıran (window.onload) normal login/oturum akışını atlar.
+async function _sifreSifirlamaLinkKontrol(){
+  const params = new URLSearchParams(location.search);
+  const token = params.get('reset');
+  if(!token) return false;
+  showPage('pageLogin');
+  const {data, error} = await sb.from('users')
+    .select('my_id,ad_soyad,sifre_sifirlama_son').eq('sifre_sifirlama_token', token).maybeSingle();
+  if(error || !data || !data.sifre_sifirlama_son || new Date(data.sifre_sifirlama_son) < new Date()){
+    toast('Şifre sıfırlama linki geçersiz veya süresi dolmuş — lütfen tekrar talep edin','error');
+    history.replaceState(null,'',location.pathname);
+    return true;
+  }
+  window._sifreSifirlamaUserId = data.my_id;
+  window._sifreSifirlamaToken = token;
+  document.getElementById('sifreYeniBelirleAd').textContent = data.ad_soyad||'';
+  openModal('sifreYeniBelirleModal');
+  return true;
+}
+
+async function sifreYeniBelirleKaydet(){
+  const yeni = document.getElementById('sifreYeniBelirle1').value;
+  const tekrar = document.getElementById('sifreYeniBelirle2').value;
+  if(!yeni || yeni.length<4){ toast('En az 4 karakter','error'); return; }
+  if(yeni!==tekrar){ toast('Şifreler eşleşmiyor','error'); return; }
+  const userId = window._sifreSifirlamaUserId, token = window._sifreSifirlamaToken;
+  if(!userId || !token){ toast('Geçersiz oturum — sayfayı yenileyin','error'); return; }
+  // Token aynı UPDATE'te tekrar doğrulanır ve temizlenir (yarış durumuna/linkin
+  // iki kez kullanılmasına karşı tek nokta).
+  const {data, error} = await sb.from('users')
+    .update({sifre_hash:yeni, sifre_sifirlama_token:null, sifre_sifirlama_son:null})
+    .eq('my_id', userId).eq('sifre_sifirlama_token', token).select('my_id');
+  if(error){ toast('Hata: '+error.message,'error'); return; }
+  if(!data || !data.length){ toast('Link zaten kullanılmış veya süresi dolmuş','error'); return; }
+  toast('Şifreniz güncellendi, şimdi giriş yapabilirsiniz','success');
+  closeModal('sifreYeniBelirleModal');
+  history.replaceState(null,'',location.pathname);
+}
+
 function setAppVersion(){const now=new Date();document.getElementById('appVersionInfo').innerText=`${APP_VERSION} | ${now.toLocaleDateString('tr-TR')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;}
 // v1.2.9: Sayfa yüklenir yüklenmez tüm .app-ver etiketlerini ve title'ı tek kaynaktan doldur
 if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', applyAppVersion); }
@@ -128,11 +255,17 @@ async function initApp(){
   await loadKcmMyIds();
   await loadBagliMyIds();
   loadDashboard();
+  // V31.199: sürüm kaydı + eski sürüm uyarısı (js/surum.js). await EDİLMEZ, girişi bekletmez.
+  surumKontrolBaslat();
   // v31.26: Donanım Takip menü rozeti — kullanıcı ekranı hiç açmasa da girişte
   // onaylanmış siparişleri varsa ana menüde görünsün (tedarik akışı bildirimi).
   if(typeof _donanimBadgeGuncelle==='function') _donanimBadgeGuncelle();
   // v31.33: Duyurular menü rozeti — girişte okunmamış duyuru sayısı görünsün.
   if(typeof _duyuruBadgeGuncelle==='function') _duyuruBadgeGuncelle();
+  // V31.173: Haftalık şüpheli hareket özeti. İlk satırında ADMIN değilse
+  // çıkar — diğer kullanıcılar için maliyeti sıfırdır. await EDİLMEZ:
+  // girişi hiçbir koşulda bekletmez (bkz. js/denetim.js).
+  denetimOzetKontrol();
 }
 
 let myIdToName = {}; // my_id → ad_soyad map (tüm kullanıcılar)
@@ -176,13 +309,44 @@ function loadDashboard(){
   if(ab) ab.classList.toggle('hide', !hasPerm('admin_panel'));
   const pdBtn=document.getElementById('profilDegistirBtn');
   if(pdBtn) pdBtn.style.display = hasPerm('admin_panel') ? '' : 'none';
+  // V31.176: kutu artik Cagri Merkezi — teyit VEYA lead yetkilerinden biri varsa gorunur.
   const aramaBox=document.getElementById('menuAramaBox');
-  if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')));
-  // V31.65: Hızlı Sevkiyat kutusu — hem yönetim hem sevk yetkisi gerekir
-  const svkBox=document.getElementById('menuSevkiyatBox');
-  if(svkBox) svkBox.classList.toggle('hide', !(hasPerm('donanim_yonet')&&hasPerm('donanim_sevk')));
+  if(aramaBox) aramaBox.classList.toggle('hide', !(hasPerm('arama_agent')||hasPerm('arama_rapor')
+                                                 ||hasPerm('lead_agent')||hasPerm('lead_rapor')
+                                                 ||hasPerm('lead_liste_yonet')));
+  // V31.189: KCM karsilastirmali Dashboard kutusu (dashboard_gor yetkisi).
+  const dkmBox=document.getElementById('menuDashboardBox');
+  if(dkmBox) dkmBox.classList.toggle('hide', !hasPerm('dashboard_gor'));
+  // V31.97: Hızlı Sevkiyat Ana Menü'den kaldırıldı — Donanım Takip > Stok/
+  // Rezervasyon sekmelerinin içine taşındı (bkz. donanim.js initDonanimPage).
+  // V31.109: Yönetici Paneli artık ayrı bir bölüm değil, ana ızgaranın normal
+  // (yarım genişlik) bir kutusu — diğerleriyle aynı satıra 1/2 ölçekte giriyor.
   const ymBox=document.getElementById('yoneticiMenuBox');
   if(ymBox) ymBox.classList.toggle('hide', !hasPerm('yonetici_panel'));
+  // V31.108: Ana Menü kutu sayısı role göre değişiyor (bazı kutular gizli
+  // olabiliyor). Görünür kutu sayısı tek olduğunda son kutu yarım kalıp
+  // yanında boşluk bırakıyordu — artık son görünür kutu tam satır genişliğine
+  // yayılıyor (menu-box-full). aramaBox/ymBox toggle'larından SONRA çalışır ki
+  // güncel görünürlük durumunu hesaba katsın.
+  (function(){
+    const grid=document.getElementById('dashMainGrid');
+    if(!grid) return;
+    const visible=Array.prototype.filter.call(grid.children, function(el){
+      return !el.classList.contains('hide');
+    });
+    visible.forEach(function(el){ el.classList.remove('menu-box-full'); });
+    if(visible.length % 2 === 1){
+      visible[visible.length-1].classList.add('menu-box-full');
+    }
+  })();
+  // V31.101: Ana Menü'ye HER dönüşte (loadDashboard navTo/goBack ile buraya her
+  // gelişte çağrılır) bekleyen görev rozeti tazelenir ve varsa kısa bir toast
+  // bildirimi gösterilir — Görevler ekranı hiç açılmamış olsa bile.
+  if(typeof _gorevBekleyenSayisiHafif==='function'){
+    _gorevBekleyenSayisiHafif().then(function(n){
+      if(n>0 && typeof toast==='function') toast(n+' bekleyen göreviniz var 📋','info');
+    });
+  }
 }
 // v1.2.2: applyRBAC — KÇM rolleri sadece kcm_id ile filtreler
 // musteri_my_id.in.(...) OR kaldırıldı: full table scan'e yol açıyordu
@@ -224,13 +388,22 @@ async function startImpersonation(targetUser){
   const safeTarget = Object.assign({}, targetUser);
   delete safeTarget.sifre_hash;
   localStorage.setItem('cu', JSON.stringify(safeTarget));
+  // V31.172 FIX: iz, impersonating bayragi acilmadan ONCE yazilir. Onceden
+  // bayrak once aciliyordu, bu yuzden ADMIN'in kendi hareketi vekaleten=true
+  // gorunuyordu (kendi kendine vekalet). reload ONCESI ve await ile yazilir;
+  // aksi halde istek iptal olur ve iz kaybolur (bkz. js/denetim.js).
+  await vekaletenIzKaydet('startImpersonation', targetUser);
   localStorage.setItem('impersonating', '1');
   location.reload();
 }
 
-function stopImpersonation(){
+// V31.171: async oldu — vekaleten cikis izi reload'dan ONCE yazilmali.
+// index.html'deki onclick="stopImpersonation()" calismaya devam eder.
+async function stopImpersonation(){
   const adminBackup = localStorage.getItem('cu_admin_backup');
   if(!adminBackup){ toast('Görüntülenen profil bulunamadı','error'); return; }
+  // iz, currentUser hala hedef kullanici iken yazilir → vekaleten=true kaydedilir
+  await vekaletenIzKaydet('stopImpersonation', (typeof currentUser!=='undefined')?currentUser:null);
   localStorage.setItem('cu', adminBackup);
   localStorage.removeItem('cu_admin_backup');
   localStorage.removeItem('impersonating');
